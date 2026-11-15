@@ -46,6 +46,7 @@ import { AuraAIMessageContent } from "../components/AuraAIMessageContent";
 import { VoiceReader } from "../components/VoiceReader";
 import { AuraAIChatHistoryModal } from "../components/AuraAIChatHistoryModal";
 import { AuraAISavedKundaliModal } from "../components/AuraAISavedKundaliModal";
+import { PanditJiVedicTools } from "../components/PanditJiVedicTools";
 import { useSeo } from "../hooks/useSeo";
 
 export function AuraAIPage() {
@@ -81,6 +82,8 @@ export function AuraAIPage() {
   const [showRefreshToast, setShowRefreshToast] = useState(false);
   const [showChatHistoryModal, setShowChatHistoryModal] = useState(false);
   const [showSavedKundaliModal, setShowSavedKundaliModal] = useState(false);
+  const [showVedicToolsModal, setShowVedicToolsModal] = useState(false);
+  const [vedicToolsTab, setVedicToolsTab] = useState("milan");
   const [activeBirthDetails, setActiveBirthDetails] = useState(() => auraChatStore.getVerifiedBirthDetails());
   const [panditPrefs, setPanditPrefs] = useState(() => auraChatStore.getPanditPreferences());
   const [savedPanditSessions, setSavedPanditSessions] = useState(() => auraChatStore.getSavedSessions("panditji"));
@@ -391,7 +394,7 @@ export function AuraAIPage() {
     const isAstroQuery = (
       mode === "panditji" ||
       Boolean(effectiveBirthDetails) ||
-      /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र/i.test(textToSend || "")
+      /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|milan|gun milan|ashtakoot|mulank|bhagyank|numerology|panchang|muhurat|rahu kaal|chakra|kaal sarp|pitra|kemadruma|sade sati|dhaiya|lal kitab|bhava|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र|पंचांग|मुहूर्त|मिलान|गुण मिलान|मूलांक|भाग्यांक|अंक ज्योतिष|चक्र|कालसर्प|पितृ|केमद्रुम|नेपाली रुद्राक्ष|असली नकली|एक्स रे|प्राण प्रतिष्ठा|धारण विधि/i.test(textToSend || "")
     );
     const targetMode = isAstroQuery ? "panditji" : mode;
     if (isAstroQuery && mode !== "panditji") {
@@ -1035,6 +1038,19 @@ export function AuraAIPage() {
                 </button>
               </div>
 
+              <button
+                type="button"
+                onClick={() => {
+                  setVedicToolsTab("milan");
+                  setShowVedicToolsModal(true);
+                }}
+                className="aura-ai-action-btn"
+                style={{ width: "100%", justifyContent: "center", marginTop: "6px", padding: "7px 10px", fontSize: "11.5px", background: "#8c2b10", border: "1px solid #8c2b10", color: "#ffffff", fontWeight: 700 }}
+                title="कुंडली मिलान, अंक ज्योतिष, आज का पंचांग व 1-21 मुखी रुद्राक्ष विश्वकोश"
+              >
+                <Compass size={13} /> वैदिक टूल्स (मिलान · अंक · पंचांग)
+              </button>
+
               {/* Floating icon toggle */}
               <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #ebdccb' }}>
                 <div style={{ fontSize: '12px', color: '#5c3516', marginBottom: '6px', fontWeight: 600 }}>
@@ -1283,6 +1299,25 @@ export function AuraAIPage() {
                         {gOpt.label}
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVedicToolsTab("milan");
+                        setShowVedicToolsModal(true);
+                      }}
+                      style={{
+                        padding: "2px 8px",
+                        borderRadius: "10px",
+                        border: "1px solid #8c2b10",
+                        background: "#8c2b10",
+                        color: "#ffffff",
+                        fontWeight: 700,
+                        cursor: "pointer"
+                      }}
+                      title="कुंडली मिलान, अंक ज्योतिष, पंचांग व 1-21 मुखी ज्ञानकोश खोलें"
+                    >
+                      🔮 वैदिक टूल्स
+                    </button>
                   </div>
                 </div>
               </div>
@@ -2069,6 +2104,19 @@ export function AuraAIPage() {
           auraChatStore.saveVerifiedBirthDetails(profileData);
 
           handleSend(`🙏 श्री ${name} जी की जन्म कुंडली का संपूर्ण वैदिक विश्लेषण व रुद्राक्ष परामर्श (DOB: ${dob}, Time: ${birthTime}, Place: ${birthPlace})`, profileData);
+        }}
+      />
+
+      {/* Interactive Vedic Astrology & Rudraksha Tools Modal */}
+      <PanditJiVedicTools
+        isOpen={showVedicToolsModal}
+        onClose={() => setShowVedicToolsModal(false)}
+        initialTab={vedicToolsTab}
+        defaultBirthDetails={activeBirthDetails}
+        onAskPanditJi={(promptText) => {
+          skipNextModeResetRef.current = true;
+          setMode("panditji");
+          handleSend(promptText);
         }}
       />
     </Shell>

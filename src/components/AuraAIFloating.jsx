@@ -51,6 +51,7 @@ import { AuraAIMessageContent } from "./AuraAIMessageContent";
 import { VoiceReader } from "./VoiceReader";
 import { AuraAIChatHistoryModal } from "./AuraAIChatHistoryModal";
 import { AuraAISavedKundaliModal } from "./AuraAISavedKundaliModal";
+import { PanditJiVedicTools } from "./PanditJiVedicTools";
 
 
 export function AuraAIFloating() {
@@ -63,6 +64,7 @@ export function AuraAIFloating() {
   const [mode, setMode] = useState("standard");
   const [panditPrefs, setPanditPrefs] = useState(() => auraChatStore.getPanditPreferences());
   const [savedPanditSessions, setSavedPanditSessions] = useState(() => auraChatStore.getSavedSessions("panditji"));
+  const [showVedicToolsModal, setShowVedicToolsModal] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [timeTheme, setTimeTheme] = useState("theme-classic");
   const [pillState, setPillState] = useState("default");
@@ -884,7 +886,7 @@ export function AuraAIFloating() {
 
     const isAstroQuery = (
       mode === "panditji" ||
-      /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र/i.test(textToSend || "")
+      /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|milan|gun milan|ashtakoot|mulank|bhagyank|numerology|panchang|muhurat|rahu kaal|chakra|kaal sarp|pitra|kemadruma|sade sati|dhaiya|lal kitab|bhava|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र|पंचांग|मुहूर्त|मिलान|गुण मिलान|मूलांक|भाग्यांक|अंक ज्योतिष|चक्र|कालसर्प|पितृ|केमद्रुम|नेपाली रुद्राक्ष|असली नकली|एक्स रे|प्राण प्रतिष्ठा|धारण विधि/i.test(textToSend || "")
     );
     const targetMode = isAstroQuery ? "panditji" : (mode || "standard");
     const effectiveBirthDetails = targetMode === "panditji"
@@ -2241,6 +2243,23 @@ export function AuraAIFloating() {
                           {opt.label}
                         </button>
                       ))}
+                      <button
+                        type="button"
+                        onClick={() => setShowVedicToolsModal(true)}
+                        style={{
+                          padding: "2px 7px",
+                          borderRadius: "10px",
+                          border: "1px solid #8c2b10",
+                          background: "#8c2b10",
+                          color: "#ffffff",
+                          fontWeight: 700,
+                          fontSize: "10px",
+                          cursor: "pointer"
+                        }}
+                        title="कुंडली मिलान, अंक ज्योतिष, पंचांग व 1-21 मुखी ज्ञानकोश"
+                      >
+                        🔮 टूल्स
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -3408,6 +3427,18 @@ export function AuraAIFloating() {
           // Auto-send kundali calculation request for this profile
           const query = `🙏 श्री ${devoteeName} जी की जन्म कुंडली का संपूर्ण वैदिक विश्लेषण व रुद्राक्ष परामर्श (DOB: ${dob}, Time: ${birthTime}, Place: ${birthPlace})`;
           handleSend(query, profileData);
+        }}
+      />
+
+      {/* Interactive Vedic Astrology & Rudraksha Tools Modal */}
+      <PanditJiVedicTools
+        isOpen={showVedicToolsModal}
+        onClose={() => setShowVedicToolsModal(false)}
+        defaultBirthDetails={activeBirthDetails}
+        onAskPanditJi={(promptText) => {
+          skipNextModeResetRef.current = true;
+          setMode("panditji");
+          handleSend(promptText);
         }}
       />
     </>

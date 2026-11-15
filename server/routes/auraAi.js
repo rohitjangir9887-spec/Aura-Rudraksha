@@ -21,7 +21,10 @@ import {
   deleteAdminAiChat,
   clearAdminAiChats,
   getAdminMongoDbCheck,
-  getPublicTrendsEndpoint
+  getPublicTrendsEndpoint,
+  calculateKundaliMilanEndpoint,
+  calculateNumerologyEndpoint,
+  getDailyPanchangEndpoint
 } from "../controllers/auraAiController.js";
 import {
   handleAdminAgentChat,
@@ -48,6 +51,9 @@ const router = express.Router();
 // User & Public endpoints
 router.post("/chat", optionalAuth, chatAuraAI);
 router.post("/kundali", optionalAuth, calculateKundaliEndpoint);
+router.post("/kundali-milan", optionalAuth, calculateKundaliMilanEndpoint);
+router.post("/numerology", optionalAuth, calculateNumerologyEndpoint);
+router.get("/panchang", optionalAuth, getDailyPanchangEndpoint);
 router.get("/notes", optionalAuth, getUserNotesEndpoint);
 router.post("/notes", optionalAuth, setUserNoteEndpoint);
 router.delete("/notes/:key", optionalAuth, deleteUserNoteEndpoint);

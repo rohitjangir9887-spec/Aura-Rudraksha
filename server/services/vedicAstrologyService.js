@@ -15,6 +15,16 @@
  * - Authentic city geocoding & timezone resolution (120+ Indian and global cities)
  * - Zero guessing / zero mock data
  */
+import {
+  NAKSHATRA_27_KNOWLEDGE,
+  RASHI_12_KNOWLEDGE,
+  BHAVA_12_KNOWLEDGE,
+  GRAHA_9_REMEDIES,
+  DOSHA_YOGA_ENCYCLOPEDIA,
+  CHAKRA_RUDRAKSHA_MAP,
+  RUDRAKSHA_AUTHENTICITY_AND_CARE,
+  NUMEROLOGY_MULANK_GUIDE
+} from "./vedicKnowledgeService.js";
 
 export const RASHIS = [
   { id: 0, name: "Mesh", hindi: "मेष", english: "Aries", symbol: "♈", lord: "Mangal (Mars)", lordHindi: "मंगल देव", lordKey: "Mars", element: "Agni (Fire)", quality: "Chara (Movable)" },
@@ -2958,6 +2968,31 @@ export function determineAstrologicalIntent(userQuery = "") {
     return { type: "dasha_timing", label: "Vimshottari Dasha & Time Window Analysis" };
   }
 
+  // Kundali Milan / Marriage Compatibility (गुण मिलान)
+  if (/milan|gun\s*milan|ashtakoot|kundali\s*match|kundli\s*match|compatibility|मिलान|गुण\s*मिलान|अष्टकूट|वर[\s-]*वधू/i.test(q)) {
+    return { type: "kundali_milan", label: "Ashtakoota Kundali Milan & Marriage Compatibility", houses: [7, 2, 8], karakas: ["Venus", "Jupiter", "Moon"], dChart: "D9 Navamsha" };
+  }
+
+  // Numerology / Mulank / Bhagyank (अंक ज्योतिष)
+  if (/numerology|mulank|moolank|bhagyank|lucky\s*number|ank\s*jyotish|मूलांक|भाग्यांक|अंक\s*ज्योतिष|लकी\s*नंबर/i.test(q)) {
+    return { type: "numerology", label: "Vedic Numerology (Mulank & Bhagyank)", houses: [1, 5, 9], karakas: ["Sun", "Moon"] };
+  }
+
+  // Daily Panchang / Shubh Muhurat (पंचांग / मुहूर्त)
+  if (/panchang|muhurat|tithi|rahu\s*kaal|abhijit|choghadiya|पंचांग|मुहूर्त|तिथि|राहुकाल|अभिजीत/i.test(q)) {
+    return { type: "panchang", label: "Daily Vedic Panchang & Shubh Muhurat", houses: [1, 9], karakas: ["Sun", "Moon"] };
+  }
+
+  // 7 Chakras & Kundalini Meditation
+  if (/chakra|kundalini|muladhara|anahata|ajna|sahasrara|vishuddha|manipura|swadhishthana|चक्र|कुंडलिनी|मूलाधार|अनाहत|आज्ञा\s*चक्र|सहस्रार/i.test(q)) {
+    return { type: "chakra", label: "7 Chakras & Rudraksha Alignment", houses: [5, 8, 12], karakas: ["Ketu", "Jupiter"] };
+  }
+
+  // Nepal vs Indonesia, Lab X-Ray Testing, Pran Pratishtha & Care Rules
+  if (/nepal|indonesia|indonesian|nepali|x[\s-]*ray|sink\s*test|water\s*test|pran\s*pratishtha|siddhi|care|oiling|clean|sleep|bath|non[\s-]*veg|नेपाल|इंडोनेशिया|असली\s*रुद्राक्ष|नकली|पहचान|प्राण[\s-]*प्रतिष्ठा|साफ|नियम/i.test(q)) {
+    return { type: "authenticity_care", label: "Rudraksha Origin, X-Ray Authenticity & Wearing Rules" };
+  }
+
   // Rudraksha Selection & Dharan Vidhi
   if (/rudraksha|rudraksh|mukhi|beej mantra|dharan|pehne|koun sa rudraksh|रुद्राक्ष|मुखी|बीज मंत्र|धारण विधि|पहनूं|पहनना/i.test(q)) {
     return { type: "rudraksha", label: "Vedic Rudraksha Selection & Dharan Vidhi", houses: [1, 5, 9], karakas: ["Jupiter", "Sun", "Moon"] };
@@ -3635,11 +3670,197 @@ ${listStr}
 
 • 📿 **गौरी शंकर रुद्राक्ष:** शिव-पार्वती स्वरूप (चंद्र व शुक्र) — शीघ्र विवाह व दांपत्य प्रेम हेतु।
 • 📿 **गणेश रुद्राक्ष:** विघ्नहर्ता गणेश स्वरूप (बुध व राहु) — बुद्धि, रिद्धि-सिद्धि व सर्व विघ्न निवारण हेतु।
+• 📿 **गर्भ गौरी रुद्राक्ष:** माँ पार्वती व गणेश स्वरूप — संतान सुख व सुरक्षित मातृत्व हेतु।
 • 📿 **108+1 जप माला:** दैनिक मंत्र साधना, रक्तचाप संतुलन व प्राणिक रक्षा कवच हेतु।
 
 👇 **आपके लिए इनमें से कौन से 1 से 3 रुद्राक्ष आपकी जन्म कुंडली के लग्न, चंद्र राशि और महादशा के अनुसार 100% सटीक हैं, यह जानने के लिए कृपया अपनी जन्म तिथि (DOB), जन्म समय और जन्म स्थान दर्ज करें!**
 
 [AURA_KEYWORDS]: मेरी जन्म कुंडली बनाएं | 7 मुखी महालक्ष्मी रुद्राक्ष | 5 मुखी रुद्राक्ष | 11 मुखी हनुमान रुद्राक्ष`;
+  }
+
+  // Nepal vs Indonesia, Lab X-Ray Testing, Pran Pratishtha & Care Rules
+  if (/nepal|indonesia|indonesian|nepali|x[\s-]*ray|sink\s*test|water\s*test|pran\s*pratishtha|siddhi|care|oiling|rule|niyam|नेपाल|इंडोनेशिया|असली\s*रुद्राक्ष|नकली|पहचान|प्राण[\s-]*प्रतिष्ठा|नियम/i.test(q)) {
+    const ne = RUDRAKSHA_AUTHENTICITY_AND_CARE.nepalVsIndonesia;
+    const auth = RUDRAKSHA_AUTHENTICITY_AND_CARE.authenticityTesting;
+    const vidhi = RUDRAKSHA_AUTHENTICITY_AND_CARE.pranPratishthaVidhi.map((s, i) => `${i + 1}. ${s}`).join("\n");
+    const dos = RUDRAKSHA_AUTHENTICITY_AND_CARE.wearingRulesAndCare.dos.map(d => `✅ ${d}`).join("\n");
+    const donts = RUDRAKSHA_AUTHENTICITY_AND_CARE.wearingRulesAndCare.donts.map(d => `⚠️ ${d}`).join("\n");
+
+    return `🙏 **श्री गणेशाय नमः! हर हर महादेव!**
+
+मैं **AI पंडित जी** हूँ। **असली रुद्राक्ष की वैज्ञानिक पहचान, नेपाली बनाम इंडोनेशियन अंतर, प्राण-प्रतिष्ठा विधि व धारण के नियम** इस प्रकार हैं:
+
+### 🏔️ 1. ${ne.title}
+• **नेपाली रुद्राक्ष:** ${ne.nepal}
+• **इंडोनेशियन रुद्राक्ष:** ${ne.indonesia}
+• **ऑरा मानक:** ${ne.auraStandard}
+
+### 🔬 2. ${auth.title}
+• **सत्य परीक्षा:** ${auth.realLabCheck}
+• **भ्रम निवारण (Water Test Myth):** ${auth.scientificTruth}
+
+### 🕉️ 3. प्राण-प्रतिष्ठा एवं धारण विधि (Pran-Pratishtha)
+${vidhi}
+
+### 📿 4. नियम, सावधानियां व देखभाल (Dos & Don'ts)
+${dos}
+${donts}
+
+[AURA_KEYWORDS]: 1 से 21 मुखी रुद्राक्ष | 7 चक्र और रुद्राक्ष | सिद्ध बंध कॉम्बिनेशन | मेरी जन्म कुंडली बनाएं`;
+  }
+
+  // 7 Chakras & Kundalini Rudraksha alignment
+  if (/chakra|kundalini|muladhara|anahata|ajna|sahasrara|vishuddha|manipura|swadhishthana|चक्र|कुंडलिनी|मूलाधार|अनाहत|आज्ञा\s*चक्र|सहस्रार/i.test(q)) {
+    const chakraText = CHAKRA_RUDRAKSHA_MAP.map(c =>
+      `• **${c.chakra}** (*स्थान:* ${c.location} | *तत्व:* ${c.element} | *बीज मंत्र:* \`${c.beejMantra}\`)\n  → **अनुशंसित रुद्राक्ष:** **${c.mukhis}** — ${c.benefits}`
+    ).join("\n\n");
+
+    return `🙏 **श्री गणेशाय नमः! हर हर महादेव!**
+
+मैं **AI पंडित जी** हूँ। योग-शास्त्र एवं शिव पुराण के अनुसार **सप्त चक्र (7 Chakras) और उनके संतुलन हेतु सिद्ध रुद्राक्ष** इस प्रकार हैं:
+
+${chakraText}
+
+💡 **ध्यान टिप:** प्रतिदिन प्रातः संबंधित चक्र पर ध्यान केंद्रित कर बीज मंत्र का 108 बार जाप करने से प्राण ऊर्जा में अद्भुत संतुलन आता है।
+
+[AURA_KEYWORDS]: असली रुद्राक्ष पहचान व नियम | 14 मुखी देवमणि आज्ञा चक्र | 108 जप माला | मेरी जन्म कुंडली बनाएं`;
+  }
+
+  // Sacred Combination Bandhs
+  if (/bandh|combination|combo|sarv|saraswati\s*bandh|mahalakshmi\s*bandh|raksha\s*kavach|बंधन|कॉम्बो|संयोग|बंध/i.test(q)) {
+    const bandhList = RUDRAKSHA_AUTHENTICITY_AND_CARE.sacredCombinations.map(b =>
+      `• 📿 **${b.name}** — *संयोजन:* **${b.composition}**\n  → *उद्देश्य:* ${b.purpose}`
+    ).join("\n\n");
+    return `🙏 **श्री गणेशाय नमः! हर हर महादेव!**
+
+**रुद्राक्ष रत्न विज्ञान एवं शिव पुराण के प्रमुख सिद्ध 'रुद्राक्ष बंध' (Sacred Combinations):**
+
+${bandhList}
+
+👇 *अपनी कुंडली के अनुसार सटीक बंध जानने के लिए अपनी जन्म तिथि, जन्म समय व जन्म स्थान साझा करें।*
+
+[AURA_KEYWORDS]: मेरी जन्म कुंडली बनाएं | 7 मुखी महालक्ष्मी रुद्राक्ष | 1 से 21 मुखी रुद्राक्ष | असली रुद्राक्ष नियम`;
+  }
+
+  // Doshas (Kaal Sarp, Manglik, Pitra, Kemadruma, Sade Sati) & Rajayogas
+  if (/kaal\s*sarp|manglik|kuja\s*dosh|pitra|kemadruma|sade\s*sati|dhaiya|rajayog|rajyog|कालसर्प|मांगलिक|पितृ\s*दोष|केमद्रुम|साढ़े\s*साती|ढैया|राजयोग/i.test(q)) {
+    const d = DOSHA_YOGA_ENCYCLOPEDIA.doshas;
+    const yText = DOSHA_YOGA_ENCYCLOPEDIA.rajayogas.map(y => `• **${y.name}:** ${y.detail}`).join("\n");
+    return `🙏 **श्री गणेशाय नमः! हर हर महादेव!**
+
+**बृहत्पाराशर होरा शास्त्र (BPHS) एवं फलदीपिका के अनुसार प्रमुख दोष, दोष-भंग नियम व राजयोग:**
+
+### 🛡️ 1. प्रमुख ग्रह दोष एवं सटीक उपाय
+• **${d.manglik.name}:** ${d.manglik.rule}\n  *दोष भंग (Cancellation):* ${d.manglik.naturalCancellations[0]} ${d.manglik.naturalCancellations[1]}\n  *उपाय:* ${d.manglik.remedy}
+• **${d.kaalSarp.name}:** ${d.kaalSarp.rule}\n  *विशेष तथ्य:* ${d.kaalSarp.positiveNote}\n  *उपाय:* ${d.kaalSarp.remedy}
+• **${d.pitraDosha.name}:** ${d.pitraDosha.rule}\n  *उपाय:* ${d.pitraDosha.remedy}
+• **${d.kemadruma.name}:** ${d.kemadruma.rule}\n  *भंग नियम:* ${d.kemadruma.cancellation}
+• **${d.sadeSatiDhaiya.name}:** ${d.sadeSatiDhaiya.rule}\n  *उपाय:* ${d.sadeSatiDhaiya.remedy}
+
+### 👑 2. प्रमुख वैदिक राजयोग (Rajayogas)
+${yText}
+
+👇 **क्या आपकी कुंडली में इनमें से कोई दोष या राजयोग बन रहा है? अपनी जन्म तिथि, समय व स्थान भेजें — मैं अभी 100% सटीक गणना करके बता दूँगा!**
+
+[AURA_KEYWORDS]: मेरी जन्म कुंडली बनाएं | 8 मुखी राहु गणेश | 7 मुखी शनि व लक्ष्मी | लाल किताब उपाय`;
+  }
+
+  // Specific Rashi inquiry
+  const matchedRashi = RASHI_12_KNOWLEDGE.find(r =>
+    q.includes(r.name.toLowerCase()) || q.includes(r.english.toLowerCase()) || q.includes(r.hindi)
+  );
+  if (matchedRashi || /sabhi\s*12\s*rashi|12\s*rashi|सभी\s*राशि/i.test(q)) {
+    if (matchedRashi) {
+      return `🙏 **श्री गणेशाय नमः! ${matchedRashi.hindi} राशि (${matchedRashi.english}) — संपूर्ण वैदिक विश्लेषण:**
+
+• 🪐 **राशि स्वामी:** ${matchedRashi.lord} | **तत्व:** ${matchedRashi.element} | **स्वभाव:** ${matchedRashi.quality}
+• ✨ **स्वभाव व विशेषताएं:** ${matchedRashi.traits}
+• 📿 **सर्वश्रेष्ठ रुद्राक्ष:** **${matchedRashi.favorableRudraksha}**
+• 📅 **शुभ वार:** ${matchedRashi.auspiciousDay} | **मन्त्र:** \`${matchedRashi.beejMantra}\`
+• 💎 **राशि रत्न संकेत:** ${matchedRashi.gemstone} *(पूर्ण कुंडली देखे बिना रत्न न पहनें; रुद्राक्ष सभी के लिए सुरक्षित व कल्याणकारी है)*
+
+👇 **सटीक लग्न, नक्षत्र व महादशा विश्लेषण के लिए अपनी DOB, समय व जन्म स्थान भेजें!**
+
+[AURA_KEYWORDS]: मेरी जन्म कुंडली बनाएं | सभी 12 राशियाँ व रुद्राक्ष | 27 नक्षत्र ज्ञान | आज का पंचांग`;
+    }
+    const rList = RASHI_12_KNOWLEDGE.map(r => `• **${r.hindi} (${r.english})** — *स्वामी:* ${r.lord} | *शुभ रुद्राक्ष:* **${r.favorableRudraksha}**`).join("\n");
+    return `🙏 **सभी 12 राशियों का संक्षिप्त वैदिक मार्गदर्शन व शुभ रुद्राक्ष:**\n\n${rList}\n\n👇 **अपनी सटीक जन्म राशि जानने के लिए DOB, समय व जन्म स्थान बताएं!**\n\n[AURA_KEYWORDS]: मेरी जन्म कुंडली बनाएं | 27 नक्षत्र ज्ञान | 1 से 21 मुखी रुद्राक्ष`;
+  }
+
+  // 27 Nakshatra lookup
+  const matchedNak = NAKSHATRA_27_KNOWLEDGE.find(n => q.includes(n.name.toLowerCase()) || q.includes(n.hindi));
+  if (matchedNak || /nakshatra|नक्षत्र/i.test(q)) {
+    if (matchedNak) {
+      return `🙏 **नक्षत्र ज्ञान: ${matchedNak.hindi} नक्षत्र (${matchedNak.name} — नक्षत्र #${matchedNak.number})**
+
+• **राशि विस्तार:** ${matchedNak.range}
+• **नक्षत्र स्वामी ग्रह:** **${matchedNak.lord}** | **अधिष्ठाता देवता:** **${matchedNak.deity}**
+• **गण / नाड़ी / योनि:** ${matchedNak.gana} गण • ${matchedNak.nadi} नाड़ी • ${matchedNak.yoni} योनि
+• **प्रतीक:** ${matchedNak.symbol}
+• **मुख्य गुण व फल:** ${matchedNak.traits}
+• **शुभ रुद्राक्ष व बीज मंत्र:** **${matchedNak.bestRudraksha}** (\`${matchedNak.beejMantra}\`)
+
+👇 **अपना सटीक जन्म नक्षत्र व पद (Pada 1-4) जानने के लिए अपनी DOB, समय व स्थान भेजें!**
+
+[AURA_KEYWORDS]: मेरी जन्म कुंडली बनाएं | सभी 27 नक्षत्र | गुण मिलान कैसे होता है`;
+    }
+    const nList = NAKSHATRA_27_KNOWLEDGE.map(n => `• **${n.number}. ${n.hindi} (${n.name})** — *स्वामी:* ${n.lord} | *गण:* ${n.gana} | *नाड़ी:* ${n.nadi} | *रुद्राक्ष:* ${n.bestRudraksha}`).join("\n");
+    return `🙏 **27 वैदिक नक्षत्र एवं उनके शासक ग्रह व शुभ रुद्राक्ष:**\n\n${nList}\n\n[AURA_KEYWORDS]: मेरी जन्म कुंडली बनाएं | विवाह गुण मिलान | 1 से 21 मुखी रुद्राक्ष`;
+  }
+
+  // 12 Houses (Bhavas) Inquiry
+  if (/12\s*bhava|12\s*house|12\s*भाव|kundali\s*ke\s*bhav|कुंडली\s*के\s*भाव/i.test(q)) {
+    const bText = BHAVA_12_KNOWLEDGE.map(b => `• **${b.house}. ${b.hindi}** (*कारक:* ${b.karaka}) — ${b.significations} *रुद्राक्ष:* ${b.rudrakshaRemedies}`).join("\n");
+    return `🙏 **जन्म कुंडली के 12 भावों (12 Houses / Bhavas) का संपूर्ण शास्त्रीय ज्ञान:**\n\n${bText}\n\n[AURA_KEYWORDS]: मेरी जन्म कुंडली बनाएं | नवग्रह व लाल किताब उपाय | 1 से 21 मुखी रुद्राक्ष`;
+  }
+
+  // 9 Grahas & Lal Kitab Upay Inquiry
+  if (/lal\s*kitab|navagraha|9\s*graha|9\s*planets|लाल\s*किताब|नवग्रह|9\s*ग्रह/i.test(q)) {
+    const gText = Object.values(GRAHA_9_REMEDIES).map(g =>
+      `• 🪐 **${g.hindi} (${g.name})** — *उच्च:* ${g.exalted} | *नीच:* ${g.debilitated}\n  *कमजोर लक्षण:* ${g.weakSymptoms}\n  *लाल किताब उपाय:* ${g.lalKitabUpay}\n  *मंत्र व रुद्राक्ष:* \`${g.vedicMantra}\` | **${g.rudrakshaMukhi}**`
+    ).join("\n\n");
+    return `🙏 **नवग्रह विश्लेषण, वैदिक मंत्र व लाल किताब अचूक उपाय:**\n\n${gText}\n\n[AURA_KEYWORDS]: मेरी जन्म कुंडली बनाएं | कालसर्प व मांगलिक दोष | 10 मुखी नवग्रह कवच`;
+  }
+
+  // Daily Panchang inquiry
+  if (/panchang|muhurat|tithi|rahu\s*kaal|abhijit|पंचांग|मुहूर्त|तिथि|राहुकाल/i.test(q)) {
+    const pToday = getDailyVedicPanchang();
+    return `🙏 **श्री गणेशाय नमः! आज का वैदिक पंचांग व शुभ मुहूर्त (${pToday.dateFormatted}):**
+
+• 📅 **वार:** ${pToday.panchanga.vaar} *(स्वामी: ${pToday.panchanga.vaarLord})*
+• 🌙 **तिथि:** ${pToday.panchanga.tithi}
+• ✨ **नक्षत्र:** ${pToday.nakshatra.name} (${pToday.nakshatra.hindi || pToday.nakshatra.name}) — चरण ${pToday.nakshatra.pada}
+• 🔮 **योग / करण:** ${pToday.panchanga.yoga} योग | ${pToday.panchanga.karana} करण
+• ☀️ **अभिजीत मुहूर्त (सर्वश्रेष्ठ शुभ समय):** ${pToday.abhijitMuhurat}
+• ⚠️ **राहुकाल (अशुभ समय — नए कार्य टालें):** ${pToday.rahuKaal}
+• 📿 **आज का विशेष रुद्राक्ष व मंत्र:** **${pToday.dailyRudraksha}** (\`${pToday.dailyMantra}\`)
+
+💡 आप AI Panditji के **"पंचांग व मुहूर्त"** टूल से किसी भी तारीख का पंचांग देख सकते हैं!
+
+[AURA_KEYWORDS]: मेरी जन्म कुंडली बनाएं | मेरा मूलांक व भाग्यांक | विवाह गुण मिलान`;
+  }
+
+  // Kundali Milan / Numerology inquiry
+  if (/milan|gun\s*milan|ashtakoot|मिलान|गुण\s*मिलान/i.test(q)) {
+    return `🙏 **अष्टकूट कुंडली मिलान (36 गुण मिलान विज्ञान):**
+
+वैदिक विवाह मिलान में 8 कूटों के कुल **36 गुण** देखे जाते हैं:
+1. **वर्ण (1 गुण)** • 2. **वश्य (2 गुण)** • 3. **तारा (3 गुण)** • 4. **योनि (4 गुण)**
+5. **ग्रह मैत्री (5 गुण)** • 6. **गण (6 गुण)** • 7. **भकूट (7 गुण)** • 8. **नाड़ी (8 गुण)**
+
+• **18+ गुण:** विवाह स्वीकार्य | **24+ गुण:** उत्तम | **28+ गुण:** सर्वोत्तम।
+• **अखंड वैवाहिक सुख व दोष शांति हेतु:** वर-वधू दोनों को **गौरी शंकर रुद्राक्ष** या **2 मुखी रुद्राक्ष** अत्यंत कल्याणकारी माना जाता है।
+
+💡 सटीक 36-गुण मिलान निकालने के लिए चैट में **वर व वधू दोनों की जन्म तिथि (DOB), समय व स्थान** लिखें या साइडबार में **"कुंडली मिलान"** टूल खोलें!
+
+[AURA_KEYWORDS]: गौरी शंकर रुद्राक्ष | मांगलिक दोष नियम | मेरी जन्म कुंडली बनाएं`;
+  }
+
+  if (/numerology|mulank|moolank|bhagyank|ank\s*jyotish|मूलांक|भाग्यांक|अंक\s*ज्योतिष/i.test(q)) {
+    const nList = Object.values(NUMEROLOGY_MULANK_GUIDE).map(n =>
+      `• **अंक ${n.number} (${n.planet}):** शुभ रंग: *${n.luckyColors}* | शुभ दिन: *${n.luckyDays}* | रुद्राक्ष: **${n.rudraksha}**`
+    ).join("\n");
+    return `🙏 **वैदिक अंक ज्योतिष (मूलांक 1 से 9 एवं शुभ रुद्राक्ष):**\n\n${nList}\n\n💡 अपना सटीक **मूलांक + भाग्यांक + नामांक** जानने के लिए अपनी **जन्म तिथि (DOB)** लिखें या **"अंक ज्योतिष"** टूल का उपयोग करें!\n\n[AURA_KEYWORDS]: मेरी जन्म कुंडली बनाएं | आज का पंचांग | 1 से 21 मुखी रुद्राक्ष`;
   }
 
   // Default comprehensive Pandit Ji guidance + Kundali invitation
@@ -3709,5 +3930,298 @@ export function isExactMukhiProduct(p, targetMukhiNum) {
 
   return false;
 }
+
+/**
+ * Ashtakoota Kundali Milan (36-Point Marriage Compatibility Engine)
+ */
+export function calculateKundaliMilan({ boy = {}, girl = {} } = {}) {
+  const boyKundali = calculateAuthenticKundali({
+    name: boy.name || "वर (Groom)",
+    dob: boy.dob || "1996-01-01",
+    birthTime: boy.birthTime || "12:00 PM",
+    birthPlace: boy.birthPlace || "Jaipur, India",
+    concern: "marriage"
+  });
+  const girlKundali = calculateAuthenticKundali({
+    name: girl.name || "वधू (Bride)",
+    dob: girl.dob || "1998-01-01",
+    birthTime: girl.birthTime || "12:00 PM",
+    birthPlace: girl.birthPlace || "Jaipur, India",
+    concern: "marriage"
+  });
+
+  const bAstro = boyKundali.astronomicalKundali;
+  const gAstro = girlKundali.astronomicalKundali;
+
+  const bRashiIdx = Math.max(0, Math.min(11, Number(bAstro.chandraRashi.rashiIndex || 0)));
+  const gRashiIdx = Math.max(0, Math.min(11, Number(gAstro.chandraRashi.rashiIndex || 0)));
+
+  const nakIdxByName = (name) => {
+    const idx = NAKSHATRAS.findIndex((n) => n.name === name);
+    return idx >= 0 ? idx : 0;
+  };
+  const bNakIdx = nakIdxByName(bAstro.chandraRashi.nakshatra);
+  const gNakIdx = nakIdxByName(gAstro.chandraRashi.nakshatra);
+
+  // 1. Varna (Max 1): Brahmin(4) > Kshatriya(3) > Vaishya(2) > Shudra(1)
+  const VARNA_BY_RASHI = [3, 2, 1, 4, 3, 2, 1, 4, 3, 2, 1, 4];
+  const bVarna = VARNA_BY_RASHI[bRashiIdx];
+  const gVarna = VARNA_BY_RASHI[gRashiIdx];
+  const varnaScore = bVarna >= gVarna ? 1 : 0;
+
+  // 2. Vashya (Max 2)
+  const VASHYA_CAT = ["Chatushpada", "Chatushpada", "Manava", "Jalachara", "Vanachara", "Manava", "Manava", "Keeta", "Manava", "Jalachara", "Manava", "Jalachara"];
+  const bV = VASHYA_CAT[bRashiIdx];
+  const gV = VASHYA_CAT[gRashiIdx];
+  let vashyaScore = 0;
+  if (bV === gV) vashyaScore = 2;
+  else if ((bV === "Manava" && gV === "Jalachara") || (gV === "Manava" && bV === "Jalachara")) vashyaScore = 1.5;
+  else if (bV === "Vanachara" || gV === "Vanachara") vashyaScore = 0.5;
+  else vashyaScore = 1;
+
+  // 3. Tara (Max 3)
+  const bFromG = ((bNakIdx - gNakIdx + 27) % 27) % 9;
+  const gFromB = ((gNakIdx - bNakIdx + 27) % 27) % 9;
+  const inauspiciousTara = new Set([2, 4, 6]); // Vipat, Pratyak, Naidhana (0-based offsets 2, 4, 6 -> 3rd, 5th, 7th)
+  const bGood = !inauspiciousTara.has(bFromG);
+  const gGood = !inauspiciousTara.has(gFromB);
+  const taraScore = (bGood && gGood) ? 3 : (bGood || gGood) ? 1.5 : 0;
+
+  // 4. Yoni (Max 4)
+  const YONI_GROUP = [0, 1, 2, 3, 3, 4, 5, 2, 5, 6, 6, 7, 8, 9, 8, 9, 10, 10, 4, 11, 12, 11, 13, 0, 13, 7, 1];
+  const ENEMY_YONI = new Set(["7-9", "9-7", "1-13", "13-1", "11-2", "2-11", "4-10", "10-4", "3-12", "12-3", "6-5", "5-6", "0-8", "8-0"]);
+  const bY = YONI_GROUP[bNakIdx];
+  const gY = YONI_GROUP[gNakIdx];
+  let yoniScore = 2;
+  if (bY === gY) yoniScore = 4;
+  else if (ENEMY_YONI.has(`${bY}-${gY}`)) yoniScore = 0;
+  else if (Math.abs(bY - gY) <= 2) yoniScore = 3;
+
+  // 5. Graha Maitri (Max 5)
+  const RASHI_LORD = ["Mars", "Venus", "Mercury", "Moon", "Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Saturn", "Jupiter"];
+  const PLANET_FRIENDS = {
+    Sun: ["Moon", "Mars", "Jupiter"], Moon: ["Sun", "Mercury"], Mars: ["Sun", "Moon", "Jupiter"],
+    Mercury: ["Sun", "Venus"], Jupiter: ["Sun", "Moon", "Mars"], Venus: ["Mercury", "Saturn"], Saturn: ["Mercury", "Venus"]
+  };
+  const bLord = RASHI_LORD[bRashiIdx];
+  const gLord = RASHI_LORD[gRashiIdx];
+  const bFr = PLANET_FRIENDS[bLord]?.includes(gLord);
+  const gFr = PLANET_FRIENDS[gLord]?.includes(bLord);
+  let maitriScore = 3;
+  if (bLord === gLord || (bFr && gFr)) maitriScore = 5;
+  else if (bFr || gFr) maitriScore = 4;
+  else maitriScore = 1;
+
+  // 6. Gana (Max 6)
+  const bGana = NAKSHATRA_27_KNOWLEDGE[bNakIdx]?.gana || "Deva";
+  const gGana = NAKSHATRA_27_KNOWLEDGE[gNakIdx]?.gana || "Deva";
+  let ganaScore = 0;
+  if (bGana === gGana) ganaScore = 6;
+  else if ((bGana === "Deva" && gGana === "Manushya") || (bGana === "Manushya" && gGana === "Deva")) ganaScore = 5;
+  else if (bGana === "Rakshasa" && gGana === "Deva") ganaScore = 1;
+  else if (bGana === "Deva" && gGana === "Rakshasa") ganaScore = 0;
+  else ganaScore = 1;
+
+  // 7. Bhakoot (Max 7)
+  const rashiDiff = ((gRashiIdx - bRashiIdx + 12) % 12) + 1;
+  const inauspiciousBhakoot = [2, 5, 6, 8, 9, 12];
+  const bhakootScore = (inauspiciousBhakoot.includes(rashiDiff) && bLord !== gLord) ? 0 : 7;
+
+  // 8. Nadi (Max 8)
+  const bNadi = NAKSHATRA_27_KNOWLEDGE[bNakIdx]?.nadi || "Aadi";
+  const gNadi = NAKSHATRA_27_KNOWLEDGE[gNakIdx]?.nadi || "Madhya";
+  const nadiScore = (bNadi === gNadi && bRashiIdx !== gRashiIdx) ? 0 : 8;
+
+  const totalScore = +(varnaScore + vashyaScore + taraScore + yoniScore + maitriScore + ganaScore + bhakootScore + nadiScore).toFixed(1);
+
+  const boyManglik = Boolean(bAstro.doshaSummary?.isManglik);
+  const girlManglik = Boolean(gAstro.doshaSummary?.isManglik);
+  const manglikStatus = boyManglik && girlManglik
+    ? "परस्पर मांगलिक मिलान (दोनों मांगलिक होने से दोष स्वतः निरस्त/संतुलित)"
+    : (!boyManglik && !girlManglik)
+      ? "मांगलिक दोष मुक्त (दोनों कुंडलियां मांगलिक दोष से मुक्त)"
+      : "आंशिक मांगलिक असमानता (एक पक्ष मांगलिक — 3 Mukhi + गौरी शंकर उपाय अनुशंसित)";
+
+  let verdict = "उत्तम विवाह योग";
+  let verdictColor = "#15803d";
+  if (totalScore >= 28) {
+    verdict = "सर्वोत्तम / अत्यंत शुभ मिलान (Highly Auspicious)";
+  } else if (totalScore >= 21) {
+    verdict = "उत्तम एवं शुभ मिलान (Very Good Compatibility)";
+  } else if (totalScore >= 18) {
+    verdict = "मध्यम / स्वीकार्य मिलान (Acceptable with Vedic Remedies)";
+    verdictColor = "#b45309";
+  } else {
+    verdict = "कम गुण मिलान — विस्तृत पाराशरी जांच व रुद्राक्ष शांति आवश्यक";
+    verdictColor = "#b91c1c";
+  }
+
+  return {
+    boy: {
+      name: boyKundali.verifiedBirthData.name,
+      dob: boyKundali.verifiedBirthData.dob,
+      rashi: `${bAstro.chandraRashi.rashiHindi} (${bAstro.chandraRashi.rashiEnglish})`,
+      nakshatra: `${bAstro.chandraRashi.nakshatra} (पद ${bAstro.chandraRashi.pada})`,
+      gana: bGana,
+      nadi: bNadi,
+      isManglik: boyManglik
+    },
+    girl: {
+      name: girlKundali.verifiedBirthData.name,
+      dob: girlKundali.verifiedBirthData.dob,
+      rashi: `${gAstro.chandraRashi.rashiHindi} (${gAstro.chandraRashi.rashiEnglish})`,
+      nakshatra: `${gAstro.chandraRashi.nakshatra} (पद ${gAstro.chandraRashi.pada})`,
+      gana: gGana,
+      nadi: gNadi,
+      isManglik: girlManglik
+    },
+    totalScore,
+    maxScore: 36,
+    percentage: Math.round((totalScore / 36) * 100),
+    verdict,
+    verdictColor,
+    manglikStatus,
+    nadiDoshaPresent: nadiScore === 0,
+    bhakootDoshaPresent: bhakootScore === 0,
+    kootas: [
+      { name: "वर्ण (Varna)", max: 1, obtained: varnaScore, meaning: "आध्यात्मिक व कार्य-स्वभाव सामंजस्य" },
+      { name: "वश्य (Vashya)", max: 2, obtained: vashyaScore, meaning: "पारस्परिक आकर्षण व सहयोग" },
+      { name: "तारा (Tara)", max: 3, obtained: taraScore, meaning: "दीर्घायु, स्वास्थ्य व सौभाग्य" },
+      { name: "योनि (Yoni)", max: 4, obtained: yoniScore, meaning: "स्वभाव व दांपत्य निकटता" },
+      { name: "ग्रह मैत्री (Graha Maitri)", max: 5, obtained: maitriScore, meaning: "मानसिक व बौद्धिक तालमेल" },
+      { name: "गण (Gana)", max: 6, obtained: ganaScore, meaning: "दैनिक आचरण व व्यवहारिक शांति" },
+      { name: "भकूट (Bhakoot)", max: 7, obtained: bhakootScore, meaning: "परिवार वृद्धि, धन व भावनात्मक सुख" },
+      { name: "नाड़ी (Nadi)", max: 8, obtained: nadiScore, meaning: "स्वास्थ्य, ऊर्जा व स्वस्थ संतान योग" }
+    ],
+    recommendedRemedies: [
+      "दंपत्ति के अखंड प्रेम व वैवाहिक सुख हेतु गौरी शंकर रुद्राक्ष (Gauri Shankar Rudraksha) सर्वश्रेष्ठ है।",
+      nadiScore === 0 ? "नाड़ी दोष शांति हेतु स्वर्ण दान, महामृत्युंजय जप व 2 Mukhi + 5 Mukhi रुद्राक्ष धारण करें।" : "दोनों पक्षों का नाड़ी स्तर स्वस्थ व अनुकूल है।",
+      (boyManglik !== girlManglik) ? "मांगलिक संतुलन हेतु मंगल देव के लिए 3 Mukhi एवं हनुमान जी के लिए 11 Mukhi रुद्राक्ष उपयोगी हैं।" : "गृहस्थ समृद्धि हेतु 7 Mukhi महालक्ष्मी रुद्राक्ष भी शुभ रहता है।"
+    ]
+  };
+}
+
+/**
+ * Vedic Numerology Calculator (Mulank, Bhagyank, Chaldean Namank + Rudraksha)
+ */
+export function calculateVedicNumerology({ dob = "", name = "" } = {}) {
+  const reduceToSingleDigit = (val) => {
+    let n = String(val).replace(/\D/g, "").split("").reduce((acc, d) => acc + parseInt(d, 10), 0);
+    while (n > 9) {
+      n = String(n).split("").reduce((acc, d) => acc + parseInt(d, 10), 0);
+    }
+    return n || 1;
+  };
+
+  const cleanDob = (dob && /^\d{4}-\d{2}-\d{2}$/.test(dob.trim())) ? dob.trim() : "1995-08-15";
+  const parts = cleanDob.split("-");
+  const day = parseInt(parts[2], 10) || 1;
+
+  const mulank = reduceToSingleDigit(day);
+  const bhagyank = reduceToSingleDigit(cleanDob);
+
+  const CHALDEAN_MAP = {
+    a: 1, i: 1, j: 1, q: 1, y: 1,
+    b: 2, k: 2, r: 2,
+    c: 3, g: 3, l: 3, s: 3,
+    d: 4, m: 4, t: 4,
+    e: 5, h: 5, n: 5, x: 5,
+    u: 6, v: 6, w: 6,
+    o: 7, z: 7,
+    f: 8, p: 8
+  };
+  let nameCompound = 0;
+  for (const ch of String(name || "").toLowerCase()) {
+    if (CHALDEAN_MAP[ch]) nameCompound += CHALDEAN_MAP[ch];
+  }
+  const namank = nameCompound > 0 ? reduceToSingleDigit(nameCompound) : mulank;
+
+  const mulankProfile = NUMEROLOGY_MULANK_GUIDE[mulank] || NUMEROLOGY_MULANK_GUIDE[1];
+  const bhagyankProfile = NUMEROLOGY_MULANK_GUIDE[bhagyank] || NUMEROLOGY_MULANK_GUIDE[1];
+
+  return {
+    name: name || "Devotee",
+    dob: cleanDob,
+    mulank,
+    bhagyank,
+    namank,
+    nameCompoundTotal: nameCompound || day,
+    mulankProfile,
+    bhagyankProfile,
+    primaryRudraksha: mulankProfile.rudraksha,
+    supportRudraksha: bhagyankProfile.rudraksha,
+    beejMantra: mulankProfile.mantra,
+    luckyNumbers: mulankProfile.luckyNumbers,
+    luckyColors: mulankProfile.luckyColors,
+    luckyDays: mulankProfile.luckyDays
+  };
+}
+
+/**
+ * Daily Vedic Panchang Calculator (Calculated from Sidereal Sun & Moon Longitude)
+ */
+export function getDailyVedicPanchang({ date = "", place = "New Delhi, India" } = {}) {
+  const targetDate = (date && /^\d{4}-\d{2}-\d{2}$/.test(date.trim()))
+    ? new Date(`${date.trim()}T06:30:00Z`) // ~12:00 PM IST Reference
+    : new Date();
+
+  const year = targetDate.getUTCFullYear();
+  const month = targetDate.getUTCMonth() + 1;
+  const day = targetDate.getUTCDate();
+  const decimalHourUtc = targetDate.getUTCHours() + targetDate.getUTCMinutes() / 60;
+
+  const jd = getJulianDay(year, month, day, decimalHourUtc);
+  const t = (jd - 2451545.0) / 36525.0;
+  const ayanamsha = calculateLahiriAyanamsha(jd);
+
+  const sunSid = normalizeDeg(calculateSunLongitude(t, jd) - ayanamsha);
+  const moonSid = normalizeDeg(calculateMoonLongitude(t, jd) - ayanamsha);
+
+  const panchanga = calculatePanchanga(sunSid, moonSid, targetDate);
+  const nakshatra = getNakshatraAndPada(moonSid);
+  const moonRashi = getRashiAndDegree(moonSid);
+  const sunRashi = getRashiAndDegree(sunSid);
+
+  const dayOfWeek = targetDate.getUTCDay();
+  const RAHU_KAAL_BY_DAY = [
+    "04:30 PM - 06:00 PM", // Sunday
+    "07:30 AM - 09:00 AM", // Monday
+    "03:00 PM - 04:30 PM", // Tuesday
+    "12:00 PM - 01:30 PM", // Wednesday
+    "01:30 PM - 03:00 PM", // Thursday
+    "10:30 AM - 12:00 PM", // Friday
+    "09:00 AM - 10:30 AM"  // Saturday
+  ];
+  const DAILY_RUDRAKSHA = [
+    { bead: "1 Mukhi / 12 Mukhi (सूर्य देव)", mantra: "ॐ ह्रीं नमः" },
+    { bead: "2 Mukhi / गौरी शंकर (चंद्र देव)", mantra: "ॐ नमः शिवाय" },
+    { bead: "3 Mukhi / 11 Mukhi (मंगल व हनुमान)", mantra: "ॐ क्लीं नमः" },
+    { bead: "4 Mukhi / 8 Mukhi (बुध व श्री गणेश)", mantra: "ॐ गं गणपतये नमः" },
+    { bead: "5 Mukhi (गुरु बृहस्पति / विश्व कल्याण)", mantra: "ॐ ह्रीं नमः" },
+    { bead: "6 Mukhi / 13 Mukhi (शुक्र व महालक्ष्मी)", mantra: "ॐ ह्रीं हुं नमः" },
+    { bead: "7 Mukhi / 14 Mukhi (शनि देव रक्षा कवच)", mantra: "ॐ हुं नमः" }
+  ];
+
+  const nakMeta = NAKSHATRA_27_KNOWLEDGE.find((n) => n.name === nakshatra.name) || NAKSHATRA_27_KNOWLEDGE[0];
+  const dailyRec = DAILY_RUDRAKSHA[dayOfWeek] || DAILY_RUDRAKSHA[0];
+
+  return {
+    dateIso: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+    dateFormatted: `${String(day).padStart(2, "0")}-${String(month).padStart(2, "0")}-${year}`,
+    place,
+    panchanga,
+    nakshatra: { ...nakshatra, hindi: nakMeta.hindi, lord: nakMeta.lord, deity: nakMeta.deity },
+    moonRashi: `${moonRashi.rashiHindi} (${moonRashi.rashiEnglish})`,
+    sunRashi: `${sunRashi.rashiHindi} (${sunRashi.rashiEnglish})`,
+    sunrise: "06:05 AM (Approx IST)",
+    sunset: "06:25 PM (Approx IST)",
+    abhijitMuhurat: "11:48 AM - 12:36 PM (अत्यंत शुभ)",
+    brahmaMuhurat: "04:30 AM - 05:18 AM (ध्यान व मंत्र साधना)",
+    rahuKaal: RAHU_KAAL_BY_DAY[dayOfWeek] || "12:00 PM - 01:30 PM",
+    dailyRudraksha: dailyRec.bead,
+    dailyMantra: dailyRec.mantra
+  };
+}
+
 
 

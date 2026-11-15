@@ -1019,9 +1019,9 @@ Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natu
   let aiOutputParsed = null;
   let aiGenerationSuccess = false;
 
-  // 1. Try active saved website model (or default NEMOTRON_NIM_MODEL) via NVIDIA NIM with fast 5s timeout
+  // 1. Try active saved website model + fast NIM fallbacks with bounded deadline
   try {
-    let seoModel = NEMOTRON_NIM_MODEL;
+    let preferredSeoModel = NEMOTRON_NIM_MODEL;
     try {
       const { inMemoryStore } = await import("../data/inMemoryStore.js");
       const memChosen = (
@@ -1031,48 +1031,68 @@ Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natu
         ""
       ).trim();
       if (memChosen && !/^gemini-/i.test(memChosen)) {
-        seoModel = memChosen;
+        preferredSeoModel = memChosen;
       }
     } catch (_) {}
+
+    const seoCandidates = [...new Set([
+      preferredSeoModel,
+      "nvidia/llama-3.1-nemotron-70b-instruct",
+      "meta/llama-3.3-70b-instruct",
+      NEMOTRON_NIM_MODEL
+    ].filter(Boolean))].slice(0, 3);
 
     const activeApiKey = await getActiveNemotronApiKey();
     const nvidiaClient = activeApiKey ? getNvidiaNemotronClient(activeApiKey) : null;
     if (nvidiaClient) {
-      const nimAbort = new AbortController();
-      const timeoutTimer = setTimeout(() => nimAbort.abort(new Error("NIM timeout")), 7500);
-      try {
-        const basePayload = {
-          model: seoModel,
-          messages: [
-            { role: "system", content: promptSystem },
-            { role: "user", content: userPrompt }
-          ],
-          temperature: 0.2,
-          max_tokens: 2000
-        };
-        const isNvidiaNim = String(nvidiaClient.baseURL || "").toLowerCase().includes("nvidia");
-        const useNoThinking = isNvidiaNim && /nemotron|deepseek/i.test(seoModel);
-        let completion;
-        try {
-          completion = await nvidiaClient.chat.completions.create(
-            useNoThinking ? { ...basePayload, chat_template_kwargs: { enable_thinking: false } } : basePayload,
-            { signal: nimAbort.signal }
-          );
-        } catch (firstErr) {
-          if (useNoThinking && !nimAbort.signal.aborted && (Number(firstErr?.status) === 400 || /chat_template_kwargs|extra_forbidden/i.test(String(firstErr?.message || "")))) {
-            completion = await nvidiaClient.chat.completions.create(basePayload, { signal: nimAbort.signal });
-          } else {
-            throw firstErr;
-          }
-        }
+      const overallDeadline = Date.now() + 11000;
+      for (const seoModel of seoCandidates) {
+        if (aiGenerationSuccess) break;
+        const remainingMs = overallDeadline - Date.now();
+        if (remainingMs < 2000) break;
 
-        const rawResponse = completion.choices?.[0]?.message?.content || "";
-        aiOutputParsed = parseNemotronJsonResponse(rawResponse);
-        if (aiOutputParsed && (aiOutputParsed.seo || aiOutputParsed.keywords || aiOutputParsed.vedicAstrology)) {
-          aiGenerationSuccess = true;
+        const nimAbort = new AbortController();
+        const timeoutTimer = setTimeout(() => nimAbort.abort(new Error("NIM timeout")), Math.min(6000, remainingMs));
+        try {
+          const basePayload = {
+            model: seoModel,
+            messages: [
+              { role: "system", content: promptSystem },
+              { role: "user", content: userPrompt }
+            ],
+            temperature: 0.2,
+            max_tokens: 2000
+          };
+          const isNvidiaNim = String(nvidiaClient.baseURL || "").toLowerCase().includes("nvidia");
+          const useNoThinking = isNvidiaNim && /nemotron|deepseek/i.test(seoModel);
+          let completion;
+          try {
+            completion = await nvidiaClient.chat.completions.create(
+              useNoThinking ? { ...basePayload, chat_template_kwargs: { enable_thinking: false } } : basePayload,
+              { signal: nimAbort.signal }
+            );
+          } catch (firstErr) {
+            if (!nimAbort.signal.aborted && (Number(firstErr?.status) === 400 || Number(firstErr?.status) === 422 || /chat_template_kwargs|extra_forbidden|invalid_request/i.test(String(firstErr?.message || "")))) {
+              completion = await nvidiaClient.chat.completions.create(
+                { model: seoModel, messages: basePayload.messages, max_tokens: 2000 },
+                { signal: nimAbort.signal }
+              );
+            } else {
+              throw firstErr;
+            }
+          }
+
+          const rawResponse = completion.choices?.[0]?.message?.content || "";
+          aiOutputParsed = parseNemotronJsonResponse(rawResponse);
+          if (aiOutputParsed && (aiOutputParsed.seo || aiOutputParsed.keywords || aiOutputParsed.vedicAstrology)) {
+            aiGenerationSuccess = true;
+            break;
+          }
+        } catch (candidateErr) {
+          console.warn(`[Nemotron Engine] Candidate failover (${seoModel}):`, candidateErr?.message || candidateErr);
+        } finally {
+          clearTimeout(timeoutTimer);
         }
-      } finally {
-        clearTimeout(timeoutTimer);
       }
     }
   } catch (err) {

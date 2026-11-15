@@ -7,7 +7,18 @@ import { Review } from "../models/Review.js";
 import { Order } from "../models/Order.js";
 import { isDbConnected } from "../config/db.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
-import { VEDIC_BEADS_KNOWLEDGE, VEDIC_SHASTRA_KNOWLEDGE } from "./vedicKnowledgeService.js";
+import {
+  VEDIC_BEADS_KNOWLEDGE,
+  VEDIC_SHASTRA_KNOWLEDGE,
+  NAKSHATRA_27_KNOWLEDGE,
+  RASHI_12_KNOWLEDGE,
+  BHAVA_12_KNOWLEDGE,
+  GRAHA_9_REMEDIES,
+  DOSHA_YOGA_ENCYCLOPEDIA,
+  CHAKRA_RUDRAKSHA_MAP,
+  RUDRAKSHA_AUTHENTICITY_AND_CARE,
+  NUMEROLOGY_MULANK_GUIDE
+} from "./vedicKnowledgeService.js";
 
 // Global in-memory cache for ultra-fast RAG retrieval & public trends
 let ragCacheDocs = [];
@@ -283,6 +294,91 @@ export async function buildStoreRagIndex(forceRefresh = false) {
     metadata: { category: "bandhs_faqs" }
   });
 
+  // 2.7 Deep Kundali Gyan (27 Nakshatras, 12 Rashis, 12 Bhavas, 9 Grahas & Lal Kitab, Doshas & Yogas)
+  docs.push({
+    docId: "kundali_27_nakshatras",
+    docType: "kundali_gyan",
+    title: "27 Vedic Nakshatras, Lords, Gana, Nadi & Rudraksha Guide",
+    content: NAKSHATRA_27_KNOWLEDGE.map(n =>
+      `${n.number}. ${n.name} (${n.hindi}): Range ${n.range}, Lord ${n.lord}, Deity ${n.deity}, Gana ${n.gana}, Nadi ${n.nadi}, Rudraksha ${n.bestRudraksha}, Mantra ${n.beejMantra}. ${n.traits}`
+    ).join(" | "),
+    metadata: { category: "nakshatras" }
+  });
+
+  docs.push({
+    docId: "kundali_12_rashis",
+    docType: "kundali_gyan",
+    title: "12 Rashis (Zodiac Signs), Lords, Elements & Favorable Rudraksha",
+    content: RASHI_12_KNOWLEDGE.map(r =>
+      `${r.hindi} (${r.name}/${r.english}): Lord ${r.lord}, Element ${r.element}, Rudraksha ${r.favorableRudraksha}, Day ${r.auspiciousDay}, Mantra ${r.beejMantra}. ${r.traits}`
+    ).join(" | "),
+    metadata: { category: "rashis" }
+  });
+
+  docs.push({
+    docId: "kundali_12_bhavas",
+    docType: "kundali_gyan",
+    title: "12 Kundali Houses (Bhavas), Karakas & Rudraksha Remedies",
+    content: BHAVA_12_KNOWLEDGE.map(b =>
+      `House ${b.house} ${b.name} (${b.hindi}): Karaka ${b.karaka}, Meaning: ${b.significations} Remedy: ${b.rudrakshaRemedies}`
+    ).join(" | "),
+    metadata: { category: "bhavas" }
+  });
+
+  docs.push({
+    docId: "kundali_9_grahas_remedies",
+    docType: "kundali_gyan",
+    title: "Navagraha 9 Planets Dignity, Weak Symptoms, Lal Kitab Upay & Mantras",
+    content: Object.values(GRAHA_9_REMEDIES).map(g =>
+      `${g.name} (${g.hindi}): Exalted ${g.exalted}, Debilitated ${g.debilitated}. Weak symptoms: ${g.weakSymptoms} Lal Kitab Upay: ${g.lalKitabUpay} Rudraksha: ${g.rudrakshaMukhi} Mantra: ${g.vedicMantra}`
+    ).join(" | "),
+    metadata: { category: "grahas" }
+  });
+
+  docs.push({
+    docId: "kundali_doshas_rajayogas",
+    docType: "kundali_gyan",
+    title: "Vedic Doshas (Manglik, 12 Kaal Sarp, Pitra, Kemadruma, Sade Sati) & Rajayogas",
+    content: [
+      ...Object.values(DOSHA_YOGA_ENCYCLOPEDIA.doshas).map(d => `${d.name}: ${d.rule} Remedy: ${d.remedy}`),
+      ...DOSHA_YOGA_ENCYCLOPEDIA.rajayogas.map(y => `${y.name}: ${y.detail}`)
+    ].join(" | "),
+    metadata: { category: "doshas_yogas" }
+  });
+
+  docs.push({
+    docId: "rudraksha_chakras_alignment",
+    docType: "rudraksha_care",
+    title: "7 Chakras & Kundalini Rudraksha Alignment Guide",
+    content: CHAKRA_RUDRAKSHA_MAP.map(c =>
+      `${c.chakra} (${c.location}, ${c.element}, Beej Mantra ${c.beejMantra}): Rudraksha ${c.mukhis} — ${c.benefits}`
+    ).join(" | "),
+    metadata: { category: "chakras" }
+  });
+
+  docs.push({
+    docId: "rudraksha_authenticity_nepal_indonesia_care",
+    docType: "rudraksha_care",
+    title: "Nepal vs Indonesia Rudraksha, X-Ray Lab Testing, Pran Pratishtha & Care Rules",
+    content: [
+      `${RUDRAKSHA_AUTHENTICITY_AND_CARE.nepalVsIndonesia.title}: Nepal: ${RUDRAKSHA_AUTHENTICITY_AND_CARE.nepalVsIndonesia.nepal} Indonesia: ${RUDRAKSHA_AUTHENTICITY_AND_CARE.nepalVsIndonesia.indonesia}`,
+      `Authenticity X-Ray Truth: ${RUDRAKSHA_AUTHENTICITY_AND_CARE.authenticityTesting.realLabCheck} Myth: ${RUDRAKSHA_AUTHENTICITY_AND_CARE.authenticityTesting.scientificTruth}`,
+      `Pran Pratishtha: ${RUDRAKSHA_AUTHENTICITY_AND_CARE.pranPratishthaVidhi.join(" ")}`,
+      `Dos: ${RUDRAKSHA_AUTHENTICITY_AND_CARE.wearingRulesAndCare.dos.join(" ")} Donts: ${RUDRAKSHA_AUTHENTICITY_AND_CARE.wearingRulesAndCare.donts.join(" ")}`
+    ].join(" "),
+    metadata: { category: "authenticity_care" }
+  });
+
+  docs.push({
+    docId: "vedic_numerology_mulank_1_9",
+    docType: "kundali_gyan",
+    title: "Vedic Numerology (Mulank & Bhagyank 1-9), Lucky Colors, Days & Rudraksha",
+    content: Object.values(NUMEROLOGY_MULANK_GUIDE).map(n =>
+      `${n.hindi} (${n.planet}): Nature ${n.nature} Career ${n.career} Lucky Colors: ${n.luckyColors}, Days: ${n.luckyDays}, Rudraksha: ${n.rudraksha}, Mantra: ${n.mantra}`
+    ).join(" | "),
+    metadata: { category: "numerology" }
+  });
+
   // 3. Index Live Published Products, Real Public Orders (line items only), Verified Reviews, Offers & Coupons
   let liveProducts = [];
   let liveOrders = [];
@@ -515,11 +611,17 @@ export async function retrieveRagContext(userQuery = "", topK = 4) {
     if (doc.docType === "policy" && (queryLower.includes("shipping") || queryLower.includes("return") || queryLower.includes("guarantee") || queryLower.includes("certificate") || queryLower.includes("delivery") || queryLower.includes("cod") || queryLower.includes("payment"))) {
       score += 40;
     }
-    if (doc.docType === "shastra" && (queryLower.includes("shastra") || queryLower.includes("bphs") || queryLower.includes("parashar") || queryLower.includes("jaimini") || queryLower.includes("jyotish") || queryLower.includes("dasha") || queryLower.includes("yoga") || queryLower.includes("purana"))) {
-      score += 50;
+    if (doc.docType === "shastra" && (queryLower.includes("shastra") || queryLower.includes("bphs") || queryLower.includes("parashar") || queryLower.includes("jaimini") || queryLower.includes("jyotish") || queryLower.includes("dasha") || queryLower.includes("yoga") || queryLower.includes("purana") || /शास्त्र|ज्योतिष|कुंडली|पाराशर|दशा/i.test(queryLower))) {
+      score += 55;
     }
-    if (doc.docType === "astrology_domain" && (queryLower.includes("career") || queryLower.includes("marriage") || queryLower.includes("health") || queryLower.includes("wealth") || queryLower.includes("business") || queryLower.includes("education") || queryLower.includes("travel") || queryLower.includes("foreign") || queryLower.includes("progeny") || queryLower.includes("child") || queryLower.includes("property") || queryLower.includes("money"))) {
-      score += 60;
+    if (doc.docType === "astrology_domain" && (queryLower.includes("career") || queryLower.includes("marriage") || queryLower.includes("health") || queryLower.includes("wealth") || queryLower.includes("business") || queryLower.includes("education") || queryLower.includes("travel") || queryLower.includes("foreign") || queryLower.includes("progeny") || queryLower.includes("child") || queryLower.includes("property") || queryLower.includes("money") || /करियर|नौकरी|विवाह|शादी|धन|स्वास्थ्य|पढ़ाई|विदेश|संतान|मकान/i.test(queryLower))) {
+      score += 65;
+    }
+    if (doc.docType === "kundali_gyan" && /nakshatra|rashi|bhava|house|graha|planet|dosha|kaal\s*sarp|manglik|pitra|kemadruma|sade\s*sati|rajayoga|lal\s*kitab|mulank|bhagyank|numerology|milan|panchang|नक्षत्र|राशि|भाव|ग्रह|दोष|कालसर्प|मांगलिक|पितृ|साढ़े\s*साती|राजयोग|लाल\s*किताब|मूलांक|भाग्यांक|पंचांग/i.test(queryLower)) {
+      score += 85;
+    }
+    if (doc.docType === "rudraksha_care" && /nepal|indonesia|x[\s-]*ray|asli|nakli|authentic|care|clean|oiling|pran\s*pratishtha|chakra|kundalini|bandh|नेपाल|इंडोनेशिया|असली|नकली|चक्र|प्राण|नियम/i.test(queryLower)) {
+      score += 85;
     }
 
     return { doc, score };

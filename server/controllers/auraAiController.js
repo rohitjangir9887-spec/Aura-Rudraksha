@@ -20,7 +20,15 @@ import {
   VEDIC_BEADS_KNOWLEDGE,
   SACRED_RUDRAKSHA_COMBINATIONS
 } from "../services/vedicKnowledgeService.js";
-import { calculateAuthenticKundali, determineAstrologicalIntent, generateKundaliTopicDiagnosis, generateNonKundaliPanditJiGuidance } from "../services/vedicAstrologyService.js";
+import {
+  calculateAuthenticKundali,
+  determineAstrologicalIntent,
+  generateKundaliTopicDiagnosis,
+  generateNonKundaliPanditJiGuidance,
+  calculateKundaliMilan,
+  calculateVedicNumerology,
+  getDailyVedicPanchang
+} from "../services/vedicAstrologyService.js";
 import { inMemoryStore } from "../data/inMemoryStore.js";
 import { getUserMemories, setUserMemory, deleteUserMemory, extractAndUpdateMemories } from "../services/memoryService.js";
 import { retrieveRagContext, buildStoreRagIndex, getPublicStoreTrendsPayload } from "../services/ragService.js";
@@ -298,16 +306,22 @@ export function buildNimExtraParams(modelName = "", client = null) {
   return {};
 }
 
-export function buildFastNimCandidateList(activeModel = "", maxCandidates = 2) {
+export function buildFastNimCandidateList(activeModel = "", maxCandidates = 4) {
   const normalizedActive = normalizeWebsiteAiModelId(activeModel);
   return [...new Set([
     normalizedActive && !isGeminiModelName(normalizedActive) ? normalizedActive : "",
     PRIMARY_NIM_MODEL,
-    "meta/llama-3.3-70b-instruct"
+    "meta/llama-3.3-70b-instruct",
+    "mistralai/mixtral-8x22b-instruct-v0.1",
+    "nvidia/nemotron-3-super-120b-a12b"
   ].filter(m => m && !isGeminiModelName(m)))].slice(0, Math.max(1, maxCandidates));
 }
 
 export async function invokeNimChatWithAbort(client, payload, { timeoutMs = 8500, parentSignal = null } = {}) {
+  const modelStr = String(payload?.model || "").toLowerCase();
+  const isHeavyReasoningModel = modelStr.includes("550b") || modelStr.includes("deepseek-r1");
+  const effectiveTimeoutMs = isHeavyReasoningModel ? Math.min(timeoutMs, 7000) : timeoutMs;
+
   const modelAbort = new AbortController();
   let timedOut = false;
   const onParentAbort = () => modelAbort.abort(parentSignal?.reason || new Error("Parent aborted"));
@@ -321,7 +335,7 @@ export async function invokeNimChatWithAbort(client, payload, { timeoutMs = 8500
   const timer = setTimeout(() => {
     timedOut = true;
     modelAbort.abort(new Error("NIM_TIMEOUT"));
-  }, Math.max(1000, timeoutMs));
+  }, Math.max(1200, effectiveTimeoutMs));
 
   const extraParams = buildNimExtraParams(payload?.model, client);
   const fullPayload = { ...payload, ...extraParams };
@@ -331,10 +345,13 @@ export async function invokeNimChatWithAbort(client, payload, { timeoutMs = 8500
   } catch (err) {
     const msg = String(err?.message || "");
     const status = Number(err?.status || err?.statusCode || 0);
-    // If an endpoint rejects chat_template_kwargs with 400, immediately retry without it
-    if (extraParams.chat_template_kwargs && !timedOut && !parentSignal?.aborted && (status === 400 || /chat_template_kwargs|extra_forbidden|unrecognized/i.test(msg))) {
-      const cleanPayload = { ...payload };
-      delete cleanPayload.chat_template_kwargs;
+    // If an endpoint rejects extra parameters (chat_template_kwargs / temperature / max_tokens) with 400/422, retry cleanly
+    if (!timedOut && !parentSignal?.aborted && (status === 400 || status === 422 || /chat_template_kwargs|extra_forbidden|unrecognized|invalid_request|max_tokens/i.test(msg))) {
+      const cleanPayload = {
+        model: payload.model,
+        messages: payload.messages,
+        max_tokens: Math.min(Number(payload.max_tokens || 2048), 2048)
+      };
       return await client.chat.completions.create(cleanPayload, { signal: modelAbort.signal });
     }
     if (timedOut) {
@@ -505,11 +522,76 @@ export function getGeminiClient(customKey = "") {
 export const GEMINI_TEXT_MODELS = [
   ...new Set([
     process.env.GEMINI_MODEL ? normalizeWebsiteAiModelId(process.env.GEMINI_MODEL) : "",
-    'gemini-4-hydrogen',
-    'gemini-3.8-flash',
-    'gemini-3.1-flash-lite'
+    "gemini-4-hydrogen",
+    "gemini-3.1-flash-lite",
+    "gemini-3.8-flash"
   ].filter(Boolean))
 ];
+
+export function buildGeminiCandidateList(preferredModel = "", maxCandidates = 3) {
+  const normalizedPref = normalizeWebsiteAiModelId(preferredModel);
+  return [...new Set([
+    normalizedPref && isGeminiModelName(normalizedPref) ? normalizedPref : "",
+    ...GEMINI_TEXT_MODELS
+  ].filter(m => m && isGeminiModelName(m)))].slice(0, Math.max(1, maxCandidates));
+}
+
+function buildSafeGeminiConfig(modelName = "", { systemInstruction = "", responseMimeType = "" } = {}, stripThinking = false) {
+  const config = {};
+  if (systemInstruction) config.systemInstruction = systemInstruction;
+  if (responseMimeType) config.responseMimeType = responseMimeType;
+  // gemini-4-* expects zero temperature/topP/thinkingBudget overrides; only add ThinkingLevel.LOW for gemini-3*
+  if (!stripThinking && /^gemini-3/i.test(String(modelName || ""))) {
+    config.thinkingConfig = { thinkingLevel: ThinkingLevel.LOW };
+  }
+  return config;
+}
+
+export async function generateGeminiResilient(client, { model, contents, systemInstruction = "", responseMimeType = "", timeoutMs = 9000 }) {
+  const exec = (stripThinking) =>
+    Promise.race([
+      client.models.generateContent({
+        model,
+        contents,
+        config: buildSafeGeminiConfig(model, { systemInstruction, responseMimeType }, stripThinking)
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("GEMINI_TIMEOUT")), Math.max(1500, timeoutMs)))
+    ]);
+
+  try {
+    return await exec(false);
+  } catch (err) {
+    const status = Number(err?.status || err?.statusCode || err?.code || 0);
+    const msg = String(err?.message || "");
+    if (status === 400 || status === 422 || /thinking|invalid_argument|unsupported|parameter/i.test(msg)) {
+      return await exec(true);
+    }
+    throw err;
+  }
+}
+
+export async function streamGeminiResilient(client, { model, contents, systemInstruction = "", timeoutMs = 9500 }) {
+  const exec = (stripThinking) =>
+    Promise.race([
+      client.models.generateContentStream({
+        model,
+        contents,
+        config: buildSafeGeminiConfig(model, { systemInstruction }, stripThinking)
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("GEMINI_STREAM_TIMEOUT")), Math.max(1500, timeoutMs)))
+    ]);
+
+  try {
+    return await exec(false);
+  } catch (err) {
+    const status = Number(err?.status || err?.statusCode || err?.code || 0);
+    const msg = String(err?.message || "");
+    if (status === 400 || status === 422 || /thinking|invalid_argument|unsupported|parameter/i.test(msg)) {
+      return await exec(true);
+    }
+    throw err;
+  }
+}
 
 /**
  * Convert OpenAI/NIM formatted messages array to @google/genai Content array.
@@ -1506,11 +1588,11 @@ SAFETY:
 
     const savedModel = await resolveActiveWebsiteAiModel();
     const preferGeminiKundali = isGeminiModelName(savedModel);
-    const kundaliDeadline = Date.now() + 16000;
+    const kundaliDeadline = Date.now() + 18000;
 
     const runKundaliNim = async () => {
       if (!nvidiaClient || aiInterpretation) return;
-      const kundaliNimCandidates = buildFastNimCandidateList(!preferGeminiKundali ? savedModel : "", 2);
+      const kundaliNimCandidates = buildFastNimCandidateList(!preferGeminiKundali ? savedModel : "", 4);
 
       for (const modelCandidate of kundaliNimCandidates) {
         const remainingMs = kundaliDeadline - Date.now();
@@ -1527,7 +1609,7 @@ SAFETY:
               temperature: 0.35,
               max_tokens: 4096
             },
-            { timeoutMs: Math.min(9500, remainingMs) }
+            { timeoutMs: Math.min(8500, remainingMs) }
           );
 
           aiInterpretation = (completion.choices?.[0]?.message?.content || "").trim();
@@ -1542,25 +1624,18 @@ SAFETY:
       await resolveGeminiKey();
       const gClient = getGeminiClient();
       if (!gClient) return;
-      const gModels = [...new Set([preferGeminiKundali ? savedModel : "", "gemini-3.8-flash", ...GEMINI_TEXT_MODELS].filter(Boolean))].slice(0, 2);
+      const gModels = buildGeminiCandidateList(preferGeminiKundali ? savedModel : "", 3);
       for (const gModel of gModels) {
         const remainingMs = kundaliDeadline - Date.now();
         if (aiInterpretation || remainingMs < 2000) break;
         try {
-          const gResp = await Promise.race([
-            gClient.models.generateContent({
-              model: gModel,
-              contents: astroPrompt,
-              config: {
-                systemInstruction: "You are AI Pandit Ji (Vedic Astrology Acharya) for Aura Rudraksha. Always provide an exhaustive, deeply detailed, complete 11-section Vedic Kundali reading in warm Hindi explaining all 9 planets, all 12 houses, what problems are happening, why, since when, how, and when they will resolve.",
-                ...(gModel.startsWith("gemini-4") || gModel.startsWith("gemini-3")
-                  ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
-                  : {})
-              }
-            }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error("KUNDALI_GEMINI_TIMEOUT")), Math.min(9500, remainingMs)))
-          ]);
-          aiInterpretation = (gResp?.text || "").trim();
+          const gResp = await generateGeminiResilient(gClient, {
+            model: gModel,
+            contents: astroPrompt,
+            systemInstruction: "You are AI Pandit Ji (Vedic Astrology Acharya) for Aura Rudraksha. Always provide an exhaustive, deeply detailed, complete 11-section Vedic Kundali reading in warm Hindi explaining all 9 planets, all 12 houses, what problems are happening, why, since when, how, and when they will resolve.",
+            timeoutMs: Math.min(9000, remainingMs)
+          });
+          aiInterpretation = (gResp?.text || gResp?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "").trim();
         } catch (gErr) {
           console.warn(`[Kundali Endpoint] Gemini notice (${gModel}):`, gErr?.message || gErr);
         }
@@ -2462,9 +2537,9 @@ export async function chatAuraAI(req, res, next) {
       }
     }
 
-    // Auto-promote mode to "panditji" when astrological/Kundali topic is queried, birth details are provided, or mode is panditji
+    // Auto-promote mode to "panditji" when astrological/Kundali/Nakshatra/Rashi/Dosha/Milan/Numerology/Panchang/Chakra topic is queried, birth details are provided, or mode is panditji
     let effectiveMode = mode || "standard";
-    const hasAstroKeywords = /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र/i.test(message || "");
+    const hasAstroKeywords = /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|milan|gun milan|ashtakoot|mulank|bhagyank|numerology|panchang|muhurat|rahu kaal|chakra|kaal sarp|pitra|kemadruma|sade sati|dhaiya|lal kitab|bhava|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र|पंचांग|मुहूर्त|मिलान|गुण मिलान|मूलांक|भाग्यांक|अंक ज्योतिष|चक्र|कालसर्प|पितृ|केमद्रुम|नेपाली रुद्राक्ष|असली नकली|एक्स रे|प्राण प्रतिष्ठा|धारण विधि/i.test(message || "");
     const isAstrologySpecificQuery = mode === "panditji" || intent === "KUNDALI" || Boolean(incomingBirthDetails) || hasAstroKeywords;
     
     if (isAstrologySpecificQuery) {
@@ -2799,7 +2874,10 @@ LINK FORMAT RULES:
 
     // 5. Retrieve Live RAG Knowledge Documents, Public Trends & Memories
     const [ragDocs, liveTrends] = await Promise.all([
-      retrieveRagContext(message || (effectiveMode === "panditji" ? "Vedic Rudraksha Jyotish" : "Aura Rudraksha"), 5),
+      retrieveRagContext(
+        message || (effectiveMode === "panditji" ? "Vedic Rudraksha Kundali Nakshatra Rashi Jyotish" : "Aura Rudraksha"),
+        effectiveMode === "panditji" ? 8 : 5
+      ),
       getPublicStoreTrendsPayload().catch(() => null)
     ]);
     const trendsSnippet = liveTrends
@@ -3115,6 +3193,13 @@ SACRED RUDRAKSHA COMBINATION THERAPY (VEDIC BANDHS):
 - Arogya Swasthya Bandh (3+5+11 Mukhi): Best for physical vitality, anxiety/stress elimination, blood pressure harmony, and fearless immunity.
 - Sarva Siddha Maha Mala (1-14 Mukhi + Gauri Shankar + Ganesh): The supreme royal master combination for kingship aura, complete protection, and spiritual liberation.
 
+SHASTRA MASTER KNOWLEDGE BASE (ALWAYS APPLY ACCURATELY IN CONSULTATIONS):
+- **27 Nakshatras & 108 Padas:** Know every Nakshatra (Ashwini–Revati), its Swami Graha, Devta, Gana (Dev/Manushya/Rakshasa), Nadi (Adi/Madhya/Antya), recommended Mukhi & Beej Mantra.
+- **12 Rashis & 12 Bhavas:** Explain sign lords, elemental balance, Kendra (1,4,7,10), Trikona (1,5,9), Trik (6,8,12), Maraka (2,7), Badhaka, and house remedies.
+- **9 Grahas + Lal Kitab + Doshas & Rajayogas:** Cover Surya through Ketu, Manglik Dosha & its natural cancellations (guru drishti, Mars in Aries/Scorpio/Capricorn/Cancer/Leo, or after age 28), all 12 Kaal Sarp Yogas (Anant to Sheshnag), Pitra Dosha, Kemadruma Dosha, Shani Sade Sati & Dhaiya, plus Pancha Mahapurusha, Gajakesari, Vipreet, Neecha Bhanga, Budhaditya & Dharma-Karmadhipati Rajayogas.
+- **Rudraksha Authenticity & Care:** Nepal vs Indonesia origin comparison (Nepal: 16–26mm larger, deep natural grooves; Indonesia/Java: 6–14mm smaller smooth oval), X-Ray internal chamber scan & government-approved gemological lab certification as true proof (water-sink test is unreliable), 4-step Pran-Pratishtha (Snan with Gangajal/raw milk, red/yellow silk thread, 108 Beej Mantra jaap, Diya/Chandan), and Do's & Don'ts (wear on silk/silver/gold, oil lightly with sandalwood/sesame oil, remove during funeral/soap bath).
+- **7 Chakras & Numerology:** Map Muladhara (8/ गणेश) through Sahasrara (1/14 Mukhi), and explain Mulank (birth day digit 1–9), Bhagyank (full DOB digit 1–9), & Rudraksha for each number. Also guide couples on 36-point Ashtakoota Kundali Milan (Varna, Vashya, Tara, Yoni, Graha Maitri, Gana, Bhakoot, Nadi).
+
 ADAPTIVE TONE SENSING & PROFESSIONAL STYLING FREEDOM:
 - **Intelligent Persona Adaptation**: You are a deeply learned, revered, compassionate Vedic Pandit Ji (Jyotish Acharya). Dynamically assess the devotee's psychological and emotional state:
   1. **If devotee is in pain, stressed, fearful, or struggling (Rahu/Shani/breakup/debts)**: Adopt a fatherly, deeply reassuring, calm, empathetic tone. Instill divine hope, explain how planetary transits are temporary karmic tests, and give gentle spiritual remedies.
@@ -3291,20 +3376,15 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
       const prunedNimMessages = pruneMessagesForTokenLimit(nimMessages, 8000);
 
       // Bounded first-visible-token timeout + shared overall LLM budget so interactive chat never hangs or 504s
-      const STREAM_FIRST_TOKEN_TIMEOUT_MS = 8500;
-      const externalStreamDeadline = Date.now() + 18000;
+      const STREAM_FIRST_TOKEN_TIMEOUT_MS = 7500;
+      const externalStreamDeadline = Date.now() + 20000;
 
       // Resolve website-wide active model (honors Admin's saved choice across both NVIDIA NIM & Gemini)
       const activeWebsiteModel = await resolveActiveWebsiteAiModel();
       const preferGeminiStream = isGeminiModelName(activeWebsiteModel);
 
-      const nimCandidates = buildFastNimCandidateList(!preferGeminiStream ? activeWebsiteModel : "", 2);
-
-      const geminiCandidates = [...new Set([
-        preferGeminiStream ? activeWebsiteModel : "",
-        "gemini-3.8-flash",
-        ...GEMINI_TEXT_MODELS
-      ].filter(Boolean))].slice(0, 2);
+      const nimCandidates = buildFastNimCandidateList(!preferGeminiStream ? activeWebsiteModel : "", 4);
+      const geminiCandidates = buildGeminiCandidateList(preferGeminiStream ? activeWebsiteModel : "", 3);
 
       const shouldUseDeterministicStandard = effectiveMode !== "panditji" && (Boolean(precomputedCalc?.handled) || Boolean(mukhiRange));
       const streamMaxTokens = effectiveMode === "panditji" ? 4096 : 1800;
@@ -3314,6 +3394,9 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
         for (const modelCandidate of nimCandidates) {
           const remainingBudgetMs = externalStreamDeadline - Date.now();
           if (streamSucceeded || clientDisconnected || remainingBudgetMs < 2000) break;
+
+          const isHeavyModel = /550b|deepseek-r1/i.test(modelCandidate);
+          const candidateFirstTokenTimeout = isHeavyModel ? 6200 : STREAM_FIRST_TOKEN_TIMEOUT_MS;
 
           const modelAbort = new AbortController();
           const onParentAbort = () => modelAbort.abort(abortController.signal.reason || new Error("Client disconnected"));
@@ -3334,7 +3417,7 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
 
           try {
             const extraParams = buildNimExtraParams(modelCandidate, nvidiaClient);
-            const initBudgetMs = Math.min(STREAM_FIRST_TOKEN_TIMEOUT_MS, remainingBudgetMs);
+            const initBudgetMs = Math.min(candidateFirstTokenTimeout, remainingBudgetMs);
             resetCompletionTimer(initBudgetMs);
 
             const basePayload = {
@@ -3353,9 +3436,15 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
               );
             } catch (createErr) {
               const errStatus = Number(createErr?.status || createErr?.statusCode || 0);
-              if (extraParams.chat_template_kwargs && !firstTokenTimedOut && !clientDisconnected && (errStatus === 400 || /chat_template_kwargs|extra_forbidden|unrecognized/i.test(String(createErr?.message || "")))) {
+              const errMsgStr = String(createErr?.message || "");
+              if (!firstTokenTimedOut && !clientDisconnected && (errStatus === 400 || errStatus === 422 || /chat_template_kwargs|extra_forbidden|unrecognized|invalid_request|max_tokens/i.test(errMsgStr))) {
                 streamCompletion = await nvidiaClient.chat.completions.create(
-                  basePayload,
+                  {
+                    model: modelCandidate,
+                    messages: prunedNimMessages,
+                    max_tokens: Math.min(streamMaxTokens, 2048),
+                    stream: true
+                  },
                   { signal: modelAbort.signal }
                 );
               } else {
@@ -3417,48 +3506,70 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
         for (const gModel of geminiCandidates) {
           const remainingBudgetMs = externalStreamDeadline - Date.now();
           if (streamSucceeded || clientDisconnected || remainingBudgetMs < 2000) break;
-          const attemptTimeoutMs = Math.min(10000, remainingBudgetMs);
+          const attemptTimeoutMs = Math.min(9500, remainingBudgetMs);
           try {
-            const gConfig = {
-              systemInstruction: effectiveSystemPrompt,
-              ...(gModel.startsWith("gemini-4") || gModel.startsWith("gemini-3")
-                ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
-                : {})
-            };
             if (typeof geminiClient.models.generateContentStream === "function") {
-              const streamResp = await Promise.race([
-                geminiClient.models.generateContentStream({
+              try {
+                const streamResp = await streamGeminiResilient(geminiClient, {
                   model: gModel,
                   contents: gContents,
-                  config: gConfig
-                }),
-                new Promise((_, reject) => setTimeout(() => reject(new Error("GEMINI_STREAM_TIMEOUT")), attemptTimeoutMs))
-              ]);
-              let streamedChunkText = "";
-              for await (const chunk of streamResp) {
-                if (clientDisconnected) break;
-                const chunkText = chunk?.text || chunk?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
-                if (chunkText) {
-                  streamedChunkText += chunkText;
-                  fullStreamedText += chunkText;
-                  res.write(`data: ${JSON.stringify({ type: "chunk", delta: chunkText })}\n\n`);
-                  res.flush?.();
+                  systemInstruction: effectiveSystemPrompt,
+                  timeoutMs: attemptTimeoutMs
+                });
+                let streamedChunkText = "";
+                for await (const chunk of streamResp) {
+                  if (clientDisconnected) break;
+                  const chunkText = chunk?.text || chunk?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+                  if (chunkText) {
+                    streamedChunkText += chunkText;
+                    fullStreamedText += chunkText;
+                    res.write(`data: ${JSON.stringify({ type: "chunk", delta: chunkText })}\n\n`);
+                    res.flush?.();
+                  }
                 }
-              }
-              if (streamedChunkText.trim()) {
-                streamSucceeded = true;
-                streamedModelUsed = gModel;
-                break;
+                if (streamedChunkText.trim()) {
+                  streamSucceeded = true;
+                  streamedModelUsed = gModel;
+                  break;
+                }
+              } catch (streamAttemptErr) {
+                // Fallback from stream to unary generateContent on the same model if stream yielded no chunks
+                if (fullStreamedText.trim().length > 30) {
+                  streamSucceeded = true;
+                  streamedModelUsed = gModel;
+                  break;
+                }
+                const gResp = await generateGeminiResilient(geminiClient, {
+                  model: gModel,
+                  contents: gContents,
+                  systemInstruction: effectiveSystemPrompt,
+                  timeoutMs: Math.min(8000, Math.max(2000, externalStreamDeadline - Date.now()))
+                });
+                const gText = gResp?.text || gResp?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+                if (gText.trim()) {
+                  fullStreamedText = gText.trim();
+                  const gTokens = fullStreamedText.split(/(\s+)/);
+                  for (let i = 0; i < gTokens.length; i += 4) {
+                    if (clientDisconnected) break;
+                    const chunkStr = gTokens.slice(i, i + 4).join("");
+                    if (chunkStr) {
+                      res.write(`data: ${JSON.stringify({ type: "chunk", delta: chunkStr })}\n\n`);
+                      res.flush?.();
+                    }
+                  }
+                  streamSucceeded = true;
+                  streamedModelUsed = gModel;
+                  break;
+                }
+                throw streamAttemptErr;
               }
             } else {
-              const gResp = await Promise.race([
-                geminiClient.models.generateContent({
-                  model: gModel,
-                  contents: gContents,
-                  config: gConfig
-                }),
-                new Promise((_, reject) => setTimeout(() => reject(new Error("GEMINI_STREAM_TIMEOUT")), attemptTimeoutMs))
-              ]);
+              const gResp = await generateGeminiResilient(geminiClient, {
+                model: gModel,
+                contents: gContents,
+                systemInstruction: effectiveSystemPrompt,
+                timeoutMs: attemptTimeoutMs
+              });
               const gText = gResp?.text || gResp?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
               if (gText.trim()) {
                 fullStreamedText = gText.trim();
@@ -3662,20 +3773,15 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
 
     const nonStreamNvidiaClient = getNvidiaClient();
     const NON_STREAM_TIMEOUT_MS = 8000;
-    const nonStreamDeadline = Date.now() + 15000;
+    const nonStreamDeadline = Date.now() + 18000;
     const shouldUseDeterministicNonStream = effectiveMode !== "panditji" && (Boolean(precomputedCalc?.handled) || Boolean(mukhiRange));
     const nonStreamMaxTokens = effectiveMode === "panditji" ? 4096 : 1800;
 
     const nonStreamActiveModel = await resolveActiveWebsiteAiModel();
     const preferGeminiNonStream = isGeminiModelName(nonStreamActiveModel);
 
-    const nonStreamNimCandidates = buildFastNimCandidateList(!preferGeminiNonStream ? nonStreamActiveModel : "", 2);
-
-    const nonStreamGeminiCandidates = [...new Set([
-      preferGeminiNonStream ? nonStreamActiveModel : "",
-      "gemini-3.8-flash",
-      ...GEMINI_TEXT_MODELS
-    ].filter(Boolean))].slice(0, 2);
+    const nonStreamNimCandidates = buildFastNimCandidateList(!preferGeminiNonStream ? nonStreamActiveModel : "", 4);
+    const nonStreamGeminiCandidates = buildGeminiCandidateList(preferGeminiNonStream ? nonStreamActiveModel : "", 3);
 
     const tryNonStreamNim = async () => {
       if (!nonStreamNvidiaClient || generatedSuccessfully || shouldUseDeterministicNonStream) return;
@@ -3718,19 +3824,12 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
         const remainingMs = nonStreamDeadline - Date.now();
         if (generatedSuccessfully || remainingMs < 2000) break;
         try {
-          const gResp = await Promise.race([
-            nonStreamGemini.models.generateContent({
-              model: gModel,
-              contents: gContents,
-              config: {
-                systemInstruction: effectiveSystemPrompt,
-                ...(gModel.startsWith("gemini-4") || gModel.startsWith("gemini-3")
-                  ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
-                  : {})
-              }
-            }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error("GEMINI_NONSTREAM_TIMEOUT")), Math.min(9500, remainingMs)))
-          ]);
+          const gResp = await generateGeminiResilient(nonStreamGemini, {
+            model: gModel,
+            contents: gContents,
+            systemInstruction: effectiveSystemPrompt,
+            timeoutMs: Math.min(9000, remainingMs)
+          });
           const outContent = gResp?.text || gResp?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
           if (outContent.trim()) {
             aiResponseText = outContent;
@@ -4039,11 +4138,11 @@ OUTPUT FORMAT: Return a valid JSON object ONLY:
   ]
 }`;
 
-    const intelDeadline = Date.now() + 15000;
+    const intelDeadline = Date.now() + 18000;
 
     const runIntelNim = async () => {
       if (!nvidiaClient || aiExecutiveReport) return;
-      const nimList = buildFastNimCandidateList(!isGeminiModelName(activeIntelModel) ? activeIntelModel : "", 2);
+      const nimList = buildFastNimCandidateList(!isGeminiModelName(activeIntelModel) ? activeIntelModel : "", 4);
       for (const mName of nimList) {
         const remainingMs = intelDeadline - Date.now();
         if (aiExecutiveReport || remainingMs < 2000) break;
@@ -4075,25 +4174,18 @@ OUTPUT FORMAT: Return a valid JSON object ONLY:
 
     const runIntelGemini = async () => {
       if (!geminiClient || aiExecutiveReport || intelDeadline - Date.now() < 2000) return;
-      const gList = [...new Set([isGeminiModelName(activeIntelModel) ? activeIntelModel : "", "gemini-3.8-flash", ...GEMINI_TEXT_MODELS].filter(Boolean))].slice(0, 2);
+      const gList = buildGeminiCandidateList(isGeminiModelName(activeIntelModel) ? activeIntelModel : "", 3);
       for (const gModel of gList) {
         const remainingMs = intelDeadline - Date.now();
         if (aiExecutiveReport || remainingMs < 2000) break;
         try {
-          const gResp = await Promise.race([
-            geminiClient.models.generateContent({
-              model: gModel,
-              contents: adminPrompt,
-              config: {
-                systemInstruction: "You are an executive e-commerce AI analytics engine. Output clean JSON only.",
-                responseMimeType: "application/json",
-                ...(gModel.startsWith("gemini-4") || gModel.startsWith("gemini-3")
-                  ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
-                  : {})
-              }
-            }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error("Gemini intelligence timed out")), Math.min(8500, remainingMs)))
-          ]);
+          const gResp = await generateGeminiResilient(geminiClient, {
+            model: gModel,
+            contents: adminPrompt,
+            systemInstruction: "You are an executive e-commerce AI analytics engine. Output clean JSON only.",
+            responseMimeType: "application/json",
+            timeoutMs: Math.min(8500, remainingMs)
+          });
           const parsed = extractStructuredAiJson(gResp?.text || "");
           if (parsed) {
             aiExecutiveReport = parsed;
@@ -4945,4 +5037,70 @@ export async function getPublicTrendsEndpoint(req, res, next) {
     next(err);
   }
 }
+
+/**
+ * Public: Ashtakoota 36-Point Kundali Milan (Marriage Compatibility) + Manglik Parity + Rudraksha Remedies
+ */
+export async function calculateKundaliMilanEndpoint(req, res, next) {
+  try {
+    const { boy, girl } = req.body || {};
+    if (!boy?.dob || !girl?.dob) {
+      return res.status(400).json({
+        success: false,
+        message: "कृपया वर (Boy) और कन्या (Girl) दोनों की जन्म तिथि (DOB) दर्ज करें।"
+      });
+    }
+    const result = calculateKundaliMilan({
+      boy: {
+        name: String(boy.name || "वर (Boy)").trim(),
+        dob: String(boy.dob).trim(),
+        birthTime: String(boy.birthTime || boy.time || "12:00").trim(),
+        birthPlace: String(boy.birthPlace || boy.place || "Delhi, India").trim()
+      },
+      girl: {
+        name: String(girl.name || "कन्या (Girl)").trim(),
+        dob: String(girl.dob).trim(),
+        birthTime: String(girl.birthTime || girl.time || "12:00").trim(),
+        birthPlace: String(girl.birthPlace || girl.place || "Delhi, India").trim()
+      }
+    });
+    return res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Public: Vedic Numerology (Mulank, Bhagyank, Chaldean Namank + Lucky Colors/Days + Rudraksha)
+ */
+export async function calculateNumerologyEndpoint(req, res, next) {
+  try {
+    const { dob, name = "" } = req.body || {};
+    if (!dob) {
+      return res.status(400).json({
+        success: false,
+        message: "कृपया अपनी जन्म तिथि (Date of Birth) दर्ज करें।"
+      });
+    }
+    const result = calculateVedicNumerology({ dob: String(dob).trim(), name: String(name || "").trim() });
+    return res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Public: Daily Vedic Panchang, Tithi, Vara, Nakshatra, Abhijit Muhurat, Rahu Kaal & Daily Rudraksha Mantra
+ */
+export async function getDailyPanchangEndpoint(req, res, next) {
+  try {
+    const dateParam = req.query?.date || req.body?.date || undefined;
+    const placeParam = req.query?.place || req.body?.place || "Varanasi, India";
+    const result = getDailyVedicPanchang({ date: dateParam, place: String(placeParam) });
+    return res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
 

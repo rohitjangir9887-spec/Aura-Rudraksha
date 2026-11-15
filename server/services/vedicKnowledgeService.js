@@ -1232,3 +1232,252 @@ export function buildAuthenticVedicResponse({ message, userIntent, products = []
   resp += `Aap apni **Rashi, zaroorat (Peace, Wealth, Courage, Focus), ya kisi specific Mukhi Rudraksha** ke bare mein poochh sakte hain!`;
   return resp;
 }
+
+// ============================================================================
+// DEEP VEDIC KUNDALI GYAN & RUDRAKSHA ENCYCLOPEDIA
+// Trained across BPHS, Phaladeepika, Muhurta Chintamani, Lal Kitab & Shiva Purana
+// ============================================================================
+
+export const NAKSHATRA_27_KNOWLEDGE = [
+  { number: 1, name: "Ashwini", hindi: "अश्विनी", range: "0°00' - 13°20' मेष", lord: "Ketu", deity: "Ashwini Kumaras", symbol: "अश्व मुख (Horse Head)", gana: "Deva", nadi: "Aadi", yoni: "Ashwa", traits: "त्वरित गति, चिकित्सा-आरोग्य प्रतिभा, साहस और नई शुरुआत करने की शक्ति।", bestRudraksha: "9 Mukhi (केतु) व 3 Mukhi (मंगल)", beejMantra: "ॐ ह्रीं हुं नमः" },
+  { number: 2, name: "Bharani", hindi: "भरणी", range: "13°20' - 26°40' मेष", lord: "Venus", deity: "Yama (Dharmaraja)", symbol: "योनि / पात्र", gana: "Manushya", nadi: "Madhya", yoni: "Gaja", traits: "सृजनशीलता, गहन जिम्मेदारी, कर्मशीलता, कला और दृढ़ संकल्प।", bestRudraksha: "6 Mukhi (शुक्र) व 13 Mukhi", beejMantra: "ॐ ह्रीं हुं नमः" },
+  { number: 3, name: "Krittika", hindi: "कृत्तिका", range: "26°40' मेष - 10°00' वृषभ", lord: "Sun", deity: "Agni Dev", symbol: "अग्निशिखा / छुरा", gana: "Rakshasa", nadi: "Antya", yoni: "Mesha", traits: "तेजस्वी नेतृत्व, सत्यनिष्ठा, पाचन शक्ति व प्रशासनिक क्षमता।", bestRudraksha: "1 Mukhi / 12 Mukhi (सूर्य)", beejMantra: "ॐ ह्रीं नमः" },
+  { number: 4, name: "Rohini", hindi: "रोहिणी", range: "10°00' - 23°20' वृषभ", lord: "Moon", deity: "Brahma / Prajapati", symbol: "रथ (Chariot)", gana: "Manushya", nadi: "Antya", yoni: "Sarpa", traits: "आकर्षण, कला, समृद्धि, भावनात्मक संवेदनशीलता और व्यापारिक सफलता।", bestRudraksha: "2 Mukhi (चंद्र) व 7 Mukhi", beejMantra: "ॐ नमः" },
+  { number: 5, name: "Mrigashira", hindi: "मृगशिरा", range: "23°20' वृषभ - 6°40' मिथुन", lord: "Mars", deity: "Soma (Chandra)", symbol: "मृग शीर्ष (Deer Head)", gana: "Deva", nadi: "Madhya", yoni: "Sarpa", traits: "जिज्ञासु प्रवृत्ति, शोध-बुद्धि, यात्राएं, संवाद कौशल और मधुर वाणी।", bestRudraksha: "3 Mukhi (मंगल) व 4 Mukhi", beejMantra: "ॐ क्लीं नमः" },
+  { number: 6, name: "Ardra", hindi: "आर्द्रा", range: "6°40' - 20°00' मिथुन", lord: "Rahu", deity: "Rudra (Lord Shiva)", symbol: "अश्रु बूंद / हीरा", gana: "Manushya", nadi: "Aadi", yoni: "Shwana", traits: "तीव्र विश्लेषण, संकट के बाद महान रूपांतरण, तकनीकी व शोध दक्षता।", bestRudraksha: "8 Mukhi (राहु/गणेश) व 5 Mukhi", beejMantra: "ॐ हुं नमः" },
+  { number: 7, name: "Punarvasu", hindi: "पुनर्वसु", range: "20°00' मिथुन - 3°20' कर्क", lord: "Jupiter", deity: "Aditi", symbol: "धनुष और तरकश", gana: "Deva", nadi: "Aadi", yoni: "Marjar", traits: "पुनः उत्थान शक्ति, उदारता, आध्यात्मिक ज्ञान और गृह-सुख।", bestRudraksha: "5 Mukhi (गुरु) व 2 Mukhi", beejMantra: "ॐ ह्रीं नमः" },
+  { number: 8, name: "Pushya", hindi: "पुष्य", range: "3°20' - 16°40' कर्क", lord: "Saturn", deity: "Brihaspati", symbol: "गाय का थन / कमल", gana: "Deva", nadi: "Madhya", yoni: "Mesha", traits: "नक्षत्रराज — पोषण, धर्मपरायणता, स्थायी धन व सेवा भाव।", bestRudraksha: "7 Mukhi (शनि) व 5 Mukhi", beejMantra: "ॐ हुं नमः" },
+  { number: 9, name: "Ashlesha", hindi: "आश्लेषा", range: "16°40' - 30°00' कर्क", lord: "Mercury", deity: "Sarpa / Nagas", symbol: "कुंडलित नाग", gana: "Rakshasa", nadi: "Antya", yoni: "Marjar", traits: "गूढ़ अंतर्दृष्टि, रणनीति, कुंडलिनी ऊर्जा व गहरी कूटनीति।", bestRudraksha: "4 Mukhi (बुध) व 8 Mukhi", beejMantra: "ॐ ह्रीं नमः" },
+  { number: 10, name: "Magha", hindi: "मघा", range: "0°00' - 13°20' सिंह", lord: "Ketu", deity: "Pitras (Ancestors)", symbol: "राजसिंहासन", gana: "Rakshasa", nadi: "Antya", yoni: "Mushaka", traits: "पैतृक आशीर्वाद, राजसी गौरव, स्वाभिमान व उच्च पद प्राप्ति।", bestRudraksha: "9 Mukhi (केतु) व 1 Mukhi", beejMantra: "ॐ ह्रीं हुं नमः" },
+  { number: 11, name: "Purva Phalguni", hindi: "पूर्वा फाल्गुनी", range: "13°20' - 26°40' सिंह", lord: "Venus", deity: "Bhaga", symbol: "विश्राम शय्या", gana: "Manushya", nadi: "Madhya", yoni: "Mushaka", traits: "ऐश्वर्य, संगीत-कला, दांपत्य प्रेम और सामाजिक लोकप्रियता।", bestRudraksha: "6 Mukhi (शुक्र) व 13 Mukhi", beejMantra: "ॐ ह्रीं हुं नमः" },
+  { number: 12, name: "Uttara Phalguni", hindi: "उत्तरा फाल्गुनी", range: "26°40' सिंह - 10°00' कन्या", lord: "Sun", deity: "Aryaman", symbol: "शय्या के चार पाये", gana: "Manushya", nadi: "Aadi", yoni: "Gau", traits: "सहायक नेतृत्व, साझेदारी में लाभ, न्यायप्रियता और स्थिर समृद्धि।", bestRudraksha: "12 Mukhi (सूर्य) व 4 Mukhi", beejMantra: "ॐ क्रौं क्षौं रौं नमः" },
+  { number: 13, name: "Hasta", hindi: "हस्त", range: "10°00' - 23°20' कन्या", lord: "Moon", deity: "Savita (Surya)", symbol: "खुली हथेली (Hand)", gana: "Deva", nadi: "Aadi", yoni: "Mahisha", traits: "कौशल-निर्माण, व्यापारिक चतुरता, हस्तकला व स्वच्छ व्यवहार।", bestRudraksha: "2 Mukhi (चंद्र) व 4 Mukhi", beejMantra: "ॐ नमः" },
+  { number: 14, name: "Chitra", hindi: "चित्रा", range: "23°20' कन्या - 6°40' तुला", lord: "Mars", deity: "Vishwakarma", symbol: "चमकता रत्न / मोती", gana: "Rakshasa", nadi: "Madhya", yoni: "Vyaghra", traits: "वास्तु-शिल्प, आकर्षण, डिज़ाइन-रचनात्मकता व सटीक लक्ष्य भेदन।", bestRudraksha: "3 Mukhi (मंगल) व 6 Mukhi", beejMantra: "ॐ क्लीं नमः" },
+  { number: 15, name: "Swati", hindi: "स्वाति", range: "6°40' - 20°00' तुला", lord: "Rahu", deity: "Vayu Dev", symbol: "नव पल्लव / तलवार", gana: "Deva", nadi: "Antya", yoni: "Mahisha", traits: "स्वतंत्र विचार, व्यापार विस्तार, कूटनीतिक संवाद व अनुकूलनशीलता।", bestRudraksha: "8 Mukhi (राहु) व 6 Mukhi", beejMantra: "ॐ हुं नमः" },
+  { number: 16, name: "Vishakha", hindi: "विशाखा", range: "20°00' तुला - 3°20' वृश्चिक", lord: "Jupiter", deity: "Indra-Agni", symbol: "विजय तोरण द्वार", gana: "Rakshasa", nadi: "Antya", yoni: "Vyaghra", traits: "अटूट लक्ष्य-निष्ठा, महत्वाकांक्षा, न्याय व आध्यात्मिक रूपांतरण।", bestRudraksha: "5 Mukhi (गुरु) व 11 Mukhi", beejMantra: "ॐ ह्रीं नमः" },
+  { number: 17, name: "Anuradha", hindi: "अनुराधा", range: "3°20' - 16°40' वृश्चिक", lord: "Saturn", deity: "Mitra", symbol: "विजय कमल पुष्प", gana: "Deva", nadi: "Madhya", yoni: "Mriga", traits: "गहरी मित्रता, निष्ठा, विदेश प्रवास सफलता व गूढ़ ज्योतिष रुचि।", bestRudraksha: "7 Mukhi (शनि) व 3 Mukhi", beejMantra: "ॐ हुं नमः" },
+  { number: 18, name: "Jyeshtha", hindi: "ज्येष्ठा", range: "16°40' - 30°00' वृश्चिक", lord: "Mercury", deity: "Indra Dev", symbol: "रक्षा कुंडल / छत्र", gana: "Rakshasa", nadi: "Aadi", yoni: "Mriga", traits: "संरक्षक नेतृत्व, संकट-प्रबंधन, प्रशासन व तीक्ष्ण बुद्धि।", bestRudraksha: "4 Mukhi (बुध) व 11 Mukhi", beejMantra: "ॐ ह्रीं नमः" },
+  { number: 19, name: "Mula", hindi: "मूल", range: "0°00' - 13°20' धनु", lord: "Ketu", deity: "Nirriti", symbol: "जड़ों का गुच्छा", gana: "Rakshasa", nadi: "Aadi", yoni: "Shwana", traits: "सत्य की जड़ तक पहुँचने की जिज्ञासा, दर्शन, चिकित्सा व मोक्ष भाव।", bestRudraksha: "9 Mukhi (केतु) व 5 Mukhi", beejMantra: "ॐ ह्रीं हुं नमः" },
+  { number: 20, name: "Purva Ashadha", hindi: "पूर्वाषाढ़ा", range: "13°20' - 26°40' धनु", lord: "Venus", deity: "Apas (Jal Devi)", symbol: "सूप / हाथी दांत", gana: "Manushya", nadi: "Madhya", yoni: "Vanara", traits: "अजेय आत्मविश्वास, वाक्पटुता, कला व जन-समर्थन।", bestRudraksha: "6 Mukhi (शुक्र) व 5 Mukhi", beejMantra: "ॐ ह्रीं हुं नमः" },
+  { number: 21, name: "Uttara Ashadha", hindi: "उत्तराषाढ़ा", range: "26°40' धनु - 10°00' मकर", lord: "Sun", deity: "Vishvedevas", symbol: "हाथी का दांत", gana: "Manushya", nadi: "Antya", yoni: "Nakula", traits: "स्थायी विजय, धर्मनिष्ठ शासन, धैर्य और उच्च नैतिक सफलता।", bestRudraksha: "1 Mukhi / 12 Mukhi (सूर्य) व 7 Mukhi", beejMantra: "ॐ ह्रीं नमः" },
+  { number: 22, name: "Shravana", hindi: "श्रवण", range: "10°00' - 23°20' मकर", lord: "Moon", deity: "Lord Vishnu", symbol: "कान / तीन पदचिह्न", gana: "Deva", nadi: "Antya", yoni: "Vanara", traits: "श्रवण-ज्ञान, परामर्श क्षमता, परंपरा व श्रीहरि की विशेष कृपा।", bestRudraksha: "10 Mukhi (विष्णु) व 2 Mukhi", beejMantra: "ॐ नमः" },
+  { number: 23, name: "Dhanishta", hindi: "धनिष्ठा", range: "23°20' मकर - 6°40' कुंभ", lord: "Mars", deity: "Ashta Vasus", symbol: "डमरू / मृदंग", gana: "Rakshasa", nadi: "Madhya", yoni: "Simha", traits: "धनाढ्य योग, लयबद्ध कार्यशैली, संगीत व भूमि-संपत्ति लाभ।", bestRudraksha: "3 Mukhi (मंगल) व 7 Mukhi", beejMantra: "ॐ क्लीं नमः" },
+  { number: 24, name: "Shatabhisha", hindi: "शतभिषा", range: "6°40' - 20°00' कुंभ", lord: "Rahu", deity: "Varuna Dev", symbol: "शत तारों का वृत्त", gana: "Rakshasa", nadi: "Aadi", yoni: "Ashwa", traits: "चिकित्सा-अनुसंधान, खगोल-ज्योतिष, आविष्कार व एकांत चिंतन।", bestRudraksha: "8 Mukhi (राहु) व 14 Mukhi", beejMantra: "ॐ हुं नमः" },
+  { number: 25, name: "Purva Bhadrapada", hindi: "पूर्वभाद्रपद", range: "20°00' कुंभ - 3°20' मीन", lord: "Jupiter", deity: "Aja Ekapada", symbol: "दोमुखी पुरुष / खड्ग", gana: "Manushya", nadi: "Aadi", yoni: "Simha", traits: "उच्च आदर्श, तपस्या, दार्शनिक गहराई और आध्यात्मिक तेज।", bestRudraksha: "5 Mukhi (गुरु) व 7 Mukhi", beejMantra: "ॐ ह्रीं नमः" },
+  { number: 26, name: "Uttara Bhadrapada", hindi: "उत्तरभाद्रपद", range: "3°20' - 16°40' मीन", lord: "Saturn", deity: "Ahir Budhnya", symbol: "पलंग / यमज", gana: "Manushya", nadi: "Madhya", yoni: "Gau", traits: "गहन ज्ञान, करुणा, दीर्घकालिक धन और शांत साधना।", bestRudraksha: "7 Mukhi (शनि) व 14 Mukhi", beejMantra: "ॐ हुं नमः" },
+  { number: 27, name: "Revati", hindi: "रेवती", range: "16°40' - 30°00' मीन", lord: "Mercury", deity: "Pushan", symbol: "मृदंग / युगल मत्स्य", gana: "Deva", nadi: "Antya", yoni: "Gaja", traits: "सौम्य स्वभाव, यात्रा-सुरक्षा, समृद्धि, रचनात्मकता व करुणा।", bestRudraksha: "4 Mukhi (बुध) व 5 Mukhi", beejMantra: "ॐ ह्रीं नमः" }
+];
+
+export const RASHI_12_KNOWLEDGE = [
+  { index: 0, name: "Mesh", hindi: "मेष", english: "Aries", lord: "Mangal (Mars)", element: "अग्नि (Fire)", quality: "चर (Movable)", traits: "साहसी, नेतृत्वशील, ऊर्जावान व त्वरित निर्णय लेने वाले। क्रोध व जल्दबाजी पर संयम आवश्यक।", favorableRudraksha: "3 Mukhi (मुख्य) व 5 Mukhi", auspiciousDay: "मंगलवार", gemstone: "मूंगा (Red Coral - कुंडली जांच के बाद)", beejMantra: "ॐ क्रां क्रीं क्रौं सः भौमाय नमः" },
+  { index: 1, name: "Vrishabh", hindi: "वृषभ", english: "Taurus", lord: "Shukra (Venus)", element: "पृथ्वी (Earth)", quality: "स्थिर (Fixed)", traits: "धैर्यवान, कलाप्रिय, भौतिक सुख-संपत्ति संग्राहक व विश्वसनीय।", favorableRudraksha: "6 Mukhi (मुख्य) व 7 Mukhi", auspiciousDay: "शुक्रवार", gemstone: "ओपल / हीरा (कुंडली अनुसार)", beejMantra: "ॐ द्रां द्रीं द्रौं सः शुक्राय नमः" },
+  { index: 2, name: "Mithun", hindi: "मिथुन", english: "Gemini", lord: "Budha (Mercury)", element: "वायु (Air)", quality: "द्विस्वभाव (Dual)", traits: "तीक्ष्ण बुद्धि, बहुमुखी प्रतिभा, संचार और व्यापार में निपुण। मन की चंचलता रोकें।", favorableRudraksha: "4 Mukhi (मुख्य) व 6 Mukhi", auspiciousDay: "बुधवार", gemstone: "पन्ना (Emerald)", beejMantra: "ॐ ब्रां ब्रीं ब्रौं सः बुधाय नमः" },
+  { index: 3, name: "Kark", hindi: "कर्क", english: "Cancer", lord: "Chandra (Moon)", element: "जल (Water)", quality: "चर (Movable)", traits: "संवेदनशील, परिवार-प्रेमी, कल्पनाशील व करुणामय। भावनात्मक उतार-चढ़ाव से बचें।", favorableRudraksha: "2 Mukhi (मुख्य) व 3 Mukhi", auspiciousDay: "सोमवार", gemstone: "मोती (Pearl)", beejMantra: "ॐ श्रां श्रीं श्रौं सः चंद्रमसे नमः" },
+  { index: 4, name: "Singh", hindi: "सिंह", english: "Leo", lord: "Surya (Sun)", element: "अग्नि (Fire)", quality: "स्थिर (Fixed)", traits: "राजसी तेज, उच्च आत्मविश्वास, उदार व जन्मजात लीडर। अहंकार से बचें।", favorableRudraksha: "1 Mukhi / 12 Mukhi (मुख्य) व 3 Mukhi", auspiciousDay: "रविवार", gemstone: "माणिक्य (Ruby)", beejMantra: "ॐ ह्रां ह्रीं ह्रौं सः सूर्याय नमः" },
+  { index: 5, name: "Kanya", hindi: "कन्या", english: "Virgo", lord: "Budha (Mercury)", element: "पृथ्वी (Earth)", quality: "द्विस्वभाव (Dual)", traits: "विश्लेषणात्मक, व्यवस्थित, हिसाब-किताब व लेखन में दक्ष। अति-चिंता से बचें।", favorableRudraksha: "4 Mukhi (मुख्य) व 6 Mukhi", auspiciousDay: "बुधवार", gemstone: "पन्ना (Emerald)", beejMantra: "ॐ ब्रां ब्रीं ब्रौं सः बुधाय नमः" },
+  { index: 6, name: "Tula", hindi: "तुला", english: "Libra", lord: "Shukra (Venus)", element: "वायु (Air)", quality: "चर (Movable)", traits: "संतुलित, न्यायप्रिय, सौंदर्य प्रेमी व साझेदारी व्यापार में कुशल।", favorableRudraksha: "6 Mukhi (मुख्य) व 7 Mukhi", auspiciousDay: "शुक्रवार", gemstone: "ओपल / हीरा", beejMantra: "ॐ द्रां द्रीं द्रौं सः शुक्राय नमः" },
+  { index: 7, name: "Vrischika", hindi: "वृश्चिक", english: "Scorpio", lord: "Mangal (Mars)", element: "जल (Water)", quality: "स्थिर (Fixed)", traits: "गूढ़ रहस्यमय, अदम्य इच्छाशक्ति, शोधकर्ता व संकट में अडिग।", favorableRudraksha: "3 Mukhi (मुख्य) व 11 Mukhi", auspiciousDay: "मंगलवार", gemstone: "मूंगा (Red Coral)", beejMantra: "ॐ क्रां क्रीं क्रौं सः भौमाय नमः" },
+  { index: 8, name: "Dhanu", hindi: "धनु", english: "Sagittarius", lord: "Guru (Jupiter)", element: "अग्नि (Fire)", quality: "द्विस्वभाव (Dual)", traits: "धार्मिक, सत्यवादी, उच्च शिक्षा प्रेमी व गुरु-कृपा पात्र।", favorableRudraksha: "5 Mukhi (मुख्य) व 1 Mukhi", auspiciousDay: "गुरुवार", gemstone: "पुखराज (Yellow Sapphire)", beejMantra: "ॐ ग्रां ग्रीं ग्रौं सः गुरवे नमः" },
+  { index: 9, name: "Makar", hindi: "मकर", english: "Capricorn", lord: "Shani (Saturn)", element: "पृथ्वी (Earth)", quality: "चर (Movable)", traits: "कर्मठ, अनुशासित, यथार्थवादी व धीमी किंतु स्थायी सफलता प्राप्तकर्ता।", favorableRudraksha: "7 Mukhi (मुख्य) व 14 Mukhi", auspiciousDay: "शनिवार", gemstone: "नीलम (कुंडली परीक्षण के बाद ही)", beejMantra: "ॐ प्रां प्रीं प्रौं सः शनैश्चराय नमः" },
+  { index: 10, name: "Kumbh", hindi: "कुंभ", english: "Aquarius", lord: "Shani (Saturn)", element: "वायु (Air)", quality: "स्थिर (Fixed)", traits: "वैज्ञानिक सोच, मानवतावादी, नवीन विचारक व दीर्घकालिक रणनीतिकार।", favorableRudraksha: "7 Mukhi (मुख्य) व 11 Mukhi", auspiciousDay: "शनिवार", gemstone: "नीलम / लाजवर्त", beejMantra: "ॐ प्रां प्रीं प्रौं सः शनैश्चराय नमः" },
+  { index: 11, name: "Meen", hindi: "मीन", english: "Pisces", lord: "Guru (Jupiter)", element: "जल (Water)", quality: "द्विस्वभाव (Dual)", traits: "आध्यात्मिक, दयालु, कलात्मक व गहन अंतर्ज्ञान युक्त।", favorableRudraksha: "5 Mukhi (मुख्य) व 2 Mukhi", auspiciousDay: "गुरुवार", gemstone: "पुखराज (Yellow Sapphire)", beejMantra: "ॐ ग्रां ग्रीं ग्रौं सः गुरवे नमः" }
+];
+
+export const BHAVA_12_KNOWLEDGE = [
+  { house: 1, name: "Tanu Bhava (Lagna)", hindi: "प्रथम भाव (लग्न / तनु भाव)", karaka: "सूर्य (Sun)", category: "केंद्र + त्रिकोण", significations: "शरीर, स्वास्थ्य, रूप-रंग, व्यक्तित्व, आत्मबल, मस्तिष्क और समग्र जीवन की दिशा।", rudrakshaRemedies: "लग्नेश का मुख्य रुद्राक्ष + 1 Mukhi / 5 Mukhi आत्मबल हेतु" },
+  { house: 2, name: "Dhana Bhava", hindi: "द्वितीय भाव (धन व कुटुंब भाव)", karaka: "गुरु (Jupiter)", category: "पणफर / मारक", significations: "संचित धन, परिवार (कुटुंब), वाणी, प्रारंभिक शिक्षा, नेत्र और खान-पान।", rudrakshaRemedies: "7 Mukhi (धन स्थायित्व) व 4 Mukhi (मधुर वाणी)" },
+  { house: 3, name: "Sahaja Bhava", hindi: "तृतीय भाव (पराक्रम व सहज भाव)", karaka: "मंगल (Mars)", category: "उपचय / त्रिषडाय", significations: "साहस, पराक्रम, छोटे भाई-बहन, लेखन-संवाद, छोटी यात्राएं व बाहुबल।", rudrakshaRemedies: "3 Mukhi (पराक्रम व ऊर्जा) व 11 Mukhi" },
+  { house: 4, name: "Sukha Bhava", hindi: "चतुर्थ भाव (सुख, माता व वाहन भाव)", karaka: "चंद्र व बुध", category: "केंद्र (विष्णु स्थान)", significations: "माता का सुख, मन की शांति, घर, जमीन-जायदाद, वाहन और जनता का प्रेम।", rudrakshaRemedies: "2 Mukhi (मातृ-शांति), 10 Mukhi (भवन-वास्तु) व 6 Mukhi" },
+  { house: 5, name: "Putra / Vidya Bhava", hindi: "पंचम भाव (संतान, बुद्धि व पूर्व पुण्य)", karaka: "गुरु (Jupiter)", category: "त्रिकोण (लक्ष्मी स्थान)", significations: "संतान, उच्च बुद्धि, प्रेम संबंध, मंत्र सिद्धि, शेयर/सट्टा लाभ व पूर्व जन्म पुण्य।", rudrakshaRemedies: "4 Mukhi (विद्या), 5 Mukhi (पूर्व पुण्य) व गर्भ गौरी (संतान)" },
+  { house: 6, name: "Ripu / Roga Bhava", hindi: "षष्ठम भाव (रोग, ऋण व शत्रु भाव)", karaka: "मंगल व शनि", category: "दुस्थान + उपचय", significations: "रोग, कर्ज, शत्रु, नौकरी में प्रतिस्पर्धा, कोर्ट-कचहरी और मामा पक्ष।", rudrakshaRemedies: "8 Mukhi (बाधा नाश), 10 Mukhi व 11 Mukhi (शत्रु विजय)" },
+  { house: 7, name: "Kalatra / Yuvati Bhava", hindi: "सप्तम भाव (विवाह व साझेदारी भाव)", karaka: "शुक्र (Venus)", category: "केंद्र / मारक", significations: "जीवनसाथी, विवाह, व्यापारिक साझेदारी, जन-संपर्क और वैवाहिक सुख।", rudrakshaRemedies: "2 Mukhi व गौरी शंकर रुद्राक्ष (वैवाहिक सामंजस्य)" },
+  { house: 8, name: "Ayush / Randhra Bhava", hindi: "अष्टम भाव (आयु, गुप्त विद्या व परिवर्तन)", karaka: "शनि (Saturn)", category: "दुस्थान", significations: "आयु, आकस्मिक घटनाएं, पैतृक धन, शोध-ज्योतिष, कुंडलिनी व दीर्घ रोग।", rudrakshaRemedies: "11 Mukhi / 14 Mukhi (अकाल संकट रक्षा व अंतर्ज्ञान)" },
+  { house: 9, name: "Bhagya / Dharma Bhava", hindi: "नवम भाव (भाग्य, धर्म व पिता भाव)", karaka: "गुरु व सूर्य", category: "त्रिकोण (सर्वोच्च लक्ष्मी स्थान)", significations: "भाग्योदय, धर्म-कर्म, गुरु कृपा, लंबी/विदेश यात्रा, पिता व उच्च शिक्षा।", rudrakshaRemedies: "5 Mukhi व 12 Mukhi (भाग्योदय व गुरु-सूर्य बल)" },
+  { house: 10, name: "Karma Bhava", hindi: "दशम भाव (कर्म, करियर व राज्य भाव)", karaka: "सूर्य, शनि, बुध, गुरु", category: "केंद्र (सबसे बलिष्ठ केंद्र)", significations: "करियर, सरकारी नौकरी, पद-प्रतिष्ठा, व्यापारिक नाम, कर्म और पिता का सहयोग।", rudrakshaRemedies: "7 Mukhi, 10 Mukhi व 12 Mukhi (राजकीय व करियर उन्नति)" },
+  { house: 11, name: "Labha Bhava", hindi: "एकादश भाव (आय, लाभ व इच्छापूर्ति)", karaka: "गुरु (Jupiter)", category: "उपचय", significations: "नियमित आय, हर प्रयास से लाभ, बड़े भाई-बहन, मित्र मंडली व मनोकामना सिद्धि।", rudrakshaRemedies: "7 Mukhi व 13 Mukhi (आय व महालक्ष्मी सिद्धि)" },
+  { house: 12, name: "Vyaya / Moksha Bhava", hindi: "द्वादश भाव (व्यय, विदेश व मोक्ष भाव)", karaka: "शनि व केतु", category: "दुस्थान", significations: "खर्च, विदेश निवास/सेटलमेंट, अस्पताल, निद्रा सुख, दान और आध्यात्मिक मोक्ष।", rudrakshaRemedies: "8 Mukhi (विदेश यात्रा), 1 Mukhi व 9 Mukhi (मोक्ष व शांति)" }
+];
+
+export const GRAHA_9_REMEDIES = {
+  Sun: {
+    name: "Sun (Surya)", hindi: "सूर्य देव", nature: "क्रूर / सात्विक (आत्मा व राज्य कारक)",
+    exalted: "मेष (10°)", debilitated: "तुला (10°)", ownSigns: ["सिंह"],
+    weakSymptoms: "आत्मविश्वास में कमी, पिता से मतभेद, सरकारी कार्यों में अड़चन, आंखों/हड्डियों की थकान या मान-सम्मान में हानि।",
+    lalKitabUpay: "तांबे के लोटे से उगते सूर्य को जल (रोली मिलाकर) अर्घ्य दें; रविवार को गुड़-गेहूं का दान करें; पिता के चरण स्पर्श करें।",
+    vedicMantra: "ॐ घृणि सूर्याय नमः / ॐ ह्रां ह्रीं ह्रौं सः सूर्याय नमः",
+    rudrakshaMukhi: "1 Mukhi (एक मुखी) या 12 Mukhi (बारह मुखी)", fastingDay: "रविवार"
+  },
+  Moon: {
+    name: "Moon (Chandra)", hindi: "चंद्र देव", nature: "सौम्य (मन, माता व जल कारक)",
+    exalted: "वृषभ (3°)", debilitated: "वृश्चिक (3°)", ownSigns: ["कर्क"],
+    weakSymptoms: "अति-चिंता (Overthinking), अकारण घबराहट, अनिद्रा, माता के स्वास्थ्य की चिंता या आर्थिक अस्थिरता।",
+    lalKitabUpay: "सोमवार को शिवलिंग पर कच्चा दूध व जल चढ़ाएं; चांदी के गिलास में पानी पिएं; माता की सेवा करें व चावल/मिश्री दान दें।",
+    vedicMantra: "ॐ सों सोमाय नमः / ॐ श्रां श्रीं श्रौं सः चंद्रमसे नमः",
+    rudrakshaMukhi: "2 Mukhi (दो मुखी) या गौरी शंकर रुद्राक्ष", fastingDay: "सोमवार"
+  },
+  Mars: {
+    name: "Mars (Mangal)", hindi: "मंगल देव", nature: "क्रूर / तामसिक (ऊर्जा, भूमि व साहस कारक)",
+    exalted: "मकर (28°)", debilitated: "कर्क (28°)", ownSigns: ["मेष", "वृश्चिक"],
+    weakSymptoms: "क्रोध या आलस्य, भूमि-संपत्ति विवाद, विवाह में मांगलिक विलंब, कर्ज और भाइयों से तनाव।",
+    lalKitabUpay: "मंगलवार को हनुमान चालीसा पाठ व चमेली तेल/सिंदूर अर्पण करें; मीठी रोटी/मसूर दाल दान दें; क्रोध पर संयम रखें।",
+    vedicMantra: "ॐ अं अंगारकाय नमः / ॐ क्रां क्रीं क्रौं सः भौमाय नमः",
+    rudrakshaMukhi: "3 Mukhi (तीन मुखी) या 11 Mukhi (ग्यारह मुखी)", fastingDay: "मंगलवार"
+  },
+  Mercury: {
+    name: "Mercury (Budha)", hindi: "बुध देव", nature: "सौम्य (बुद्धि, वाणी व व्यापार कारक)",
+    exalted: "कन्या (15°)", debilitated: "मीन (15°)", ownSigns: ["मिथुन", "कन्या"],
+    weakSymptoms: "स्मरण शक्ति में कमी, निर्णय लेने में भ्रम, वाणी दोष, व्यापार/लेखा-जोखा में नुकसान या त्वचा/नसों की परेशानी।",
+    lalKitabUpay: "बुधवार को हरी मूंग दाल दान करें, गौमाता को हरा चारा खिलाएं और श्री गणेश को दूर्वा अर्पित करें।",
+    vedicMantra: "ॐ बुं बुधाय नमः / ॐ ब्रां ब्रीं ब्रौं सः बुधाय नमः",
+    rudrakshaMukhi: "4 Mukhi (चार मुखी)", fastingDay: "बुधवार"
+  },
+  Jupiter: {
+    name: "Jupiter (Brihaspati / Guru)", hindi: "देवगुरु बृहस्पति", nature: "परम सौम्य (ज्ञान, भाग्य, धन व संतान कारक)",
+    exalted: "कर्क (5°)", debilitated: "मकर (5°)", ownSigns: ["धनु", "मीन"],
+    weakSymptoms: "भाग्योदय में रुकावट, विवाह/संतान में देरी, शिक्षा में अवरोध, गुरुजनों का अभाव या धन रुकना।",
+    lalKitabUpay: "गुरुवार को माथे/नाभि पर केसर-हल्दी का तिलक लगाएं; केले के वृक्ष में जल चढ़ाएं; चने की दाल व पीले वस्त्र दान दें।",
+    vedicMantra: "ॐ बृं बृहस्पतये नमः / ॐ ग्रां ग्रीं ग्रौं सः गुरवे नमः",
+    rudrakshaMukhi: "5 Mukhi (पांच मुखी)", fastingDay: "गुरुवार"
+  },
+  Venus: {
+    name: "Venus (Shukra)", hindi: "शुक्र देव", nature: "सौम्य (प्रेम, वैवाहिक सुख, कला व वैभव कारक)",
+    exalted: "मीन (27°)", debilitated: "कन्या (27°)", ownSigns: ["वृषभ", "तुला"],
+    weakSymptoms: "दांपत्य जीवन में नीरसता, भौतिक सुखों में कमी, कला/ग्लैमर में रुकावट या विलासिता पर व्यर्थ खर्च।",
+    lalKitabUpay: "शुक्रवार को स्वच्छ सफेद वस्त्र पहनें; कन्याओं/सुहागिनों का सम्मान करें; दही, चावल या इत्र का दान करें।",
+    vedicMantra: "ॐ शुं शुक्राय नमः / ॐ द्रां द्रीं द्रौं सः शुक्राय नमः",
+    rudrakshaMukhi: "6 Mukhi (छह मुखी) या 13 Mukhi (तेरह मुखी)", fastingDay: "शुक्रवार"
+  },
+  Saturn: {
+    name: "Saturn (Shani)", hindi: "शनि देव", nature: "क्रूर / न्यायप्रिय (कर्म, आयु, सेवा व धैर्य कारक)",
+    exalted: "तुला (20°)", debilitated: "मेष (20°)", ownSigns: ["मकर", "कुंभ"],
+    weakSymptoms: "हर काम में अत्यधिक देरी, साढ़े साती/ढैया का मानसिक बोझ, परिश्रम के अनुरूप फल न मिलना, जोड़ों का दर्द या कानूनी उलझन।",
+    lalKitabUpay: "शनिवार शाम पीपल के नीचे सरसों तेल का दीपक जलाएं; छाया दान करें; काली उड़द/तिल व जरूरतमंद श्रमिकों को भोजन कराएं।",
+    vedicMantra: "ॐ शं शनैश्चराय नमः / ॐ प्रां प्रीं प्रौं सः शनैश्चराय नमः",
+    rudrakshaMukhi: "7 Mukhi (सात मुखी) या 14 Mukhi (चौदह मुखी)", fastingDay: "शनिवार"
+  },
+  Rahu: {
+    name: "Rahu", hindi: "राहु देव", nature: "छाया ग्रह (अप्रत्याशित सफलता, विदेश, भ्रम व कूटनीति कारक)",
+    exalted: "वृषभ / मिथुन", debilitated: "वृश्चिक / धनु", ownSigns: ["कुंभ (सह-स्वामी)"],
+    weakSymptoms: "अकारण भय, भ्रम, निर्णय त्रुटि, अचानक आर्थिक झटके, राहु महादशा में धोखा या नींद में बुरे स्वप्न।",
+    lalKitabUpay: "पक्षियों को सतनाजा (सात अनाज) डालें; नारियल जल में प्रवाहित करें; माता सरस्वती व श्री गणेश की उपासना करें; घर की छत साफ रखें।",
+    vedicMantra: "ॐ रां राहवे नमः / ॐ भ्रां भ्रीं भ्रौं सः राहवे नमः",
+    rudrakshaMukhi: "8 Mukhi (आठ मुखी)", fastingDay: "बुधवार / शनिवार"
+  },
+  Ketu: {
+    name: "Ketu", hindi: "केतु देव", nature: "छाया ग्रह (मोक्ष, वैराग्य, गूढ़ ज्ञान व अचानक परिवर्तन कारक)",
+    exalted: "वृश्चिक / धनु", debilitated: "वृषभ / मिथुन", ownSigns: ["वृश्चिक (सह-स्वामी)"],
+    weakSymptoms: "अकेलापन, बिना कारण नौकरी/स्थान बदलना, अज्ञात रोग की शंका, कान/रीढ़ की समस्या या कार्य अधूरे छूटना।",
+    lalKitabUpay: "कुत्ते को मीठी रोटी खिलाएं; मंदिर में दोरंगा कंबल या सफेद-काले तिल दान करें; भगवान भैरव या माँ दुर्गा की उपासना करें।",
+    vedicMantra: "ॐ कें केतवे नमः / ॐ स्रां स्रीं स्रौं सः केतवे नमः",
+    rudrakshaMukhi: "9 Mukhi (नौ मुखी)", fastingDay: "मंगलवार / शनिवार"
+  }
+};
+
+export const DOSHA_YOGA_ENCYCLOPEDIA = {
+  doshas: {
+    manglik: {
+      name: "मांगलिक / कुज दोष (Manglik / Kuja Dosha)",
+      rule: "जब जन्म कुंडली में मंगल लग्न (1), चतुर्थ (4), सप्तम (7), अष्टम (8) या द्वादश (12) भाव में स्थित हो (लग्न या चंद्र कुंडली से), तो मांगलिक योग बनता है।",
+      naturalCancellations: [
+        "मंगल अपनी स्वराशि (मेष/वृश्चिक) या उच्च राशि (मकर) में हो तो दोष समाप्त हो जाता है।",
+        "गुरु या शुक्र सप्तम भाव अथवा लग्न में बली होकर दृष्टि डालें।",
+        "दोनों वर-वधू की कुंडली में मांगलिक स्थिति हो तो परस्पर दोष भंग हो जाता है।",
+        "28 वर्ष की आयु के बाद मंगल का तीक्ष्ण प्रभाव स्वतः शांत होने लगता है।"
+      ],
+      remedy: "मंगलवार व्रत, हनुमान चालीसा पाठ, कुंभ/अर्क विवाह (विशेष स्थिति में) तथा 3 Mukhi + 11 Mukhi Rudraksha धारण करें।"
+    },
+    kaalSarp: {
+      name: "कालसर्प दोष (Kaal Sarp Yoga — 12 प्रकार)",
+      rule: "जब जन्म कुंडली में सूर्य से शनि तक सभी 7 मुख्य ग्रह राहु और केतु के मध्य आ जाएं (अर्द्ध-चक्र में), तो कालसर्प योग बनता है। राहु-केतु की भाव स्थिति से 12 भेद होते हैं: 1. अनंत (1-7), 2. कुलिक (2-8), 3. वासुकि (3-9), 4. शंखपाल (4-10), 5. पद्म (5-11), 6. महापद्म (6-12), 7. तक्षक (7-1), 8. कर्कोटक (8-2), 9. शंखचूड़ (9-3), 10. घातक (10-4), 11. विषधर (11-5), 12. शेषनाग (12-6)।",
+      positiveNote: "कालसर्प सदैव अशुभ नहीं होता; कई महापुरुषों की कुंडली में यह उच्च संघर्ष के बाद असाधारण सफलता देता है यदि लग्नेश व गुरु बली हों।",
+      remedy: "महामृत्युंजय जप, नागपंचमी पर शिव अभिषेक तथा 8 Mukhi (राहु) + 9 Mukhi (केतु) Rudraksha धारण करना अत्यंत प्रभावशाली है।"
+    },
+    pitraDosha: {
+      name: "पितृ दोष (Pitra Dosha)",
+      rule: "नवम भाव, नवमेश या सूर्य/गुरु का राहु-केतु अथवा शनि से पीड़ित युति-संबंध (विशेषकर सूर्य-राहु या सूर्य-शनि युति) पितृ दोष दर्शाती है।",
+      symptoms: "घर में बरकत रुकना, मांगलिक कार्यों में बार-बार अड़चन, वंश वृद्धि में विलंब।",
+      remedy: "अमावस्या पर पितरों का तर्पण, पीपल वृक्ष को जल, गाय को रोटी तथा 10 Mukhi + 12 Mukhi Rudraksha धारण करें।"
+    },
+    kemadruma: {
+      name: "केमद्रुम दोष (Kemadruma Yoga)",
+      rule: "जब चंद्रमा से द्वितीय और द्वादश भाव में सूर्य-राहु-केतु को छोड़कर कोई अन्य ग्रह न हो और न ही चंद्रमा पर गुरु की शुभ दृष्टि हो।",
+      cancellation: "लग्न या चंद्रमा से केंद्र में गुरु या शुभ ग्रह स्थित हों तो केमद्रुम भंग होकर राजयोग में बदल जाता है।",
+      remedy: "सोमवार को शिव पूजा व 2 Mukhi Rudraksha धारण करें।"
+    },
+    sadeSatiDhaiya: {
+      name: "शनि साढ़े साती व ढैया (Shani Sade Sati & Kantaka Shani / Dhaiya)",
+      rule: "गोचर में शनि जब जन्म चंद्र राशि से 12वें, 1st (चंद्र) व 2nd भाव में आते हैं तो 7.5 वर्ष की साढ़े साती होती है (प्रथम चरण: व्यय/चिंता, द्वितीय चरण: शिखर/परीक्षा, तृतीय चरण: उदय/प्राप्ति)। चंद्र से 4th व 8th गोचर में शनि 2.5 वर्ष की ढैया देते हैं।",
+      remedy: "शनि कर्म के फलदाता हैं — ईमानदारी, सेवा, पीपल दीपक और 7 Mukhi + 14 Mukhi (या 11 Mukhi) Rudraksha धारण सर्वोत्तम कवच है।"
+    }
+  },
+  rajayogas: [
+    { name: "पंचमहापुरुष योग (Pancha Mahapurusha Yogas)", detail: "मंगल (रुचक), बुध (भद्र), गुरु (हंस), शुक्र (मालव्य) और शनि (शश) जब अपनी स्वराशि या उच्च राशि में होकर लग्न/चंद्र से केंद्र (1, 4, 7, 10) में स्थित हों।" },
+    { name: "गजकेसरी योग (Gajakesari Yoga)", detail: "जब देवगुरु बृहस्पति चंद्रमा से केंद्र (1, 4, 7, 10) में बली हों — यह बुद्धि, प्रतिष्ठा, सम्मान और दीर्घकालिक समृद्धि देता है।" },
+    { name: "धर्म-कर्माधिपति राजयोग (Dharma-Karmadhipati)", detail: "नवमेश (भाग्य) और दशमेश (कर्म) की युति, दृष्टि संबंध या राशि परिवर्तन जातक को शीर्ष करियर व यश प्रदान करता है।" },
+    { name: "नीचभंग राजयोग (Neecha Bhanga Rajayoga)", detail: "यदि कोई नीच ग्रह अपनी नीच राशि के स्वामी या उच्च राशि के स्वामी के साथ केंद्र में हो या दृष्टि संबंध बनाए तो प्रारंभिक संघर्ष के बाद महान उत्थान देता है।" },
+    { name: "विपरीत राजयोग (Harsha, Sarala, Vimala)", detail: "जब 6, 8, या 12 भाव के स्वामी अपने ही दुस्थान (6, 8, 12) भावों में बैठें — तो कठिन परिस्थितियों और विरोधियों के बीच से भी चमत्कारिक विजय मिलती है।" },
+    { name: "बुधादित्य योग (Budhaditya Yoga)", detail: "सूर्य और बुध की एक ही भाव में शुभ युति (बिना अत्यधिक अस्त हुए) प्रखर बुद्धि, प्रशासनिक कौशल व वाक्-चातुर्य देती है।" }
+  ]
+};
+
+export const CHAKRA_RUDRAKSHA_MAP = [
+  { chakra: "Muladhara (मूलाधार — Root Chakra)", location: "मेरुदंड का आधार", element: "पृथ्वी", beejMantra: "लं (LAM)", mukhis: "8 Mukhi व 9 Mukhi", benefits: "भय मुक्ति, स्थिरता, आत्मरक्षा व जमीनी जुड़ाव।" },
+  { chakra: "Swadhishthana (स्वाधिष्ठान — Sacral Chakra)", location: "नाभि से दो अंगुल नीचे", element: "जल", beejMantra: "वं (VAM)", mukhis: "2 Mukhi व 6 Mukhi", benefits: "रचनात्मकता, मधुर संबंध, भावनात्मक संतुलन व आकर्षण।" },
+  { chakra: "Manipura (मणिपुर — Solar Plexus)", location: "नाभि केंद्र", element: "अग्नि", beejMantra: "रं (RAM)", mukhis: "3 Mukhi व 7 Mukhi", benefits: "आत्मविश्वास, पाचन-ऊर्जा, संकल्प शक्ति व समृद्धि।" },
+  { chakra: "Anahata (अनाहत — Heart Chakra)", location: "हृदय केंद्र", element: "वायु", beejMantra: "यं (YAM)", mukhis: "5 Mukhi व गौरी शंकर", benefits: "निःस्वार्थ प्रेम, करुणा, मानसिक शांति व आंतरिक आनंद।" },
+  { chakra: "Vishuddha (विशुद्ध — Throat Chakra)", location: "कंठ केंद्र", element: "आकाश", beejMantra: "हं (HAM)", mukhis: "4 Mukhi व 10 Mukhi", benefits: "सत्य-वाणी, अभिव्यक्ति, संचार कौशल व स्मरण शक्ति।" },
+  { chakra: "Ajna (आज्ञा — Third Eye Chakra)", location: "भौहों के मध्य (त्रिकुटी)", element: "मन / तत्व से परे", beejMantra: "ॐ (OM)", mukhis: "11 Mukhi, 12 Mukhi व 14 Mukhi (देवमणि)", benefits: "अंतर्ज्ञान (Intuition), दूरदृष्टि, सही निर्णय व मानसिक स्पष्टता।" },
+  { chakra: "Sahasrara (सहस्रार — Crown Chakra)", location: "सिर का शीर्ष (ब्रह्मरंध्र)", element: "परम चेतना", beejMantra: "ॐ नमः शिवाय", mukhis: "1 Mukhi व 15-21 Mukhi / सिद्ध 108+1 माला", benefits: "ध्यान की गहराई, ब्रह्मांडीय चेतना व शिव कृपा।" }
+];
+
+export const RUDRAKSHA_AUTHENTICITY_AND_CARE = {
+  nepalVsIndonesia: {
+    title: "नेपाली बनाम इंडोनेशियन रुद्राक्ष (Nepal vs Indonesia Comparison)",
+    nepal: "आकार में बड़े (16mm–26mm+), गहरी व स्पष्ट प्राकृतिक धारियां (Deep Clefts), उच्च घनत्व और तीव्र जैव-ऊर्जा कंपन (Strong Bio-energetic Resonance)। विशेषकर बड़े मुखी (7 से 21 मुखी) व व्यक्तिगत धारण में सर्वश्रेष्ठ।",
+    indonesia: "आकार में छोटे (8mm–14mm), हल्के, चिकनी सतह और कम वजन के कारण 108+1 जाप माला व आरामदायक ब्रेसलेट के रूप में अत्यंत लोकप्रिय व टिकाऊ। दोनों प्राकृतिक रूप से ही प्रामाणिक हैं यदि लैब-प्रमाणित हों।",
+    auraStandard: "Aura Rudraksha में प्रत्येक मनका X-Ray जाँच, Natural Chamber Verification व Gemological Lab Certificate के साथ आता है।"
+  },
+  authenticityTesting: {
+    title: "असली रुद्राक्ष की पहचान व भ्रम निवारण (Scientific Testing vs Myths)",
+    scientificTruth: "केवल Water-Sink Test (पानी में डूबना) या तांबे के सिक्के में घूमना असली पहचान नहीं है — अपरिपक्व (कच्चा) असली रुद्राक्ष भी तैर सकता है और नकली वजनदार मनका डूब सकता है।",
+    realLabCheck: "100% सटीक पहचान **X-Ray Scanning** और **Microscopic Cleft Inspection** से होती है, जिसमें मनके के भीतर उतने ही प्राकृतिक बीज कक्ष (Internal Compartments/Seeds) दिखाई देते हैं जितने बाहर मुख (Mukhis) होते हैं — बिना किसी ग्लू, नक्काशी (Carving) या कृत्रिम जोड़ के।"
+  },
+  pranPratishthaVidhi: [
+    "प्रातः स्नान के बाद स्वच्छ वस्त्र पहनें और पूर्व या उत्तर दिशा की ओर मुख करके बैठें।",
+    "तांबे या चांदी के पात्र में कच्चा गाय का दूध, दही, शहद, घी और गंगाजल (पंचामृत) व शुद्ध जल से रुद्राक्ष को स्नान कराएं।",
+    "स्वच्छ सूती कपड़े से हल्के हाथ से पोंछकर चंदन, अक्षत, बेलपत्र व धूप-दीप अर्पित करें।",
+    "उस विशिष्ट मुखी का बीज मंत्र और `ॐ नमः शिवाय` कम से कम 108 बार श्रद्धा से जपकर शिव जी को नमन करते हुए लाल रेशमी धागे या चांदी/सोने की चेन में धारण करें।"
+  ],
+  wearingRulesAndCare: {
+    dos: [
+      "रुद्राक्ष को नियमित पहनने से शरीर की ऊर्जा से इसका तालमेल गहरा होता है।",
+      "हर 1–2 माह में शुद्ध जल से हल्का धोकर सुखाएं और नारियल, बादाम या चंदन तेल की एक बूंद से ब्रश द्वारा हल्की ऑयलिंग करें।",
+      "मन्त्र जप व ध्यान के समय रुद्राक्ष धारण करना अत्यंत शुभ है।"
+    ],
+    donts: [
+      "रासायनिक साबुन, शैम्पू, परफ्यूम या डिटर्जेंट से रुद्राक्ष को बचाएं (स्नान करते समय उतार देना बेहतर है)।",
+      "रात्रि में शयन के समय, अत्यधिक अशुद्ध स्थानों (शवयात्रा/शौच आदि) में जाने से पहले रुद्राक्ष उतारकर स्वच्छ पूजा स्थान पर रख दें, और अगली सुबह गंगाजल छींटकर पुनः धारण करें।",
+      "अपना पहना हुआ (Used) रुद्राक्ष किसी अन्य व्यक्ति के साथ अदला-बदली न करें।"
+    ]
+  },
+  sacredCombinations: [
+    { name: "सरस्वती विद्या बंध (Saraswati Bandh)", composition: "4 Mukhi + 6 Mukhi (या 4+4+6)", purpose: "छात्रों की एकाग्रता, स्मरण शक्ति, वाक्-सिद्धि व UPSC/NEET/JEE परीक्षा सफलता।" },
+    { name: "महालक्ष्मी धन व व्यापार बंध (Dhana Bandh)", composition: "7 Mukhi + 8 Mukhi + 12 Mukhi", purpose: "व्यापार वृद्धि, नकदी प्रवाह (Cash Flow), कर्ज मुक्ति व प्रशासनिक प्रभाव।" },
+    { name: "गौरी शंकर विवाह व गृहस्थ बंध (Vivah Bandh)", composition: "2 Mukhi + Gauri Shankar Rudraksha", purpose: "शीघ्र विवाह योग, वैवाहिक प्रेम, पति-पत्नी सामंजस्य व पारिवारिक शांति।" },
+    { name: "शनि-राहु सुरक्षा कवच (Raksha Kavach)", composition: "7 Mukhi + 8 Mukhi + 10 Mukhi / 11 Mukhi", purpose: "साढ़े साती, ढैया, राहु-केतु बाधा, नजर दोष व यात्रा/न्यायालय सुरक्षा।" },
+    { name: "इंद्र-राजयोग शक्ति बंध (Executive Power Bandh)", composition: "1 Mukhi + 12 Mukhi + 14 Mukhi", purpose: "उच्च पद, नेतृत्व क्षमता, तीव्र अंतर्ज्ञान (3rd Eye) व दूरगामी निर्णय।" }
+  ]
+};
+
+export const NUMEROLOGY_MULANK_GUIDE = {
+  1: { number: 1, planet: "Sun (सूर्य)", hindi: "मूलांक 1 (जन्म तारीख: 1, 10, 19, 28)", nature: "जन्मजात नेतृत्व, स्वतंत्र विचार, महत्वाकांक्षी, दृढ़ निश्चयी और मौलिक प्रतिभा।", career: "प्रशासन, व्यवसाय स्वामी, राजनीति, प्रबंधन व स्वतंत्र स्टार्टअप।", luckyNumbers: [1, 2, 3, 9], luckyColors: "सुनहरा, केसरिया, पीला", luckyDays: "रविवार, सोमवार", rudraksha: "1 Mukhi या 12 Mukhi", mantra: "ॐ घृणि सूर्याय नमः" },
+  2: { number: 2, planet: "Moon (चंद्र)", hindi: "मूलांक 2 (जन्म तारीख: 2, 11, 20, 29)", nature: "सौम्य, कल्पनाशील, संवेदनशील, शांतिदूत व कलात्मक। भावनात्मक अस्थिरता से बचें।", career: "परामर्श, कला, संगीत, आतिथ्य, जल/तरल व्यापार व चिकित्सा।", luckyNumbers: [2, 1, 7], luckyColors: "सफेद, क्रीम, हल्का हरा", luckyDays: "सोमवार, शुक्रवार", rudraksha: "2 Mukhi या गौरी शंकर", mantra: "ॐ नमः शिवाय" },
+  3: { number: 3, planet: "Jupiter (गुरु)", hindi: "मूलांक 3 (जन्म तारीख: 3, 12, 21, 30)", nature: "ज्ञानी, अनुशासित, शिक्षक स्वभाव, रचनात्मक व महत्वाकांक्षी।", career: "शिक्षा, कानून, बैंकिंग, प्रबंधन, धर्म-अध्यात्म व प्रकाशन।", luckyNumbers: [3, 1, 9], luckyColors: "पीला, सुनहरा, हल्का बैंगनी", luckyDays: "गुरुवार, मंगलवार", rudraksha: "5 Mukhi (पांच मुखी)", mantra: "ॐ ह्रीं नमः" },
+  4: { number: 4, planet: "Rahu (राहु / हर्षल)", hindi: "मूलांक 4 (जन्म तारीख: 4, 13, 22, 31)", nature: "यथार्थवादी, तकनीकी, नियमबद्ध किंतु क्रांतिकारी सोच और अचानक सफलता।", career: "इंजीनियरिंग, आईटी, शोध, वास्तुकला, निर्माण व विदेश व्यापार।", luckyNumbers: [4, 1, 5, 6], luckyColors: "नीला, खाकी, धुमैला", luckyDays: "शनिवार, बुधवार", rudraksha: "8 Mukhi (आठ मुखी)", mantra: "ॐ गं गणपतये नमः" },
+  5: { number: 5, planet: "Mercury (बुध)", hindi: "मूलांक 5 (जन्म तारीख: 5, 14, 23)", nature: "चतुर, वाक्पटु, व्यापारिक दिमाग, मिलनसार व शीघ्र निर्णय लेने वाले।", career: "व्यापार, शेयर बाजार, मीडिया, मार्केटिंग, संचार व लेखन।", luckyNumbers: [5, 1, 6], luckyColors: "हरा, हल्का भूरा, सफेद", luckyDays: "बुधवार, शुक्रवार", rudraksha: "4 Mukhi (चार मुखी)", mantra: "ॐ ह्रीं नमः" },
+  6: { number: 6, planet: "Venus (शुक्र)", hindi: "मूलांक 6 (जन्म तारीख: 6, 15, 24)", nature: "आकर्षक व्यक्तित्व, कला-सौंदर्य प्रेमी, परिवारनिष्ठ व वैभवशाली।", career: "फैशन, डिज़ाइन, आभूषण, फिल्म, लग्जरी ब्रांड व होटल व्यवसाय।", luckyNumbers: [6, 3, 9], luckyColors: "सफेद, हल्का नीला, गुलाबी", luckyDays: "शुक्रवार, बुधवार", rudraksha: "6 Mukhi या 13 Mukhi", mantra: "ॐ ह्रीं हुं नमः" },
+  7: { number: 7, planet: "Ketu (केतु)", hindi: "मूलांक 7 (जन्म तारीख: 7, 16, 25)", nature: "चिंतनशील, आध्यात्मिक, शोध-उन्मुख, अंतर्ज्ञानी व स्वतंत्र।", career: "अनुसंधान, ज्योतिष, लेखन, विदेश यात्रा, हीलिंग व टेक्नोलॉजी।", luckyNumbers: [7, 2, 1], luckyColors: "हल्का पीला, सफेद, हरा", luckyDays: "सोमवार, बुधवार", rudraksha: "9 Mukhi (नौ मुखी)", mantra: "ॐ ह्रीं हुं नमः" },
+  8: { number: 8, planet: "Saturn (शनि)", hindi: "मूलांक 8 (जन्म तारीख: 8, 17, 26)", nature: "गंभीर, मेहनती, न्यायप्रिय, संघर्षशील और धीमी किंतु विशाल सफलता प्राप्तकर्ता।", career: "उद्योग, रियल एस्टेट, प्रशासन, कानून, लोहा-मशीनरी व वित्त।", luckyNumbers: [8, 5, 6], luckyColors: "गहरा नीला, काला, बैंगनी", luckyDays: "शनिवार, शुक्रवार", rudraksha: "7 Mukhi या 14 Mukhi", mantra: "ॐ हुं नमः" },
+  9: { number: 9, planet: "Mars (मंगल)", hindi: "मूलांक 9 (जन्म तारीख: 9, 18, 27)", nature: "निडर, उत्साही, समाजसेवी, ऊर्जावान व संकटों से जूझकर जीतने वाले।", career: "रक्षा, पुलिस, खेल, शल्य चिकित्सा, भूमि-भवन व नेतृत्व।", luckyNumbers: [9, 1, 3], luckyColors: "लाल, केसरिया, गुलाबी", luckyDays: "मंगलवार, गुरुवार", rudraksha: "3 Mukhi या 11 Mukhi", mantra: "ॐ क्लीं नमः" }
+};
+

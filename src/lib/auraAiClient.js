@@ -389,7 +389,7 @@ export const auraAiClient = {
       const savedBirth = typeof auraChatStore.getVerifiedBirthDetails === "function" ? auraChatStore.getVerifiedBirthDetails() : null;
       const isAstroQuery = (
         mode === "panditji" ||
-        /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र/i.test(message || "")
+        /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|milan|gun milan|ashtakoot|mulank|bhagyank|numerology|panchang|muhurat|rahu kaal|chakra|kaal sarp|pitra|kemadruma|sade sati|dhaiya|lal kitab|bhava|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र|पंचांग|मुहूर्त|मिलान|गुण मिलान|मूलांक|भाग्यांक|अंक ज्योतिष|चक्र|कालसर्प|पितृ|केमद्रुम|नेपाली रुद्राक्ष|असली नकली|एक्स रे|प्राण प्रतिष्ठा|धारण विधि/i.test(message || "")
       );
       const targetMode = isAstroQuery ? "panditji" : (mode || "standard");
       const effectiveBirthDetails = targetMode === "panditji" ? (birthDetails || savedBirth || null) : null;
@@ -894,6 +894,67 @@ export const auraAiClient = {
         return { success: false, message: json.message || "Kundali calculation failed" };
       }
       return { success: true, data: json.data, kundali: json.data };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  },
+
+  // Ashtakoota 36-Point Kundali Milan (Marriage Compatibility)
+  async calculateKundaliMilan({ boy, girl }) {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/kundali-milan`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ boy, girl })
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        return { success: false, message: json.message || "Kundali Milan calculation failed" };
+      }
+      return { success: true, data: json.data };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  },
+
+  // Vedic Numerology (Mulank, Bhagyank, Chaldean Namank & Lucky Rudraksha)
+  async calculateNumerology({ dob, name = "" }) {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/numerology`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ dob, name })
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        return { success: false, message: json.message || "Numerology calculation failed" };
+      }
+      return { success: true, data: json.data };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  },
+
+  // Daily Vedic Panchang, Muhurat, Rahu Kaal & Daily Rudraksha Mantra
+  async getDailyPanchang(date = "", place = "Varanasi, India") {
+    try {
+      const params = new URLSearchParams();
+      if (date) params.set("date", date);
+      if (place) params.set("place", place);
+      const res = await fetch(`${API_BASE}/panchang?${params.toString()}`);
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        return { success: false, message: json.message || "Panchang fetch failed" };
+      }
+      return { success: true, data: json.data };
     } catch (err) {
       return { success: false, message: err.message };
     }
