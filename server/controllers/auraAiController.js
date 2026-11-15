@@ -338,7 +338,7 @@ export const GEMINI_TEXT_MODELS = [
   'gemini-4-hydrogen',
   'gemini-3.8-flash',
   'gemini-3.1-flash-lite',
-  'gemini-flash-latest'
+  'gemini-2.5-flash'
 ].filter(Boolean);
 
 /**

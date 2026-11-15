@@ -260,6 +260,50 @@ describe("Autonomous Admin Agent Tools, Bulk Operations & 1-Click Undo", () => {
     expect(inMemoryStore.products.find(p => p.id === "prod_1").price).toBe(1000);
   });
 
+  test("handleAdminAgentChat returns distinct, accurate live answers across diverse consecutive queries on the same sessionId", async () => {
+    const prompts = [
+      "7 Mukhi ka price aur stock kitna hai?",
+      "COD aur Online PayU settings kya hain dikhao",
+      "Pending orders dikhao",
+      "Coupons list batao",
+      "Store ke liye aaj ka best plan kya hai?"
+    ];
+    const replies = [];
+
+    for (const prompt of prompts) {
+      let bodyOut = null;
+      let statusOut = 200;
+      const req = {
+        body: {
+          prompt,
+          sessionId: "test_diverse_queries_session",
+          pageContext: "/admin/ai"
+        }
+      };
+      const res = {
+        status(code) { statusOut = code; return this; },
+        json(payload) { bodyOut = payload; return this; }
+      };
+
+      await handleAdminAgentChat(req, res);
+      expect(statusOut).toBe(200);
+      expect(bodyOut.success).toBe(true);
+      expect(typeof bodyOut.text).toBe("string");
+      replies.push(bodyOut.text);
+    }
+
+    // Ensure every prompt produced a distinct response (never the same canned fallback)
+    expect(new Set(replies).size).toBe(prompts.length);
+
+    expect(replies[0]).toContain("7 Mukhi");
+    expect(replies[0]).toContain("2,000");
+    expect(replies[1]).toMatch(/Cash on Delivery/i);
+    expect(replies[1]).toMatch(/PayU/i);
+    expect(replies[2]).toMatch(/Live Orders Report/i);
+    expect(replies[3]).toMatch(/Store Discount Coupons/i);
+    expect(replies[4]).toContain("Store ke liye aaj ka best plan kya hai?");
+  });
+
   test("RETRAIN_AI_KNOWLEDGE builds live public trends index without customer PII", async () => {
     const res = await executeAdminAgentAction({
       type: "RETRAIN_AI_KNOWLEDGE",

@@ -959,7 +959,33 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
             currentContents.push({ role: "user", parts: responseParts });
           } else {
             finalText = (response?.text || "").trim();
+            if (!finalText && candidateContent?.parts) {
+              finalText = candidateContent.parts
+                .map(p => (typeof p.text === "string" ? p.text : ""))
+                .join("\n")
+                .trim();
+            }
             break;
+          }
+        }
+
+        if (!finalText && executedViaTools.length > 0) {
+          try {
+            const summaryResp = await withTimeout(
+              gemini.models.generateContent({
+                model: gModel,
+                contents: currentContents,
+                config: {
+                  systemInstruction: systemPrompt + "\nSummarize the completed tool results clearly for the Admin in the same language (Hindi/Hinglish/English).",
+                  temperature: 0.35
+                }
+              }),
+              10000
+            );
+            finalText = (summaryResp?.text || "").trim();
+          } catch (_) {}
+          if (!finalText) {
+            finalText = executedViaTools.map((a, idx) => `${idx + 1}. **${a.title || a.actionType}**`).join("\n");
           }
         }
 
@@ -1007,7 +1033,7 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
     }
   }
 
-  // 4. Fallback Tier: Upgraded Autonomous Synthesis Engine (100% Infallible offline/no-key mode)
+  // 4. Fallback Tier: Context-Aware Autonomous Live Store Engine (Answers all queries & commands using live DB data)
   console.log("[AdminAgent] Executing Autonomous Synthesis Engine...");
   const synth = await synthesizeAutonomousAdminResponse(systemPrompt, rawMessages);
   return { ...synth, executedViaTools };
@@ -1015,7 +1041,7 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
 
 /**
  * Autonomous Vedic & Store Administration Synthesizer
- * Handles natural Hindi / Hinglish / English commands directly even without external LLM API keys.
+ * Handles natural Hindi / Hinglish / English queries & commands dynamically using live DB snapshot + queryStoreData.
  */
 export async function synthesizeAutonomousAdminResponse(systemPrompt, rawMessages = []) {
   const lastUserMsg = [...rawMessages].reverse().find(m => m && (m.role === "user" || m.sender === "user")) || {};
@@ -1023,11 +1049,18 @@ export async function synthesizeAutonomousAdminResponse(systemPrompt, rawMessage
   const lower = prompt.toLowerCase();
   const snapshot = await getCompleteWebsiteSnapshot().catch(() => ({
     productsCount: 0,
+    products: [],
     lowStockCount: 0,
     ordersCount: 0,
+    recentOrders: [],
     couponsCount: 0,
+    coupons: [],
+    customersCount: 0,
+    reviewsCount: 0,
+    openTicketsCount: 0,
     totalRevenue: 0,
-    mongoConnected: false
+    mongoConnected: false,
+    settings: { enableCod: true, enableOnlinePayment: true }
   }));
 
   let text = "";
@@ -1035,7 +1068,7 @@ export async function synthesizeAutonomousAdminResponse(systemPrompt, rawMessage
   let navTag = "";
 
   // 1. Bulk discount / bulk price / bulk stock intent
-  const isBulkAction = /(sabhi|all|sab|entire|poora|store)\s*(product|products|catalog|item|items|rudraksha)/i.test(lower) &&
+  const isBulkAction = /(sabhi|all|sab|entire|poora|pura|store)\s*(product|products|catalog|item|items|rudraksha)/i.test(lower) &&
     /(discount|off|kam|reduce|ghatao|stock|restock)/i.test(lower);
   if (isBulkAction) {
     const pctMatch = lower.match(/(\d{1,2})\s*%/);
@@ -1044,7 +1077,7 @@ export async function synthesizeAutonomousAdminResponse(systemPrompt, rawMessage
       const pct = parseInt(pctMatch[1], 10);
       actionTag = `[ADMIN_ACTION: {"type": "BULK_UPDATE_PRODUCTS", "data": {"discountPercent": ${pct}}}]`;
       navTag = `[NAVIGATE_PREVIEW: "/shop"]`;
-      text = `Done! Maine sabhi catalog products par **${pct}% bulk discount** apply kar diya hai.\n\n${actionTag}\n${navTag}\n\nHar product ki purani price MongoDB Action Ledger mein backup ho chuki hai — aap 1-click **Undo** se kabhi bhi original prices restore kar sakte hain.`;
+      text = `Done! Maine sabhi catalog products par **${pct}% bulk discount** apply kar diya hai.\n\n${actionTag}\n${navTag}\n\nHar product ki purani price Action Ledger mein backup ho chuki hai — aap 1-click **Undo** se original prices restore kar sakte hain.`;
       return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
     }
     if (stockMatch) {
@@ -1057,42 +1090,136 @@ export async function synthesizeAutonomousAdminResponse(systemPrompt, rawMessage
     }
   }
 
-  // 2. Payment / COD / Shipping Settings toggle
-  const isCodToggle = /\bcod\b|cash on delivery/i.test(lower) && /(on|off|enable|disable|band|chalu|karo)/i.test(lower);
-  const isOnlinePayToggle = /online pay|payu|upi payment/i.test(lower) && /(on|off|enable|disable|band|chalu|karo)/i.test(lower);
-  if (isCodToggle || isOnlinePayToggle) {
-    const turnOff = /\b(off|disable|band|hato|hatao)\b/i.test(lower);
-    const payload = {};
-    if (isCodToggle) payload.enableCod = !turnOff;
-    if (isOnlinePayToggle) payload.enableOnlinePayment = !turnOff;
-    actionTag = `[ADMIN_ACTION: {"type": "UPDATE_STORE_SETTINGS", "data": ${JSON.stringify(payload)}}]`;
-    navTag = `[NAVIGATE_PREVIEW: "/admin/settings"]`;
-    text = `Store payment settings update ho gayi hain:\n${isCodToggle ? `• **Cash on Delivery (COD):** ${!turnOff ? "Enabled (ON)" : "Disabled (OFF)"}\n` : ""}${isOnlinePayToggle ? `• **Online Payment (PayU):** ${!turnOff ? "Enabled (ON)" : "Disabled (OFF)"}\n` : ""}\n${actionTag}\n${navTag}`;
+  // 2. Payment / COD / Shipping Settings TOGGLE vs READ CHECK
+  const mentionsPaymentOrSettings = /\bcod\b|cash on delivery|online pay|payu|upi payment|shipping|delivery charge|store setting|payment setting/i.test(lower);
+  const isToggleCommand = /\b(on|off|enable|disable|band|chalu|karo|kar do|set|badlo|update)\b/i.test(lower) && !/(kya|check|batao|btao|status|hai|hain|dikhao)/i.test(lower);
+
+  if (mentionsPaymentOrSettings) {
+    const isCod = /\bcod\b|cash on delivery/i.test(lower);
+    const isOnlinePay = /online pay|payu|upi payment/i.test(lower);
+    const shippingMatch = lower.match(/(?:shipping|delivery)\s*(?:fee|charge|charges)?\s*(?:ko|to|=|:)?\s*(?:₹|rs)?\s*(\d{1,4})/i);
+
+    if (isToggleCommand && (isCod || isOnlinePay || shippingMatch)) {
+      const turnOff = /\b(off|disable|band|hato|hatao)\b/i.test(lower);
+      const payload = {};
+      if (isCod) payload.enableCod = !turnOff;
+      if (isOnlinePay) payload.enableOnlinePayment = !turnOff;
+      if (shippingMatch) payload.shippingFee = parseInt(shippingMatch[1], 10);
+      actionTag = `[ADMIN_ACTION: {"type": "UPDATE_STORE_SETTINGS", "data": ${JSON.stringify(payload)}}]`;
+      navTag = `[NAVIGATE_PREVIEW: "/admin/settings"]`;
+      text = `Store settings update kar di gayi hain:\n${isCod ? `• **Cash on Delivery (COD):** ${!turnOff ? "Enabled (ON)" : "Disabled (OFF)"}\n` : ""}${isOnlinePay ? `• **Online Payment (PayU):** ${!turnOff ? "Enabled (ON)" : "Disabled (OFF)"}\n` : ""}${shippingMatch ? `• **Shipping Fee:** ₹${payload.shippingFee}\n` : ""}\n${actionTag}\n${navTag}`;
+      return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
+    }
+
+    const sRes = await queryStoreData({ entity: "settings" }).catch(() => ({ settings: snapshot.settings }));
+    const s = sRes?.settings || snapshot.settings || {};
+    const codOn = s.enableCod !== false;
+    const payuOn = s.enableOnlinePayment !== false;
+    const freeThreshold = s.freeShippingThreshold ?? s.freeShippingAbove ?? 499;
+    const shipFee = s.shippingFee ?? s.deliveryCharge ?? 0;
+    text = `**Live Payment & Store Settings Status:**\n\n• **Cash on Delivery (COD):** ${codOn ? "Enabled (ON)" : "Disabled (OFF)"}\n• **Online Payment (PayU / UPI / Cards):** ${payuOn ? "Enabled (ON)" : "Disabled (OFF)"}\n• **Shipping Fee:** ₹${Number(shipFee || 0).toLocaleString("en-IN")} (Free shipping above ₹${Number(freeThreshold).toLocaleString("en-IN")})\n• **Announcement Bar:** ${s.announcementBarEnabled ? `ON ("${s.announcementText || ""}")` : "OFF"}\n\nBadalne ke liye likhein: *"COD off karo"* ya *"Online payment on karo"*.`;
     return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
   }
 
-  // 3. Coupon creation intent
-  const isCouponCreate = /coupon|promo\s*code|discount code/i.test(lower) && /(create|add|bnao|bana|chalu|new)/i.test(lower);
-  if (isCouponCreate) {
-    const codeMatch = prompt.match(/\b([A-Z0-9]{4,14})\b/);
-    const code = codeMatch ? codeMatch[1] : `SHIVA${Math.floor(10 + Math.random() * 89)}`;
-    const valMatch = lower.match(/(\d{1,4})\s*(%|off|rupees|rs|₹)?/);
-    const discountValue = valMatch ? parseInt(valMatch[1], 10) : 15;
-    const isFixed = /rupee|rs|₹|flat\s*₹/i.test(lower) && !lower.includes("%");
-    const minMatch = lower.match(/min(?:imum)?\s*(?:order|cart)?\s*(?:₹|rs)?\s*(\d{2,6})/i);
-    const minOrder = minMatch ? parseInt(minMatch[1], 10) : 999;
+  // 3. Coupon Management: Create / Toggle / Delete / List
+  if (/coupon|promo\s*code|discount code/i.test(lower)) {
+    const codeMatch = prompt.match(/\b([A-Z][A-Z0-9_-]{2,15})\b/);
+    if (/(create|add|bnao|bana|chalu|new)/i.test(lower)) {
+      const code = codeMatch ? codeMatch[1] : `SHIVA${Math.floor(10 + Math.random() * 89)}`;
+      const valMatch = lower.match(/(\d{1,4})\s*(%|off|rupees|rs|₹)?/);
+      const discountValue = valMatch ? parseInt(valMatch[1], 10) : 15;
+      const isFixed = /rupee|rs|₹|flat\s*₹/i.test(lower) && !lower.includes("%");
+      const minMatch = lower.match(/min(?:imum)?\s*(?:order|cart)?\s*(?:₹|rs)?\s*(\d{2,6})/i);
+      const minOrder = minMatch ? parseInt(minMatch[1], 10) : 999;
 
-    actionTag = `[ADMIN_ACTION: {"type": "CREATE_COUPON", "data": {"code": "${code}", "discountValue": ${discountValue}, "discountType": "${isFixed ? "fixed" : "percentage"}", "minOrder": ${minOrder}}}]`;
-    navTag = `[NAVIGATE_PREVIEW: "/admin/coupons"]`;
-    text = `Coupon code **${code}** (${discountValue}${isFixed ? "₹" : "%"} OFF, min order ₹${minOrder}) live ho gaya hai!\n\n${actionTag}\n${navTag}`;
+      actionTag = `[ADMIN_ACTION: {"type": "CREATE_COUPON", "data": {"code": "${code}", "discountValue": ${discountValue}, "discountType": "${isFixed ? "fixed" : "percentage"}", "minOrder": ${minOrder}}}]`;
+      navTag = `[NAVIGATE_PREVIEW: "/admin/coupons"]`;
+      text = `Coupon code **${code}** (${discountValue}${isFixed ? "₹" : "%"} OFF, min order ₹${minOrder}) live ho gaya hai!\n\n${actionTag}\n${navTag}`;
+      return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
+    }
+
+    if (codeMatch && /(delete|remove|hatao|hatado)/i.test(lower)) {
+      const code = codeMatch[1];
+      actionTag = `[ADMIN_ACTION: {"type": "DELETE_COUPON", "data": {"code": "${code}"}}]`;
+      navTag = `[NAVIGATE_PREVIEW: "/admin/coupons"]`;
+      text = `Coupon **${code}** ko delete karne ka command execute kar diya hai.\n\n${actionTag}\n${navTag}`;
+      return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
+    }
+
+    if (codeMatch && /(pause|disable|band|off|enable|activate|on|chalu)/i.test(lower)) {
+      const code = codeMatch[1];
+      const disable = /(pause|disable|band|off)/i.test(lower);
+      actionTag = `[ADMIN_ACTION: {"type": "UPDATE_COUPON", "data": {"code": "${code}", "isActive": ${!disable}}}]`;
+      navTag = `[NAVIGATE_PREVIEW: "/admin/coupons"]`;
+      text = `Coupon **${code}** ko **${disable ? "Paused (Inactive)" : "Active"}** mark kar diya hai.\n\n${actionTag}\n${navTag}`;
+      return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
+    }
+
+    // List coupons from live database
+    const cRes = await queryStoreData({ entity: "coupons", limit: 20 });
+    const listText = (cRes.items || []).length
+      ? cRes.items.map((c, i) => `${i + 1}. **${c.code}** — ${c.discountValue}${c.discountType === "percentage" ? "%" : "₹"} OFF · Min ₹${c.minOrder || 0} · ${c.isActive !== false ? "Active" : "Paused"}`).join("\n")
+      : "Abhi store mein koi coupon code saved nahi hai.";
+    text = `**Store Discount Coupons (${cRes.totalMatched || 0} total):**\n\n${listText}\n\nNaya coupon banane ke liye likhein: *"15% off coupon SHIVA15 bnao min order 999"*.`;
     return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
   }
 
-  // 4. Update single product (price/stock/status)
-  const isUpdateProduct = /(\d{1,2}\s*mukhi|mala|product)/i.test(lower) && /(price|stock|update|change|kar do|badlo|set)/i.test(lower) && !/(create|add|upload|bnao|nya|new)/i.test(lower);
+  // 4. Orders Mutation & Live Orders Query (Must run BEFORE Page Preview so "pending orders dikhao" returns real orders!)
+  if (/\border|orders|tracking|awb|courier|shipped|delivered|dispatch|unpaid|pending pay/i.test(lower)) {
+    const orderIdMatch = prompt.match(/\b(AURA-[A-Z0-9-]+|ORD-[A-Z0-9-]+|#?[A-Z0-9]{6,20})\b/i);
+    const trackingMatch = prompt.match(/(?:tracking|awb)\s*(?:id|no|number|#|:|=)?\s*([A-Z0-9-]{5,25})/i);
+    const targetStatus = /\bdelivered\b/i.test(lower)
+      ? "Delivered"
+      : /\bshipped|dispatch/i.test(lower)
+      ? "Shipped"
+      : /\bconfirmed|confirm\b/i.test(lower)
+      ? "Confirmed"
+      : /\bprocessing\b/i.test(lower)
+      ? "Processing"
+      : /\bcancelled|cancel\b/i.test(lower)
+      ? "Cancelled"
+      : "";
+    const targetPayStatus = /\bmark\s*paid|paid\s*kar/i.test(lower) ? "Paid" : "";
+
+    if (orderIdMatch && (targetStatus || targetPayStatus || trackingMatch) && /(karo|kar do|mark|update|set|add)/i.test(lower)) {
+      const cleanOrderId = orderIdMatch[1].replace(/^#/, "");
+      const payload = { orderId: cleanOrderId };
+      if (targetStatus) payload.orderStatus = targetStatus;
+      if (targetPayStatus) payload.paymentStatus = targetPayStatus;
+      if (trackingMatch) payload.trackingNumber = trackingMatch[1];
+      actionTag = `[ADMIN_ACTION: {"type": "UPDATE_ORDER", "data": ${JSON.stringify(payload)}}]`;
+      navTag = `[NAVIGATE_PREVIEW: "/admin/orders"]`;
+      text = `Order **#${cleanOrderId}** update kar diya hai:\n${targetStatus ? `• Status: **${targetStatus}**\n` : ""}${targetPayStatus ? `• Payment: **${targetPayStatus}**\n` : ""}${trackingMatch ? `• Tracking ID: **${trackingMatch[1]}**\n` : ""}\n${actionTag}\n${navTag}`;
+      return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
+    }
+
+    const filter = /unpaid/i.test(lower)
+      ? "unpaid"
+      : /pending/i.test(lower)
+      ? "pending"
+      : /shipped/i.test(lower)
+      ? "shipped"
+      : /delivered/i.test(lower)
+      ? "delivered"
+      : /paid/i.test(lower)
+      ? "paid"
+      : "";
+    const searchKey = orderIdMatch ? orderIdMatch[1].replace(/^#/, "") : "";
+    const oRes = await queryStoreData({ entity: "orders", search: searchKey, filter, limit: 15 });
+    const listText = (oRes.items || []).length
+      ? oRes.items.slice(0, 10).map((o, i) =>
+          `${i + 1}. **#${o.orderId}** — ₹${Number(o.amount || 0).toLocaleString("en-IN")} · ${o.status || "Pending"} · Pay: ${o.paymentStatus || "Pending"} (${o.paymentMethod || "Online"}) · ${o.customerName}${o.city ? `, ${o.city}` : ""}`
+        ).join("\n")
+      : `Koi ${filter ? filter + " " : ""}order abhi record mein nahi mila.`;
+    text = `**Live Orders Report (${oRes.totalMatched || 0} ${filter ? filter + " " : ""}matched):**\n\n${listText}\n\nKisi order ko update karne ke liye likhein: *"Order #ORDER_ID ko Shipped mark karo tracking AWB123 ke saath"*.`;
+    return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
+  }
+
+  // 5. Update single product (price/stock/status)
+  const isUpdateProduct = /(\d{1,2}\s*mukhi|mala|product)/i.test(lower) && /(price|stock|update|change|kar do|badlo|set)/i.test(lower) && !/(create|add|upload|bnao|nya|new|kya|kitna|dikhao|batao|list)/i.test(lower);
   if (isUpdateProduct) {
     const mukhiMatch = lower.match(/(\d{1,2}\s*mukhi)/i);
-    const nameHint = mukhiMatch ? mukhiMatch[1] : "5 Mukhi";
+    const nameHint = mukhiMatch ? mukhiMatch[1] : (lower.includes("mala") ? "Mala" : "5 Mukhi");
     const priceMatch = lower.match(/(?:price|rate|₹|rs)\s*(?:ko|to|=|:)?\s*(\d{2,7})/i);
     const stockMatch = lower.match(/stock\s*(?:ko|to|=|:)?\s*(\d{1,5})/i);
     const updateData = { name: nameHint };
@@ -1101,12 +1228,12 @@ export async function synthesizeAutonomousAdminResponse(systemPrompt, rawMessage
 
     if (updateData.price !== undefined || updateData.stock !== undefined) {
       actionTag = `[ADMIN_ACTION: {"type": "UPDATE_PRODUCT", "data": ${JSON.stringify(updateData)}}]`;
-      text = `Product **"${nameHint}"** update command dispatch kar diya hai:\n${updateData.price !== undefined ? `• New Price: ₹${updateData.price.toLocaleString("en-IN")}\n` : ""}${updateData.stock !== undefined ? `• New Stock: ${updateData.stock}\n` : ""}\n${actionTag}`;
+      text = `Product **"${nameHint}"** update command execute kar diya hai:\n${updateData.price !== undefined ? `• New Price: ₹${updateData.price.toLocaleString("en-IN")}\n` : ""}${updateData.stock !== undefined ? `• New Stock: ${updateData.stock}\n` : ""}\n${actionTag}`;
       return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
     }
   }
 
-  // 5. Product creation intent
+  // 6. Product creation intent
   const isCreateProduct = /product|bead|rudraksha/i.test(lower) && /(create|add|upload|bnao|bana|daalo|nya|new)/i.test(lower);
   if (isCreateProduct) {
     const mukhiMatch = lower.match(/(\d{1,2})\s*mukhi/i);
@@ -1128,20 +1255,80 @@ export async function synthesizeAutonomousAdminResponse(systemPrompt, rawMessage
     return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
   }
 
-  // 5.5 Train / Retrain AI Knowledge & Live Public Trends intent
-  if (/(train|retrain|\brag\b|public data|public trend|trending|knowledge update|ai ko train|seekho)/i.test(lower)) {
-    const trends = await getPublicStoreTrendsPayload(true);
-    const topTrendText = (trends.trendingProducts || []).slice(0, 5).map((t, i) => `${i + 1}. **${t.name}** — ₹${Number(t.price || 0).toLocaleString("en-IN")} (${t.unitsSold} ordered)`).join("\n") || "Storefront trending products ready";
-    actionTag = `[ADMIN_ACTION: {"type": "RETRAIN_AI_KNOWLEDGE", "data": {"forceRefresh": true}}]`;
-    navTag = `[NAVIGATE_PREVIEW: "/shop"]`;
-    text = `Customer aur Admin AI dono ko **100% Live Public Data aur Trends** par re-train kar diya hai! (**${trends.indexedDocumentsCount} RAG knowledge documents** live index ho gaye hain)\n\n• **Published Products:** ${trends.totals.publishedProducts} (${trends.totals.inStockProducts} in stock)\n• **Active Coupons & Campaigns:** ${trends.totals.activeCoupons} coupons · ${trends.totals.activeCampaigns} active campaigns\n• **Verified Public Reviews:** ${trends.totals.publicVerifiedReviews} (${trends.totals.averageStoreRating}★ avg)\n• **Payments & Shipping:** COD ${trends.shippingAndPayments.enableCod ? "ON" : "OFF"} · Online Pay ${trends.shippingAndPayments.enableOnlinePayment ? "ON" : "OFF"}\n\n**Top Trending Products (Public Safe, Zero PII):**\n${topTrendText}\n\n${actionTag}\n${navTag}`;
+  // 7. Live Product Catalog / Stock / Price Query
+  if (/(product|products|catalog|item|items|rudraksha|mala|stock|price|rate|sasta|mehnga|cheapest|expensive)/i.test(lower)) {
+    const mukhiMatch = lower.match(/(\d{1,2})\s*[-]?\s*mukhi/i);
+    const filter = /out\s*of\s*stock|khatam|zero\s*stock/i.test(lower)
+      ? "out_of_stock"
+      : /low\s*stock|kam\s*stock/i.test(lower)
+      ? "low_stock"
+      : /draft|unpublished/i.test(lower)
+      ? "draft"
+      : "";
+    const searchHint = mukhiMatch ? `${mukhiMatch[1]} mukhi` : (/mala/i.test(lower) ? "mala" : (/gauri/i.test(lower) ? "gauri" : (/ganesh/i.test(lower) ? "ganesh" : "")));
+    const pRes = await queryStoreData({ entity: "products", search: searchHint, filter, limit: 25 });
+    let items = [...(pRes.items || [])];
+    if (/sasta|cheapest|lowest/i.test(lower)) items.sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
+    if (/mehnga|expensive|costliest|highest/i.test(lower)) items.sort((a, b) => Number(b.price || 0) - Number(a.price || 0));
+
+    const lines = items.slice(0, 10).map((p, i) =>
+      `${i + 1}. **${p.name}** — Nepal: ₹${Number(p.price || 0).toLocaleString("en-IN")}${p.indonesiaPrice ? ` · Indo: ₹${Number(p.indonesiaPrice).toLocaleString("en-IN")}` : ""} · Stock: **${p.stock ?? 0}** · ${p.status}`
+    ).join("\n");
+
+    text = items.length
+      ? `**Live Product Catalog (${pRes.totalMatched} matched${searchHint ? ` for "${searchHint}"` : ""}${filter ? ` · ${filter}` : ""}):**\n\n${lines}`
+      : `Catalog mein "${searchHint || filter || "matching"}" ke liye koi product nahi mila. Total catalog products: ${snapshot.productsCount}.`;
     return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
   }
 
-  // 6. Add Feature / Banner intent
+  // 8. Customers & VIP Buyers Query
+  if (/customer|customers|buyer|buyers|user|users|devotee|clients/i.test(lower)) {
+    const isVip = /vip|repeat|top|best/i.test(lower);
+    const cRes = await queryStoreData({ entity: "customers", filter: isVip ? "vip" : "", limit: 15 });
+    const lines = (cRes.items || []).slice(0, 10).map((c, i) =>
+      `${i + 1}. **${c.name || "Devotee"}** — ${c.ordersCount || 0} orders · ₹${Number(c.totalSpent || 0).toLocaleString("en-IN")} · ${c.phone || c.email || "No contact"}`
+    ).join("\n");
+    text = `**Store Customers (${cRes.totalMatched || snapshot.customersCount || 0} total):**\n\n${lines || "Abhi customer directory sync ho rahi hai."}`;
+    return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
+  }
+
+  // 9. Reviews & Support Tickets Query
+  if (/review|reviews|rating|feedback|ticket|tickets|complaint|support/i.test(lower)) {
+    const isTicket = /ticket|tickets|complaint|support/i.test(lower);
+    if (isTicket) {
+      const tRes = await queryStoreData({ entity: "tickets", filter: /open|pending/i.test(lower) ? "open" : "", limit: 12 });
+      const lines = (tRes.items || []).slice(0, 8).map((t, i) =>
+        `${i + 1}. **${t.subject || t.title || t.id}** — ${t.status || "Open"} · ${t.customerName || t.email || ""}`
+      ).join("\n");
+      text = `**Support Tickets (${tRes.totalMatched || 0}):**\n\n${lines || "Abhi koi open support ticket pending nahi hai."}`;
+    } else {
+      const rFilter = /pending/i.test(lower) ? "pending" : (/negative|bad|low/i.test(lower) ? "negative" : "");
+      const rRes = await queryStoreData({ entity: "reviews", filter: rFilter, limit: 12 });
+      const lines = (rRes.items || []).slice(0, 8).map((r, i) =>
+        `${i + 1}. **${r.name || "Customer"}** (${r.rating || 5}★) on *${r.productName || r.productId}* — "${r.text}" [${r.status || "Approved"}]`
+      ).join("\n");
+      text = `**Customer Reviews (${rRes.totalMatched || 0}):**\n\n${lines || "Abhi koi matching reviews nahi mile."}`;
+    }
+    return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
+  }
+
+  // 10. Train / Retrain AI Knowledge & Live Public Trends
+  if (/(train|retrain|\brag\b|public data|public trend|trending|knowledge update|ai ko train|seekho)/i.test(lower)) {
+    const trends = await getPublicStoreTrendsPayload(true);
+    const topTrendText = (trends.trendingProducts || []).slice(0, 5).map((t, i) => `${i + 1}. **${t.name}** — ₹${Number(t.price || 0).toLocaleString("en-IN")} (${t.unitsSold} ordered)`).join("\n") || "Storefront trending products ready";
+    const isTrainCmd = /(train|retrain|update|seekho)/i.test(lower);
+    if (isTrainCmd) {
+      actionTag = `[ADMIN_ACTION: {"type": "RETRAIN_AI_KNOWLEDGE", "data": {"forceRefresh": true}}]`;
+      navTag = `[NAVIGATE_PREVIEW: "/shop"]`;
+    }
+    text = `${isTrainCmd ? "Customer aur Admin AI dono ko **Live Public Data aur Trends** par re-train kar diya hai! " : "**Live Store Trends & Knowledge Summary:** "}(**${trends.indexedDocumentsCount} RAG documents**)\n\n• **Published Products:** ${trends.totals.publishedProducts} (${trends.totals.inStockProducts} in stock)\n• **Active Coupons & Campaigns:** ${trends.totals.activeCoupons} coupons · ${trends.totals.activeCampaigns} active campaigns\n• **Shipping & Payments:** COD ${trends.shippingAndPayments.enableCod ? "ON" : "OFF"} · Online Pay ${trends.shippingAndPayments.enableOnlinePayment ? "ON" : "OFF"}\n\n**Top Trending Products:**\n${topTrendText}${actionTag ? `\n\n${actionTag}\n${navTag}` : ""}`;
+    return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
+  }
+
+  // 11. Add Feature / Banner intent
   const isFeature = /feature|banner|announcement|offer banner|sale banner/i.test(lower) && /(add|create|lagao|dikhao|bnao|publish)/i.test(lower);
   if (isFeature) {
-    const liveCoupon = (snapshot.coupons || []).find(c => c.status === "Active");
+    const liveCoupon = (snapshot.coupons || []).find(c => c.status === "Active" || c.isActive !== false);
     const couponSuffix = liveCoupon ? ` — Use Code ${liveCoupon.code}` : "";
     const featTitle = `Sacred Nepali Rudraksha Collection${couponSuffix}`;
     const featSubtitle = "100% Lab-Certified Nepali Beads • Haridwar Prana Pratishtha • Insured Delivery";
@@ -1151,8 +1338,8 @@ export async function synthesizeAutonomousAdminResponse(systemPrompt, rawMessage
     return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
   }
 
-  // 7. Growth / VIP / Insights / Orders audit
-  if (/growth|audit|insight|revenue|vip|sales|unpaid|stuck|suggestion|socha/i.test(lower)) {
+  // 12. Growth / Revenue / Insights / Audit
+  if (/growth|audit|insight|revenue|profit|kamai|sales|bikri|report|analytics|suggestion|socha/i.test(lower)) {
     const audit = await runStoreGrowthAndHealthAudit("all");
     const m = audit.metrics;
     const oppsText = audit.opportunities.length
@@ -1166,9 +1353,8 @@ export async function synthesizeAutonomousAdminResponse(systemPrompt, rawMessage
     return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
   }
 
-  // 8. Bug scan / diagnostics + optional autofix
-  const isBugScan = /bug|scan|diagnostic|issue|error|health|fix/i.test(lower);
-  if (isBugScan) {
+  // 13. Bug scan / diagnostics + optional autofix
+  if (/bug|scan|diagnostic|issue|error|health|fix|theek|shi|problem/i.test(lower)) {
     const shouldFix = /\b(fix|repair|theek|shi|auto)\b/i.test(lower);
     if (shouldFix) {
       actionTag = `[ADMIN_ACTION: {"type": "AUTO_FIX_BUGS", "data": {}}]`;
@@ -1176,14 +1362,22 @@ export async function synthesizeAutonomousAdminResponse(systemPrompt, rawMessage
     } else {
       const diag = await runWebsiteBugDiagnostic();
       const summaryLines = diag.bugs.slice(0, 8).map(b => `• [${b.severity.toUpperCase()}] **${b.title}** — ${b.detail}`).join("\n");
-      text = `**Store Diagnostic Complete** (${diag.bugsCount} issues found across ${diag.metrics.productsScanned} products, ${diag.metrics.ordersScanned} orders):\n\n${summaryLines || "✅ Zero bugs detected! All endpoints and catalog records are healthy."}`;
+      text = `**Store Diagnostic Complete** (${diag.bugsCount} issues found across ${diag.metrics.productsScanned} products, ${diag.metrics.ordersScanned} orders):\n\n${summaryLines || "Zero bugs detected! All endpoints and catalog records are healthy."}`;
     }
     return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
   }
 
-  // 9. Page Preview intent
-  const isPagePreview = /preview|dikhao|open|kholo|view/i.test(lower);
-  if (isPagePreview) {
+  // 14. Undo intent handled cleanly in detectAndExecuteAdminIntents without emitting canned intro
+  if (/\b(undo|revert|wapas|pichla change hatao|rollback)\b/i.test(lower)) {
+    return {
+      text: "Checking Action Ledger to revert the latest change...",
+      modelUsed: "Aura Autonomous Agent",
+      provider: "Aura Autonomous Agent"
+    };
+  }
+
+  // 15. Explicit Page Preview Navigation
+  if (/\b(page|preview|route)\b/i.test(lower) && /\b(dikhao|open|kholo|view|show)\b/i.test(lower)) {
     let route = "/";
     let pageTitle = "Storefront Home";
     if (lower.includes("shop") || lower.includes("catalog")) { route = "/shop"; pageTitle = "Shop Catalog (/shop)"; }
@@ -1197,8 +1391,79 @@ export async function synthesizeAutonomousAdminResponse(systemPrompt, rawMessage
     return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
   }
 
-  // 10. Default executive summary
-  text = `**Aura AI Autonomous Admin Agent** online hai.\n\n• **Products:** ${snapshot.productsCount} (${snapshot.lowStockCount} low stock)\n• **Orders:** ${snapshot.ordersCount} (₹${Number(snapshot.totalRevenue || 0).toLocaleString("en-IN")})\n• **Coupons:** ${snapshot.couponsCount} · **MongoDB:** ${snapshot.mongoConnected ? "Connected" : "Cache Fallback"}\n\nAap mujhe sidha command de sakte hain:\n- *"5 Mukhi ka price ₹999 aur stock 40 kar do"*\n- *"Sabhi products par 10% discount lagao"*\n- *"SHIV15 coupon bnao 15% off min order 999"*\n- *"COD off kar do"* / *"Online payment on karo"*\n- *"Order #... ko Shipped mark karo aur tracking number add karo"*\n- *"Full store growth aur VIP buyers audit chalao"*\n- *"Bugs scan karke auto-fix karo"*`;
+  // 16. Arithmetic calculation check (margin / discount / pricing math)
+  const mathExprMatch = prompt.match(/([\d,.]+\s*(?:[+\-*/×÷%]|percent|discount)\s*[\d,.]+)/i);
+  if (mathExprMatch) {
+    const pctCalc = lower.match(/(\d+(?:\.\d+)?)\s*(?:ka|of)\s*(\d+(?:\.\d+)?)\s*%/i);
+    if (pctCalc) {
+      const base = parseFloat(pctCalc[1]);
+      const pct = parseFloat(pctCalc[2]);
+      const diff = Math.round((base * pct) / 100);
+      text = `**Calculation:** ₹${base.toLocaleString("en-IN")} ka ${pct}% = **₹${diff.toLocaleString("en-IN")}** (Net after ${pct}% off: **₹${(base - diff).toLocaleString("en-IN")}**).`;
+      return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
+    }
+  }
+
+  // 17. Greeting / Capabilities check
+  if (/^(hi+|hello+|hey+|namaste|namaskar|pranam|hlo|hlw|kaise ho|how are you|kya hal|help|commands?)[\s!?.]*$/i.test(lower)) {
+    text = `Namaste! Main **Aura Admin Copilot** hoon — aapke store (${snapshot.productsCount} products, ${snapshot.ordersCount} orders, ${snapshot.couponsCount} coupons) se live connected hoon.\n\nAap mujhse directly kuchh bhi poochh ya karwa sakte hain:\n• *"Pending orders aur unpaid status dikhao"*\n• *"7 Mukhi ka price aur stock kitna hai?"*\n• *"15% off coupon SHIVA15 bnao min order 999"*\n• *"COD off karo"* / *"Sabhi products par 10% discount lagao"*\n• *"Store bugs scan karke auto-fix karo"*`;
+    return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
+  }
+
+  // 18. Smart Keyword-Search + Contextual Response (Prevents ever returning an identical canned block)
+  const stopWords = new Set(["hai", "hain", "kya", "ka", "ki", "ke", "ko", "se", "me", "mein", "par", "aur", "the", "is", "are", "for", "and", "how", "what", "why", "who", "show", "tell", "batao", "btao", "karo", "kr", "do", "mujhe", "mera", "mere", "store", "admin", "website"]);
+  const searchTokens = lower
+    .replace(/[^\w\s\u0900-\u097F]/g, " ")
+    .split(/\s+/)
+    .filter(w => w.length >= 2 && !stopWords.has(w));
+
+  const matchedProducts = (snapshot.products || []).filter(p => {
+    const hay = `${p.name || ""} ${p.category || ""} ${p.mukhi || ""} ${p.slug || ""} ${p.description || ""}`.toLowerCase();
+    return searchTokens.some(t => hay.includes(t));
+  }).slice(0, 5);
+
+  const matchedCoupons = (snapshot.coupons || []).filter(c => {
+    const hay = `${c.code || ""} ${c.description || ""}`.toLowerCase();
+    return searchTokens.some(t => hay.includes(t));
+  }).slice(0, 3);
+
+  const matchedOrders = (snapshot.recentOrders || []).filter(o => {
+    const hay = `${o.orderId || o.id || ""} ${o.customerName || ""} ${o.orderStatus || o.status || ""} ${o.paymentStatus || ""}`.toLowerCase();
+    return searchTokens.some(t => hay.includes(t));
+  }).slice(0, 5);
+
+  const dynamicParts = [];
+  if (matchedProducts.length > 0) {
+    dynamicParts.push(
+      `**Matched Products:**\n` +
+        matchedProducts
+          .map(p => `• **${p.name}** — ₹${Number(p.price || 0).toLocaleString("en-IN")} (Stock: ${p.stock ?? 0})`)
+          .join("\n")
+    );
+  }
+  if (matchedOrders.length > 0) {
+    dynamicParts.push(
+      `**Matched Orders:**\n` +
+        matchedOrders
+          .map(o => `• **#${o.orderId || o.id}** — ₹${Number(o.finalAmount || o.total || 0).toLocaleString("en-IN")} · ${o.orderStatus || o.status || "Pending"} (${o.customerName || "Guest"})`)
+          .join("\n")
+    );
+  }
+  if (matchedCoupons.length > 0) {
+    dynamicParts.push(
+      `**Matched Coupons:**\n` +
+        matchedCoupons
+          .map(c => `• **${c.code}** — ${c.discountValue}${c.discountType === "percentage" ? "%" : "₹"} OFF`)
+          .join("\n")
+    );
+  }
+
+  if (dynamicParts.length > 0) {
+    text = `Aapke sawaal *"${prompt}"* se judi live store details:\n\n${dynamicParts.join("\n\n")}`;
+  } else {
+    text = `Maine aapke sawaal *"${prompt}"* ke liye live store snapshot check kiya (${snapshot.productsCount} products · ${snapshot.ordersCount} orders · ₹${Number(snapshot.totalRevenue || 0).toLocaleString("en-IN")} revenue · COD ${snapshot.settings?.enableCod !== false ? "ON" : "OFF"}).\n\nIs par exact action lene ke liye aap direct specify kar sakte hain — jaise kisi product/order/coupon ka naam, ya *"growth audit"*, *"pending orders"*, *"coupons list"*, ya *"bugs fix karo"*.`;
+  }
+
   return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
 }
 
