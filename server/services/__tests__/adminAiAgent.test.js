@@ -16,7 +16,13 @@ import { handleAdminAgentChat } from "../../controllers/adminAiAgentController.j
 import {
   resolveActiveWebsiteAiModel,
   isGeminiModelName,
+  normalizeWebsiteAiModelId,
+  buildNimExtraParams,
+  buildFastNimCandidateList,
+  invokeNimChatWithAbort,
+  getNvidiaClient,
   WEBSITE_AI_MODELS,
+  GEMINI_TEXT_MODELS,
   PRIMARY_NIM_MODEL
 } from "../../controllers/auraAiController.js";
 
@@ -745,6 +751,108 @@ describe("Website-Wide AI Models Selector & nvidia/nemotron-3-ultra-550b-a55b Pe
 
     // Restore primary default
     inMemoryStore.aiSettings.activeAiModel = PRIMARY_NIM_MODEL;
+  });
+
+  test("WEBSITE_AI_MODELS and GEMINI_TEXT_MODELS exclude deprecated Gemini models and normalize legacy gemini-2.5-flash to gemini-3.8-flash", async () => {
+    const deprecatedPattern = /^gemini-(1\.|2\.0|2\.5|3\.5-flash-lite|pro$|flash-latest$)/i;
+    for (const m of WEBSITE_AI_MODELS) {
+      expect(deprecatedPattern.test(m.id)).toBe(false);
+    }
+    for (const g of GEMINI_TEXT_MODELS) {
+      expect(deprecatedPattern.test(g)).toBe(false);
+    }
+    expect(GEMINI_TEXT_MODELS).toContain("gemini-3.8-flash");
+    expect(GEMINI_TEXT_MODELS).toContain("gemini-4-hydrogen");
+
+    expect(normalizeWebsiteAiModelId("gemini-2.5-flash")).toBe("gemini-3.8-flash");
+    expect(normalizeWebsiteAiModelId("models/gemini-2.5-flash")).toBe("gemini-3.8-flash");
+    expect(normalizeWebsiteAiModelId("gemini-2.0-flash")).toBe("gemini-3.8-flash");
+
+    inMemoryStore.aiSettings.activeAiModel = "gemini-2.5-flash";
+    expect(await resolveActiveWebsiteAiModel()).toBe("gemini-3.8-flash");
+
+    const putDeprecated = await fetch(`${baseUrl}/api/aura-ai/settings`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer admin_test_session"
+      },
+      body: JSON.stringify({ activeAiModel: "gemini-2.5-flash" })
+    });
+    expect(putDeprecated.status).toBe(200);
+    const putJson = await putDeprecated.json();
+    expect(putJson.data.activeAiModel).toBe("gemini-3.8-flash");
+  });
+
+  test("NIM latency guards: enable_thinking=false for Nemotron 550B, maxRetries=0, bounded candidate list, and fast abort/400 recovery", async () => {
+    // 1. Disables hidden thinking tokens for Nemotron models on NIM endpoints
+    expect(buildNimExtraParams("nvidia/nemotron-3-ultra-550b-a55b", { baseURL: "https://integrate.api.nvidia.com/v1" })).toEqual({
+      chat_template_kwargs: { enable_thinking: false }
+    });
+    expect(buildNimExtraParams("nvidia/nemotron-3-super-120b-a12b", { baseURL: "https://integrate.api.nvidia.com/v1" })).toEqual({
+      chat_template_kwargs: { enable_thinking: false }
+    });
+    expect(buildNimExtraParams("gpt-4o", { baseURL: "https://api.openai.com/v1" })).toEqual({});
+
+    // 2. Keeps interactive fallback cascade tightly capped to 2 fast candidates
+    const candidates = buildFastNimCandidateList("nvidia/nemotron-3-ultra-550b-a55b", 2);
+    expect(candidates).toEqual(["nvidia/nemotron-3-ultra-550b-a55b", PRIMARY_NIM_MODEL]);
+
+    // 3. Configures OpenAI SDK client with maxRetries: 0 so slow timeouts never multiply 3x
+    const client = getNvidiaClient("nvapi-test-key-123");
+    expect(client).toBeTruthy();
+    expect(client.maxRetries).toBe(0);
+
+    // 4. Retries cleanly without chat_template_kwargs if endpoint returns 400 rejecting it
+    let calls = 0;
+    const mock400Client = {
+      baseURL: "https://integrate.api.nvidia.com/v1",
+      chat: {
+        completions: {
+          create: async (payload) => {
+            calls++;
+            if (calls === 1 && payload.chat_template_kwargs) {
+              const err = new Error("chat_template_kwargs is extra_forbidden");
+              err.status = 400;
+              throw err;
+            }
+            return { choices: [{ message: { content: "Fast response OK" } }] };
+          }
+        }
+      }
+    };
+    const recovered = await invokeNimChatWithAbort(
+      mock400Client,
+      { model: "nvidia/nemotron-3-ultra-550b-a55b", messages: [{ role: "user", content: "hi" }] },
+      { timeoutMs: 2000 }
+    );
+    expect(calls).toBe(2);
+    expect(recovered.choices[0].message.content).toBe("Fast response OK");
+
+    // 5. Aborts unresponsive model immediately upon timeout without hanging
+    let abortObserved = false;
+    const mockHangingClient = {
+      baseURL: "https://integrate.api.nvidia.com/v1",
+      chat: {
+        completions: {
+          create: (_payload, { signal }) =>
+            new Promise((_resolve, reject) => {
+              signal.addEventListener("abort", () => {
+                abortObserved = true;
+                reject(new Error("aborted"));
+              });
+            })
+        }
+      }
+    };
+    await expect(
+      invokeNimChatWithAbort(
+        mockHangingClient,
+        { model: "nvidia/nemotron-3-ultra-550b-a55b", messages: [{ role: "user", content: "hi" }] },
+        { timeoutMs: 1000 }
+      )
+    ).rejects.toThrow("NIM_TIMEOUT");
+    expect(abortObserved).toBe(true);
   });
 });
 

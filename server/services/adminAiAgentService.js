@@ -1,4 +1,4 @@
-import { Type } from "@google/genai";
+import { Type, ThinkingLevel } from "@google/genai";
 import {
   AuraAISetting,
   AdminAIChatSession,
@@ -27,7 +27,9 @@ import {
   GEMINI_TEXT_MODELS,
   convertNimMessagesToGemini,
   isGeminiModelName,
-  resolveActiveWebsiteAiModel
+  resolveActiveWebsiteAiModel,
+  buildFastNimCandidateList,
+  invokeNimChatWithAbort
 } from "../controllers/auraAiController.js";
 
 // Resilient in-memory mirrors when DB is warming up
@@ -37,10 +39,10 @@ export const memTasks = new Map();
 export const memWorkLogs = [];
 
 export const NIM_FALLBACK_MODELS = [
-  "nvidia/nemotron-3-ultra-550b-a55b",
-  "nvidia/nemotron-3-super-120b-a12b",
   "nvidia/llama-3.1-nemotron-70b-instruct",
   "meta/llama-3.3-70b-instruct",
+  "nvidia/nemotron-3-ultra-550b-a55b",
+  "nvidia/nemotron-3-super-120b-a12b",
   "mistralai/mixtral-8x22b-instruct-v0.1",
   "deepseek-ai/deepseek-r1"
 ];
@@ -314,13 +316,14 @@ export async function searchGooglePublicResearch({ query = "rudraksha benefits p
     if (gemini) {
       const resp = await withTimeout(
         gemini.models.generateContent({
-          model: "gemini-4-hydrogen",
+          model: "gemini-3.8-flash",
           contents: `Research accurately using live Google Search and summarize key actionable points for an Indian Rudraksha & spiritual e-commerce store admin:\n\nQuery: ${cleanQuery}`,
           config: {
-            tools: [{ googleSearch: {} }]
+            tools: [{ googleSearch: {} }],
+            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
           }
         }),
-        14000
+        9000
       );
       summary = String(resp?.text || "").trim();
       const chunks = resp?.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
@@ -1212,16 +1215,17 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
   const nvidia = getNvidiaClient();
   const nimMessages = sanitizeNimMessages(systemPrompt, rawMessages);
 
-  // 1. Resolve Admin's website-wide active AI model (DB + inMemory fallback)
+  // 1. Resolve Admin's website-wide active AI model (DB + inMemory fallback) + enforce 18s total LLM budget
   const userSelectedModel = await resolveActiveWebsiteAiModel();
   const preferGemini = isGeminiModelName(userSelectedModel);
+  const overallDeadline = Date.now() + 18000;
 
   const executedViaTools = [];
   let previewRouteFromTools = "";
   let previewTitleFromTools = "";
 
   const tryGeminiToolAgent = async () => {
-    if (!gemini) return null;
+    if (!gemini || overallDeadline - Date.now() < 2000) return null;
     const contents = convertNimMessagesToGemini(nimMessages);
     const hybridTools = [
       { googleSearch: {} },
@@ -1231,25 +1235,36 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
     const functionOnlyTools = [{ functionDeclarations: ADMIN_AGENT_FUNCTION_DECLARATIONS }];
     const modelsToTry = [...new Set([
       preferGemini ? userSelectedModel : "",
+      "gemini-3.8-flash",
       "gemini-4-hydrogen",
       ...GEMINI_TEXT_MODELS
-    ])].filter(Boolean);
+    ])].filter(Boolean).slice(0, 2);
 
     for (const gModel of modelsToTry) {
+      if (overallDeadline - Date.now() < 2000) break;
       let useHybrid = gModel.startsWith("gemini-4") || gModel.startsWith("gemini-3");
       try {
         let currentContents = [...contents];
         let finalText = "";
         const groundingSources = [];
 
-        // Multi-round tool calling loop (max 5 turns)
-        for (let round = 0; round < 5; round++) {
+        // Bounded multi-round tool calling loop (max 3 turns, bounded by overallDeadline)
+        for (let round = 0; round < 3; round++) {
+          const remainingMs = overallDeadline - Date.now();
+          if (remainingMs < 2000) break;
+
+          const thinkingCfg = (gModel.startsWith("gemini-4") || gModel.startsWith("gemini-3"))
+            ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+            : {};
+
           const requestConfig = {
             systemInstruction: systemPrompt + "\n\nIMPORTANT: You have native function calling tools AND live Google Search + URL Context attached! ALWAYS call the appropriate tool(s) to inspect data, research public trends/GitHub tools, or mutate MongoDB instead of guessing. When Admin writes in Hindi/Hinglish or has typos like 'produced' (product), 'htana' (delete), 'ad' (add), understand the true intent and execute immediately. Summarize exact results cleanly.",
             tools: useHybrid ? hybridTools : functionOnlyTools,
-            ...(useHybrid ? { toolConfig: { includeServerSideToolInvocations: true } } : {})
+            ...(useHybrid ? { toolConfig: { includeServerSideToolInvocations: true } } : {}),
+            ...thinkingCfg
           };
 
+          const stepBudgetMs = Math.min(9000, remainingMs);
           let response;
           try {
             response = await withTimeout(
@@ -1258,10 +1273,13 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
                 contents: currentContents,
                 config: requestConfig
               }),
-              16000
+              stepBudgetMs
             );
           } catch (hybridErr) {
-            if (useHybrid) {
+            const errMsg = String(hybridErr?.message || "");
+            const isTimeout = /timeout|timed out|abort/i.test(errMsg);
+            const postRemainingMs = overallDeadline - Date.now();
+            if (useHybrid && !isTimeout && postRemainingMs > 2500) {
               useHybrid = false;
               response = await withTimeout(
                 gemini.models.generateContent({
@@ -1269,10 +1287,11 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
                   contents: currentContents,
                   config: {
                     systemInstruction: requestConfig.systemInstruction,
-                    tools: functionOnlyTools
+                    tools: functionOnlyTools,
+                    ...thinkingCfg
                   }
                 }),
-                16000
+                Math.min(8000, postRemainingMs)
               );
             } else {
               throw hybridErr;
@@ -1332,19 +1351,25 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
         }
 
         if (!finalText && executedViaTools.length > 0) {
-          try {
-            const summaryResp = await withTimeout(
-              gemini.models.generateContent({
-                model: gModel,
-                contents: currentContents,
-                config: {
-                  systemInstruction: systemPrompt + "\nSummarize the completed tool results clearly for the Admin in the same language (Hindi/Hinglish/English)."
-                }
-              }),
-              10000
-            );
-            finalText = (summaryResp?.text || "").trim();
-          } catch (_) {}
+          const summaryBudget = Math.min(5000, overallDeadline - Date.now());
+          if (summaryBudget > 2000) {
+            try {
+              const summaryResp = await withTimeout(
+                gemini.models.generateContent({
+                  model: gModel,
+                  contents: currentContents,
+                  config: {
+                    systemInstruction: systemPrompt + "\nSummarize the completed tool results clearly for the Admin in the same language (Hindi/Hinglish/English).",
+                    ...(gModel.startsWith("gemini-4") || gModel.startsWith("gemini-3")
+                      ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+                      : {})
+                  }
+                }),
+                summaryBudget
+              );
+              finalText = (summaryResp?.text || "").trim();
+            } catch (_) {}
+          }
           if (!finalText) {
             finalText = executedViaTools.map((a, idx) => `${idx + 1}. **${a.title || a.actionType}**`).join("\n");
           }
@@ -1373,26 +1398,26 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
   };
 
   const tryNvidiaNimAgent = async () => {
-    if (!nvidia) return null;
-    const uniqueCandidateModels = [...new Set([
-      !preferGemini ? userSelectedModel : "",
-      ...NIM_FALLBACK_MODELS
-    ].filter(m => m && !isGeminiModelName(m)))];
+    if (!nvidia || overallDeadline - Date.now() < 2000) return null;
+    const uniqueCandidateModels = buildFastNimCandidateList(!preferGemini ? userSelectedModel : "", 2);
 
     for (const modelName of uniqueCandidateModels) {
+      const remainingMs = overallDeadline - Date.now();
+      if (remainingMs < 2000) break;
       try {
         console.log(`[AdminAgent] Attempting NVIDIA NIM model: ${modelName}`);
-        const completion = await withTimeout(
-          nvidia.chat.completions.create({
+        const completion = await invokeNimChatWithAbort(
+          nvidia,
+          {
             model: modelName,
             messages: nimMessages,
-            temperature: 0.55,
-            max_tokens: maxTokens
-          }),
-          12000
+            temperature: 0.45,
+            max_tokens: Math.min(Number(maxTokens) || 1600, 1600)
+          },
+          { timeoutMs: Math.min(8500, remainingMs) }
         );
         const msg = completion?.choices?.[0]?.message;
-        const text = (msg?.content || msg?.reasoning_content || "").trim();
+        const text = (msg?.content || "").trim();
         if (text) {
           return { text, modelUsed: modelName, provider: "NVIDIA NIM", executedViaTools };
         }
@@ -1403,7 +1428,7 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
     return null;
   };
 
-  // 2. Respect website-wide saved model provider first, with cross-provider fallback
+  // 2. Respect website-wide saved model provider first, with cross-provider fallback within 18s budget
   if (preferGemini) {
     const gRes = await tryGeminiToolAgent();
     if (gRes) return gRes;

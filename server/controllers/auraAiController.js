@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import OpenAI from "openai";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 
 import { AuraAISetting, AuraAIConversation } from "../models/AuraAI.js";
 import { Product } from "../models/Product.js";
@@ -77,10 +77,10 @@ setInterval(() => {
 // Website-wide AI Models Catalog (NVIDIA NIM & Google Gemini)
 export const PRIMARY_NIM_MODEL = "nvidia/llama-3.1-nemotron-70b-instruct";
 export const BACKUP_NIM_MODELS = [
-  "nvidia/nemotron-3-ultra-550b-a55b",
-  "nvidia/nemotron-3-super-120b-a12b",
   "nvidia/llama-3.1-nemotron-70b-instruct",
   "meta/llama-3.3-70b-instruct",
+  "nvidia/nemotron-3-ultra-550b-a55b",
+  "nvidia/nemotron-3-super-120b-a12b",
   "mistralai/mixtral-8x22b-instruct-v0.1",
   "deepseek-ai/deepseek-r1"
 ];
@@ -147,13 +147,6 @@ export const WEBSITE_AI_MODELS = [
     provider: "gemini",
     badge: "Ultra Low Latency",
     description: "Lightweight Gemini Flash variant optimized for quick responses."
-  },
-  {
-    id: "gemini-2.5-flash",
-    label: "Google Gemini 2.5 Flash",
-    provider: "gemini",
-    badge: "Stable Flash",
-    description: "Proven Gemini 2.5 Flash model for reliable fallback & general Q&A."
   }
 ];
 export const NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1";
@@ -162,29 +155,38 @@ export function isGeminiModelName(modelName = "") {
   return /^gemini-/i.test(String(modelName || "").trim());
 }
 
+export function normalizeWebsiteAiModelId(modelName = "") {
+  const trimmed = String(modelName || "").trim();
+  if (!trimmed) return "";
+  if (/^(?:models\/)?(?:gemini-1\.|gemini-2\.0|gemini-2\.5|gemini-3\.5-flash-lite|gemini-pro$|gemini-flash-latest$)/i.test(trimmed)) {
+    return "gemini-3.8-flash";
+  }
+  return trimmed.replace(/^models\//i, "");
+}
+
 export async function resolveActiveWebsiteAiModel() {
   if (isDbConnected()) {
     try {
       const setting = await AuraAISetting.findOne()
         .select("activeAiModel selectedNimModel nemotronModel nvidiaModel")
         .lean();
-      const dbChosen = (
+      const dbChosen = normalizeWebsiteAiModelId(
         setting?.activeAiModel ||
         setting?.selectedNimModel ||
         setting?.nemotronModel ||
         setting?.nvidiaModel ||
         ""
-      ).trim();
+      );
       if (dbChosen) return dbChosen;
     } catch (_) {}
   }
-  const memChosen = (
+  const memChosen = normalizeWebsiteAiModelId(
     inMemoryStore.aiSettings?.activeAiModel ||
     inMemoryStore.aiSettings?.selectedNimModel ||
     inMemoryStore.aiSettings?.nemotronModel ||
     inMemoryStore.aiSettings?.nvidiaModel ||
     ""
-  ).trim();
+  );
   return memChosen || PRIMARY_NIM_MODEL;
 }
 
@@ -276,11 +278,74 @@ export function getNvidiaClient(customKey = "") {
     return new OpenAI({
       baseURL,
       apiKey,
-      timeout: 10000 // 10s fast failover timeout
+      timeout: 11000,
+      maxRetries: 0 // Prevent 3x silent retry stalls on slow/rate-limited models
     });
   } catch (err) {
     console.warn("Could not initialize NVIDIA NIM / OpenAI client:", err?.message || err);
     return null;
+  }
+}
+
+export function buildNimExtraParams(modelName = "", client = null) {
+  const base = String(client?.baseURL || NVIDIA_NIM_BASE_URL).toLowerCase();
+  const isNvidiaEndpoint = base.includes("nvidia") || base.includes("integrate.api");
+  const modelStr = String(modelName || "").toLowerCase();
+  // Nemotron 3 Ultra 550B / Super 120B spend 15-40s generating hidden <think> tokens unless thinking is disabled
+  if (isNvidiaEndpoint && (modelStr.includes("nemotron") || modelStr.includes("deepseek"))) {
+    return { chat_template_kwargs: { enable_thinking: false } };
+  }
+  return {};
+}
+
+export function buildFastNimCandidateList(activeModel = "", maxCandidates = 2) {
+  const normalizedActive = normalizeWebsiteAiModelId(activeModel);
+  return [...new Set([
+    normalizedActive && !isGeminiModelName(normalizedActive) ? normalizedActive : "",
+    PRIMARY_NIM_MODEL,
+    "meta/llama-3.3-70b-instruct"
+  ].filter(m => m && !isGeminiModelName(m)))].slice(0, Math.max(1, maxCandidates));
+}
+
+export async function invokeNimChatWithAbort(client, payload, { timeoutMs = 8500, parentSignal = null } = {}) {
+  const modelAbort = new AbortController();
+  let timedOut = false;
+  const onParentAbort = () => modelAbort.abort(parentSignal?.reason || new Error("Parent aborted"));
+  if (parentSignal) {
+    if (parentSignal.aborted) {
+      modelAbort.abort(parentSignal.reason || new Error("Parent aborted"));
+    } else {
+      parentSignal.addEventListener("abort", onParentAbort, { once: true });
+    }
+  }
+  const timer = setTimeout(() => {
+    timedOut = true;
+    modelAbort.abort(new Error("NIM_TIMEOUT"));
+  }, Math.max(1000, timeoutMs));
+
+  const extraParams = buildNimExtraParams(payload?.model, client);
+  const fullPayload = { ...payload, ...extraParams };
+
+  try {
+    return await client.chat.completions.create(fullPayload, { signal: modelAbort.signal });
+  } catch (err) {
+    const msg = String(err?.message || "");
+    const status = Number(err?.status || err?.statusCode || 0);
+    // If an endpoint rejects chat_template_kwargs with 400, immediately retry without it
+    if (extraParams.chat_template_kwargs && !timedOut && !parentSignal?.aborted && (status === 400 || /chat_template_kwargs|extra_forbidden|unrecognized/i.test(msg))) {
+      const cleanPayload = { ...payload };
+      delete cleanPayload.chat_template_kwargs;
+      return await client.chat.completions.create(cleanPayload, { signal: modelAbort.signal });
+    }
+    if (timedOut) {
+      throw new Error("NIM_TIMEOUT");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    if (parentSignal) {
+      parentSignal.removeEventListener("abort", onParentAbort);
+    }
   }
 }
 
@@ -436,14 +501,15 @@ export function getGeminiClient(customKey = "") {
   }
 }
 
-// Resilient Gemini text models fallback list in order of preference
+// Resilient Gemini text models fallback list in order of preference (strictly active non-deprecated models)
 export const GEMINI_TEXT_MODELS = [
-  process.env.GEMINI_MODEL,
-  'gemini-4-hydrogen',
-  'gemini-3.8-flash',
-  'gemini-3.1-flash-lite',
-  'gemini-2.5-flash'
-].filter(Boolean);
+  ...new Set([
+    process.env.GEMINI_MODEL ? normalizeWebsiteAiModelId(process.env.GEMINI_MODEL) : "",
+    'gemini-4-hydrogen',
+    'gemini-3.8-flash',
+    'gemini-3.1-flash-lite'
+  ].filter(Boolean))
+];
 
 /**
  * Convert OpenAI/NIM formatted messages array to @google/genai Content array.
@@ -1440,31 +1506,31 @@ SAFETY:
 
     const savedModel = await resolveActiveWebsiteAiModel();
     const preferGeminiKundali = isGeminiModelName(savedModel);
+    const kundaliDeadline = Date.now() + 16000;
 
     const runKundaliNim = async () => {
       if (!nvidiaClient || aiInterpretation) return;
-      const isNvidia = (nvidiaClient.baseURL || "").includes("nvidia") || (nvidiaClient.baseURL || "").includes("integrate.api");
-      const kundaliNimCandidates = [...new Set([
-        !preferGeminiKundali ? savedModel : "",
-        PRIMARY_NIM_MODEL,
-        ...BACKUP_NIM_MODELS
-      ].filter(m => m && !isGeminiModelName(m)))];
+      const kundaliNimCandidates = buildFastNimCandidateList(!preferGeminiKundali ? savedModel : "", 2);
 
       for (const modelCandidate of kundaliNimCandidates) {
-        if (aiInterpretation) break;
+        const remainingMs = kundaliDeadline - Date.now();
+        if (aiInterpretation || remainingMs < 2000) break;
         try {
-          const completion = await nvidiaClient.chat.completions.create({
-            model: modelCandidate,
-            messages: [
-              { role: "system", content: "You are AI Pandit Ji (Vedic Astrology Acharya) for Aura Rudraksha. Always provide an exhaustive, deeply detailed, complete 11-section Vedic Kundali reading in warm Hindi explaining all 9 planets, all 12 houses, what problems are happening, why, since when, how, and when they will resolve." },
-              { role: "user", content: astroPrompt }
-            ],
-            temperature: 0.35,
-            max_tokens: 8192,
-            ...(isNvidia ? { chat_template_kwargs: { enable_thinking: false } } : {})
-          });
+          const completion = await invokeNimChatWithAbort(
+            nvidiaClient,
+            {
+              model: modelCandidate,
+              messages: [
+                { role: "system", content: "You are AI Pandit Ji (Vedic Astrology Acharya) for Aura Rudraksha. Always provide an exhaustive, deeply detailed, complete 11-section Vedic Kundali reading in warm Hindi explaining all 9 planets, all 12 houses, what problems are happening, why, since when, how, and when they will resolve." },
+                { role: "user", content: astroPrompt }
+              ],
+              temperature: 0.35,
+              max_tokens: 4096
+            },
+            { timeoutMs: Math.min(9500, remainingMs) }
+          );
 
-          aiInterpretation = completion.choices?.[0]?.message?.content || "";
+          aiInterpretation = (completion.choices?.[0]?.message?.content || "").trim();
         } catch (nimErr) {
           console.warn(`[Kundali Endpoint] NVIDIA NIM notice (${modelCandidate}):`, nimErr?.message || nimErr);
         }
@@ -1472,22 +1538,29 @@ SAFETY:
     };
 
     const runKundaliGemini = async () => {
-      if (aiInterpretation) return;
+      if (aiInterpretation || kundaliDeadline - Date.now() < 2000) return;
       await resolveGeminiKey();
       const gClient = getGeminiClient();
       if (!gClient) return;
-      const gModels = [...new Set([preferGeminiKundali ? savedModel : "", ...GEMINI_TEXT_MODELS].filter(Boolean))];
+      const gModels = [...new Set([preferGeminiKundali ? savedModel : "", "gemini-3.8-flash", ...GEMINI_TEXT_MODELS].filter(Boolean))].slice(0, 2);
       for (const gModel of gModels) {
-        if (aiInterpretation) break;
+        const remainingMs = kundaliDeadline - Date.now();
+        if (aiInterpretation || remainingMs < 2000) break;
         try {
-          const gResp = await gClient.models.generateContent({
-            model: gModel,
-            contents: astroPrompt,
-            config: {
-              systemInstruction: "You are AI Pandit Ji (Vedic Astrology Acharya) for Aura Rudraksha. Always provide an exhaustive, deeply detailed, complete 11-section Vedic Kundali reading in warm Hindi explaining all 9 planets, all 12 houses, what problems are happening, why, since when, how, and when they will resolve."
-            }
-          });
-          aiInterpretation = gResp?.text || "";
+          const gResp = await Promise.race([
+            gClient.models.generateContent({
+              model: gModel,
+              contents: astroPrompt,
+              config: {
+                systemInstruction: "You are AI Pandit Ji (Vedic Astrology Acharya) for Aura Rudraksha. Always provide an exhaustive, deeply detailed, complete 11-section Vedic Kundali reading in warm Hindi explaining all 9 planets, all 12 houses, what problems are happening, why, since when, how, and when they will resolve.",
+                ...(gModel.startsWith("gemini-4") || gModel.startsWith("gemini-3")
+                  ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+                  : {})
+              }
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("KUNDALI_GEMINI_TIMEOUT")), Math.min(9500, remainingMs)))
+          ]);
+          aiInterpretation = (gResp?.text || "").trim();
         } catch (gErr) {
           console.warn(`[Kundali Endpoint] Gemini notice (${gModel}):`, gErr?.message || gErr);
         }
@@ -3145,59 +3218,95 @@ ${memoryContextText || "Guest shopper."}`;
       // Prune initial context messages if token count is near ~8000 words limit
       const prunedNimMessages = pruneMessagesForTokenLimit(nimMessages, 8000);
 
-      // Reliable streaming timeout (12 seconds wait for first token from NVIDIA NIM)
-      const STREAM_INIT_TIMEOUT_MS = 12000;
+      // Bounded first-visible-token timeout + shared overall LLM budget so interactive chat never hangs or 504s
+      const STREAM_FIRST_TOKEN_TIMEOUT_MS = 8500;
+      const externalStreamDeadline = Date.now() + 18000;
 
       // Resolve website-wide active model (honors Admin's saved choice across both NVIDIA NIM & Gemini)
       const activeWebsiteModel = await resolveActiveWebsiteAiModel();
       const preferGeminiStream = isGeminiModelName(activeWebsiteModel);
 
-      const nimCandidates = [...new Set([
-        !preferGeminiStream ? activeWebsiteModel : "",
-        PRIMARY_NIM_MODEL,
-        ...BACKUP_NIM_MODELS
-      ].filter(m => m && !isGeminiModelName(m)))];
+      const nimCandidates = buildFastNimCandidateList(!preferGeminiStream ? activeWebsiteModel : "", 2);
 
       const geminiCandidates = [...new Set([
         preferGeminiStream ? activeWebsiteModel : "",
+        "gemini-3.8-flash",
         ...GEMINI_TEXT_MODELS
-      ].filter(Boolean))];
+      ].filter(Boolean))].slice(0, 2);
 
       const shouldUseDeterministicStandard = effectiveMode !== "panditji" && (Boolean(precomputedCalc?.handled) || Boolean(mukhiRange));
+      const streamMaxTokens = effectiveMode === "panditji" ? 4096 : 1800;
 
       const tryNvidiaStream = async () => {
         if (!nvidiaClient || streamSucceeded || clientDisconnected || shouldUseDeterministicStandard) return;
         for (const modelCandidate of nimCandidates) {
-          if (streamSucceeded || clientDisconnected) break;
+          const remainingBudgetMs = externalStreamDeadline - Date.now();
+          if (streamSucceeded || clientDisconnected || remainingBudgetMs < 2000) break;
+
+          const modelAbort = new AbortController();
+          const onParentAbort = () => modelAbort.abort(abortController.signal.reason || new Error("Client disconnected"));
+          if (abortController.signal.aborted) break;
+          abortController.signal.addEventListener("abort", onParentAbort, { once: true });
+
+          let firstTokenTimedOut = false;
+          let streamIdleTimer = null;
+          let receivedAnyChunk = false;
+
+          const resetCompletionTimer = (ms) => {
+            if (streamIdleTimer) clearTimeout(streamIdleTimer);
+            streamIdleTimer = setTimeout(() => {
+              if (!receivedAnyChunk) firstTokenTimedOut = true;
+              modelAbort.abort(new Error(receivedAnyChunk ? "NIM_CHUNK_STALL" : "NIM_FIRST_TOKEN_TIMEOUT"));
+            }, ms);
+          };
+
           try {
-            const streamPromise = nvidiaClient.chat.completions.create(
-              {
-                model: modelCandidate,
-                messages: prunedNimMessages,
-                temperature: 0.35,
-                max_tokens: 8192,
-                stream: true
-              },
-              { signal: abortController.signal }
-            );
+            const extraParams = buildNimExtraParams(modelCandidate, nvidiaClient);
+            const initBudgetMs = Math.min(STREAM_FIRST_TOKEN_TIMEOUT_MS, remainingBudgetMs);
+            resetCompletionTimer(initBudgetMs);
 
-            const streamCompletion = await Promise.race([
-              streamPromise,
-              new Promise((_, reject) => setTimeout(() => reject(new Error("NIM_STREAM_TIMEOUT")), STREAM_INIT_TIMEOUT_MS))
-            ]);
+            const basePayload = {
+              model: modelCandidate,
+              messages: prunedNimMessages,
+              temperature: 0.35,
+              max_tokens: streamMaxTokens,
+              stream: true
+            };
 
-            let receivedAnyChunk = false;
+            let streamCompletion;
+            try {
+              streamCompletion = await nvidiaClient.chat.completions.create(
+                { ...basePayload, ...extraParams },
+                { signal: modelAbort.signal }
+              );
+            } catch (createErr) {
+              const errStatus = Number(createErr?.status || createErr?.statusCode || 0);
+              if (extraParams.chat_template_kwargs && !firstTokenTimedOut && !clientDisconnected && (errStatus === 400 || /chat_template_kwargs|extra_forbidden|unrecognized/i.test(String(createErr?.message || "")))) {
+                streamCompletion = await nvidiaClient.chat.completions.create(
+                  basePayload,
+                  { signal: modelAbort.signal }
+                );
+              } else {
+                throw createErr;
+              }
+            }
 
+            // Keep first-token timeout running while awaiting visible content (blocks silent <think> reasoning stalls!)
             for await (const chunk of streamCompletion) {
-              if (clientDisconnected) break;
+              if (clientDisconnected || modelAbort.signal.aborted) break;
               const deltaContent = chunk.choices?.[0]?.delta?.content || "";
               if (deltaContent) {
-                receivedAnyChunk = true;
+                if (!receivedAnyChunk) {
+                  receivedAnyChunk = true;
+                }
+                resetCompletionTimer(12000); // Per-chunk stall guard once visible text is flowing
                 fullStreamedText += deltaContent;
                 res.write(`data: ${JSON.stringify({ type: "chunk", delta: deltaContent })}\n\n`);
                 res.flush?.();
               }
             }
+
+            if (streamIdleTimer) clearTimeout(streamIdleTimer);
 
             if (receivedAnyChunk && fullStreamedText.trim()) {
               streamSucceeded = true;
@@ -3205,48 +3314,95 @@ ${memoryContextText || "Guest shopper."}`;
               break;
             }
           } catch (streamErr) {
-            if (streamErr.name === "AbortError" || clientDisconnected) {
+            if (streamIdleTimer) clearTimeout(streamIdleTimer);
+            if (clientDisconnected) {
               clearInterval(heartbeatTimer);
               return;
             }
-            console.warn(`[Aura AI Streaming] NVIDIA NIM failover notice (${modelCandidate}):`, streamErr?.message || streamErr);
+            const errNote = firstTokenTimedOut ? `NIM_FIRST_TOKEN_TIMEOUT (${modelCandidate})` : (streamErr?.message || streamErr);
+            console.warn(`[Aura AI Streaming] NVIDIA NIM failover notice (${modelCandidate}):`, errNote);
+            // If partial text already reached user, mark as partial success instead of overwriting mid-bubble
+            if (receivedAnyChunk && fullStreamedText.trim().length > 40) {
+              streamSucceeded = true;
+              streamedModelUsed = modelCandidate;
+              break;
+            }
             continue;
+          } finally {
+            if (streamIdleTimer) clearTimeout(streamIdleTimer);
+            abortController.signal.removeEventListener("abort", onParentAbort);
           }
         }
       };
 
       const tryGeminiStream = async () => {
         if (streamSucceeded || clientDisconnected || shouldUseDeterministicStandard) return;
+        if (externalStreamDeadline - Date.now() < 2000) return;
         await resolveGeminiKey();
         const geminiClient = getGeminiClient();
         if (!geminiClient) return;
         const gContents = convertNimMessagesToGemini(prunedNimMessages);
         for (const gModel of geminiCandidates) {
-          if (streamSucceeded || clientDisconnected) break;
+          const remainingBudgetMs = externalStreamDeadline - Date.now();
+          if (streamSucceeded || clientDisconnected || remainingBudgetMs < 2000) break;
+          const attemptTimeoutMs = Math.min(10000, remainingBudgetMs);
           try {
-            const gResp = await Promise.race([
-              geminiClient.models.generateContent({
-                model: gModel,
-                contents: gContents,
-                config: { systemInstruction: effectiveSystemPrompt }
-              }),
-              new Promise((_, reject) => setTimeout(() => reject(new Error("GEMINI_STREAM_TIMEOUT")), 12000))
-            ]);
-            const gText = gResp?.text || gResp?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
-            if (gText.trim()) {
-              fullStreamedText = gText.trim();
-              const gTokens = fullStreamedText.split(/(\s+)/);
-              for (let i = 0; i < gTokens.length; i += 4) {
+            const gConfig = {
+              systemInstruction: effectiveSystemPrompt,
+              ...(gModel.startsWith("gemini-4") || gModel.startsWith("gemini-3")
+                ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+                : {})
+            };
+            if (typeof geminiClient.models.generateContentStream === "function") {
+              const streamResp = await Promise.race([
+                geminiClient.models.generateContentStream({
+                  model: gModel,
+                  contents: gContents,
+                  config: gConfig
+                }),
+                new Promise((_, reject) => setTimeout(() => reject(new Error("GEMINI_STREAM_TIMEOUT")), attemptTimeoutMs))
+              ]);
+              let streamedChunkText = "";
+              for await (const chunk of streamResp) {
                 if (clientDisconnected) break;
-                const chunkStr = gTokens.slice(i, i + 4).join("");
-                if (chunkStr) {
-                  res.write(`data: ${JSON.stringify({ type: "chunk", delta: chunkStr })}\n\n`);
+                const chunkText = chunk?.text || chunk?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+                if (chunkText) {
+                  streamedChunkText += chunkText;
+                  fullStreamedText += chunkText;
+                  res.write(`data: ${JSON.stringify({ type: "chunk", delta: chunkText })}\n\n`);
                   res.flush?.();
                 }
               }
-              streamSucceeded = true;
-              streamedModelUsed = gModel;
-              break;
+              if (streamedChunkText.trim()) {
+                streamSucceeded = true;
+                streamedModelUsed = gModel;
+                break;
+              }
+            } else {
+              const gResp = await Promise.race([
+                geminiClient.models.generateContent({
+                  model: gModel,
+                  contents: gContents,
+                  config: gConfig
+                }),
+                new Promise((_, reject) => setTimeout(() => reject(new Error("GEMINI_STREAM_TIMEOUT")), attemptTimeoutMs))
+              ]);
+              const gText = gResp?.text || gResp?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+              if (gText.trim()) {
+                fullStreamedText = gText.trim();
+                const gTokens = fullStreamedText.split(/(\s+)/);
+                for (let i = 0; i < gTokens.length; i += 4) {
+                  if (clientDisconnected) break;
+                  const chunkStr = gTokens.slice(i, i + 4).join("");
+                  if (chunkStr) {
+                    res.write(`data: ${JSON.stringify({ type: "chunk", delta: chunkStr })}\n\n`);
+                    res.flush?.();
+                  }
+                }
+                streamSucceeded = true;
+                streamedModelUsed = gModel;
+                break;
+              }
             }
           } catch (gErr) {
             console.warn(`[Aura AI Streaming] Gemini notice (${gModel}):`, gErr?.message || gErr);
@@ -3414,39 +3570,38 @@ ${memoryContextText || "Guest shopper."}`;
     const nonStreamPrunedMsgs = pruneMessagesForTokenLimit(nimMessages, 8000);
 
     const nonStreamNvidiaClient = getNvidiaClient();
-    const NON_STREAM_TIMEOUT_MS = 6000;
+    const NON_STREAM_TIMEOUT_MS = 8000;
+    const nonStreamDeadline = Date.now() + 15000;
     const shouldUseDeterministicNonStream = effectiveMode !== "panditji" && (Boolean(precomputedCalc?.handled) || Boolean(mukhiRange));
+    const nonStreamMaxTokens = effectiveMode === "panditji" ? 4096 : 1800;
 
     const nonStreamActiveModel = await resolveActiveWebsiteAiModel();
     const preferGeminiNonStream = isGeminiModelName(nonStreamActiveModel);
 
-    const nonStreamNimCandidates = [...new Set([
-      !preferGeminiNonStream ? nonStreamActiveModel : "",
-      PRIMARY_NIM_MODEL,
-      ...BACKUP_NIM_MODELS
-    ].filter(m => m && !isGeminiModelName(m)))];
+    const nonStreamNimCandidates = buildFastNimCandidateList(!preferGeminiNonStream ? nonStreamActiveModel : "", 2);
 
     const nonStreamGeminiCandidates = [...new Set([
       preferGeminiNonStream ? nonStreamActiveModel : "",
+      "gemini-3.8-flash",
       ...GEMINI_TEXT_MODELS
-    ].filter(Boolean))];
+    ].filter(Boolean))].slice(0, 2);
 
     const tryNonStreamNim = async () => {
       if (!nonStreamNvidiaClient || generatedSuccessfully || shouldUseDeterministicNonStream) return;
       for (const modelCandidate of nonStreamNimCandidates) {
-        if (generatedSuccessfully) break;
+        const remainingMs = nonStreamDeadline - Date.now();
+        if (generatedSuccessfully || remainingMs < 2000) break;
         try {
-          const compPromise = nonStreamNvidiaClient.chat.completions.create({
-            model: modelCandidate,
-            messages: nonStreamPrunedMsgs,
-            temperature: 0.35,
-            max_tokens: 8192
-          });
-
-          const completion = await Promise.race([
-            compPromise,
-            new Promise((_, reject) => setTimeout(() => reject(new Error("NIM_NONSTREAM_TIMEOUT")), NON_STREAM_TIMEOUT_MS))
-          ]);
+          const completion = await invokeNimChatWithAbort(
+            nonStreamNvidiaClient,
+            {
+              model: modelCandidate,
+              messages: nonStreamPrunedMsgs,
+              temperature: 0.35,
+              max_tokens: nonStreamMaxTokens
+            },
+            { timeoutMs: Math.min(NON_STREAM_TIMEOUT_MS, remainingMs) }
+          );
 
           const outContent = completion.choices?.[0]?.message?.content || "";
           if (outContent.trim()) {
@@ -3463,21 +3618,27 @@ ${memoryContextText || "Guest shopper."}`;
     };
 
     const tryNonStreamGemini = async () => {
-      if (generatedSuccessfully || shouldUseDeterministicNonStream) return;
+      if (generatedSuccessfully || shouldUseDeterministicNonStream || nonStreamDeadline - Date.now() < 2000) return;
       await resolveGeminiKey();
       const nonStreamGemini = getGeminiClient();
       if (!nonStreamGemini) return;
       const gContents = convertNimMessagesToGemini(nonStreamPrunedMsgs);
       for (const gModel of nonStreamGeminiCandidates) {
-        if (generatedSuccessfully) break;
+        const remainingMs = nonStreamDeadline - Date.now();
+        if (generatedSuccessfully || remainingMs < 2000) break;
         try {
           const gResp = await Promise.race([
             nonStreamGemini.models.generateContent({
               model: gModel,
               contents: gContents,
-              config: { systemInstruction: effectiveSystemPrompt }
+              config: {
+                systemInstruction: effectiveSystemPrompt,
+                ...(gModel.startsWith("gemini-4") || gModel.startsWith("gemini-3")
+                  ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+                  : {})
+              }
             }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error("GEMINI_NONSTREAM_TIMEOUT")), 8000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error("GEMINI_NONSTREAM_TIMEOUT")), Math.min(9500, remainingMs)))
           ]);
           const outContent = gResp?.text || gResp?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
           if (outContent.trim()) {
@@ -3761,25 +3922,28 @@ OUTPUT FORMAT: Return a valid JSON object ONLY:
   ]
 }`;
 
+    const intelDeadline = Date.now() + 15000;
+
     const runIntelNim = async () => {
       if (!nvidiaClient || aiExecutiveReport) return;
-      const nimList = [...new Set([!isGeminiModelName(activeIntelModel) ? activeIntelModel : "", PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS].filter(m => m && !isGeminiModelName(m)))];
+      const nimList = buildFastNimCandidateList(!isGeminiModelName(activeIntelModel) ? activeIntelModel : "", 2);
       for (const mName of nimList) {
-        if (aiExecutiveReport) break;
+        const remainingMs = intelDeadline - Date.now();
+        if (aiExecutiveReport || remainingMs < 2000) break;
         try {
-          const aiPromise = nvidiaClient.chat.completions.create({
-            model: mName,
-            messages: [
-              { role: "system", content: "You are an executive e-commerce AI analytics engine. Output clean JSON only." },
-              { role: "user", content: adminPrompt }
-            ],
-            temperature: 0.25,
-            max_tokens: 1500
-          });
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("AI intelligence generation timed out")), 7000)
+          const completion = await invokeNimChatWithAbort(
+            nvidiaClient,
+            {
+              model: mName,
+              messages: [
+                { role: "system", content: "You are an executive e-commerce AI analytics engine. Output clean JSON only." },
+                { role: "user", content: adminPrompt }
+              ],
+              temperature: 0.25,
+              max_tokens: 1400
+            },
+            { timeoutMs: Math.min(7500, remainingMs) }
           );
-          const completion = await Promise.race([aiPromise, timeoutPromise]);
           const rawText = completion.choices?.[0]?.message?.content || "";
           const parsed = extractStructuredAiJson(rawText);
           if (parsed) {
@@ -3793,10 +3957,11 @@ OUTPUT FORMAT: Return a valid JSON object ONLY:
     };
 
     const runIntelGemini = async () => {
-      if (!geminiClient || aiExecutiveReport) return;
-      const gList = [...new Set([isGeminiModelName(activeIntelModel) ? activeIntelModel : "", ...GEMINI_TEXT_MODELS].filter(Boolean))];
+      if (!geminiClient || aiExecutiveReport || intelDeadline - Date.now() < 2000) return;
+      const gList = [...new Set([isGeminiModelName(activeIntelModel) ? activeIntelModel : "", "gemini-3.8-flash", ...GEMINI_TEXT_MODELS].filter(Boolean))].slice(0, 2);
       for (const gModel of gList) {
-        if (aiExecutiveReport) break;
+        const remainingMs = intelDeadline - Date.now();
+        if (aiExecutiveReport || remainingMs < 2000) break;
         try {
           const gResp = await Promise.race([
             geminiClient.models.generateContent({
@@ -3804,10 +3969,13 @@ OUTPUT FORMAT: Return a valid JSON object ONLY:
               contents: adminPrompt,
               config: {
                 systemInstruction: "You are an executive e-commerce AI analytics engine. Output clean JSON only.",
-                responseMimeType: "application/json"
+                responseMimeType: "application/json",
+                ...(gModel.startsWith("gemini-4") || gModel.startsWith("gemini-3")
+                  ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+                  : {})
               }
             }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error("Gemini intelligence timed out")), 7000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Gemini intelligence timed out")), Math.min(8500, remainingMs)))
           ]);
           const parsed = extractStructuredAiJson(gResp?.text || "");
           if (parsed) {
@@ -4010,13 +4178,13 @@ export async function getAuraAISettings(req, res, next) {
       } catch (_) {}
     }
 
-    const resolvedModel = (
+    const resolvedModel = normalizeWebsiteAiModelId(
       settings.activeAiModel ||
       settings.selectedNimModel ||
       settings.nemotronModel ||
       settings.nvidiaModel ||
       PRIMARY_NIM_MODEL
-    ).trim();
+    ) || PRIMARY_NIM_MODEL;
 
     settings.activeAiModel = resolvedModel;
     settings.selectedNimModel = resolvedModel;
@@ -4040,13 +4208,13 @@ export async function updateAuraAISettings(req, res, next) {
       setCachedNvidiaKey(cleanUpdates.nvidiaApiKey || cleanUpdates.nemotronApiKey);
     }
 
-    const chosenModel = (
+    const chosenModel = normalizeWebsiteAiModelId(
       cleanUpdates.activeAiModel ||
       cleanUpdates.selectedNimModel ||
       cleanUpdates.nemotronModel ||
       cleanUpdates.nvidiaModel ||
       ""
-    ).trim();
+    );
 
     if (chosenModel) {
       cleanUpdates.activeAiModel = chosenModel;

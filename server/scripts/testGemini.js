@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 async function testGeminiModels() {
   const apiKey = process.env.GEMINI_API_KEY;
   const ai = new GoogleGenAI({ apiKey });
-  const models = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-flash-latest'];
+  const models = ['gemini-4-hydrogen', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'];
 
   for (const m of models) {
     try {

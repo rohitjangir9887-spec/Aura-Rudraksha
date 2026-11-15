@@ -40,12 +40,16 @@ export async function performGoogleSearchGrounding(query = "", customApiKey = ""
       apiKey,
       httpOptions: { headers: { "User-Agent": "aistudio-build" } }
     });
+    const envModel = String(process.env.GEMINI_MODEL || "").trim().replace(/^models\//i, "");
+    const safeEnvModel = envModel && !/^gemini-(?:1\.|2\.0|2\.5|3\.5-flash-lite|pro$|flash-latest$)/i.test(envModel) ? envModel : "";
     const modelsToTry = [
-      process.env.GEMINI_MODEL,
-      "gemini-3.8-flash",
-      "gemini-3.1-flash-lite",
-      "gemini-2.5-flash"
-    ].filter(Boolean);
+      ...new Set([
+        safeEnvModel,
+        "gemini-4-hydrogen",
+        "gemini-3.8-flash",
+        "gemini-3.1-flash-lite"
+      ].filter(Boolean))
+    ];
 
     for (const modelName of modelsToTry) {
       try {
@@ -67,7 +71,7 @@ export async function performGoogleSearchGrounding(query = "", customApiKey = ""
             ],
             config: {
               tools: [{ googleSearch: {} }],
-              temperature: 0.2
+              ...(modelName.startsWith("gemini-4") ? {} : { temperature: 0.2 })
             }
           }),
           timeoutPromise

@@ -96,13 +96,6 @@ export const WEBSITE_AI_MODEL_OPTIONS = [
     provider: "gemini",
     badge: "Ultra Low Latency",
     description: "Lightweight Gemini Flash variant for instant replies."
-  },
-  {
-    id: "gemini-2.5-flash",
-    label: "Google Gemini 2.5 Flash",
-    provider: "gemini",
-    badge: "Stable Flash",
-    description: "Proven Gemini 2.5 Flash model for reliable fallback & general Q&A."
   }
 ];
 

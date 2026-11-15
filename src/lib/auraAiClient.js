@@ -20,11 +20,40 @@ let activeStreamSeq = 0;
 
 export const auraAiClient = {
   async sendAdminChat(messages, sessionId = "admin_master_session", pageContext = "") {
-    try {
-      const token = await getAuthToken();
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 90000);
+    const token = await getAuthToken();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 42000);
+    const lastUserText = [...(Array.isArray(messages) ? messages : [])]
+      .reverse()
+      .find(m => m && (m.role === "user" || m.sender === "user"))?.text || "";
 
+    const recoverFromSession = async () => {
+      try {
+        await new Promise((r) => setTimeout(r, 600));
+        const sessionRes = await this.getAdminAgentSession(sessionId);
+        const sessMessages = sessionRes?.session?.messages || sessionRes?.messages || [];
+        if (Array.isArray(sessMessages) && sessMessages.length >= 2) {
+          const lastMsg = sessMessages[sessMessages.length - 1];
+          const prevMsg = sessMessages[sessMessages.length - 2];
+          if (
+            (lastMsg?.role === "assistant" || lastMsg?.sender === "ai") &&
+            lastMsg?.text &&
+            (!lastUserText || String(prevMsg?.text || "").trim() === String(lastUserText).trim())
+          ) {
+            return {
+              success: true,
+              text: lastMsg.text,
+              modelUsed: lastMsg.modelUsed || "",
+              session: sessionRes.session,
+              recovered: true
+            };
+          }
+        }
+      } catch (_) {}
+      return null;
+    };
+
+    try {
       const res = await fetch(`${API_BASE}/admin-chat`, {
         method: "POST",
         signal: controller.signal,
@@ -43,14 +72,23 @@ export const auraAiClient = {
         const text = await res.text().catch(() => "");
         data = { error: text || `Server responded with status ${res.status}` };
       }
-      if (!res.ok && !data?.error) {
-        data = { ...data, success: false, error: data?.message || `HTTP ${res.status}` };
+      if (!res.ok) {
+        if (res.status === 502 || res.status === 504) {
+          const recovered = await recoverFromSession();
+          if (recovered) return recovered;
+        }
+        if (!data?.error) {
+          data = { ...data, success: false, error: data?.message || `HTTP ${res.status}` };
+        }
       }
       return data;
     } catch (e) {
+      clearTimeout(timeoutId);
       console.error("[sendAdminChat] Error:", e);
+      const recovered = await recoverFromSession();
+      if (recovered) return recovered;
       if (e.name === "AbortError") {
-        return { error: "Request timed out while executing complex tasks. Check Action Ledger or refresh session in a moment." };
+        return { error: "AI model response took too long (42s limit). Please retry or switch to a faster model (e.g. Llama-3.1-Nemotron-70B or Gemini 3.8 Flash)." };
       }
       return { error: e.message || "Failed to reach AI Agent backend." };
     }
@@ -396,38 +434,54 @@ export const auraAiClient = {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
+        let timedOutIdle = false;
+        let idleTimer = null;
 
-        while (true) {
-          if (thisController.signal.aborted || thisSeq !== activeStreamSeq) {
+        const armIdleTimer = () => {
+          if (idleTimer) clearTimeout(idleTimer);
+          idleTimer = setTimeout(() => {
+            timedOutIdle = true;
             try { reader.cancel(); } catch (_) {}
-            break;
-          }
-          const { done, value } = await reader.read();
-          if (thisController.signal.aborted || thisSeq !== activeStreamSeq) {
-            try { reader.cancel(); } catch (_) {}
-            break;
-          }
-          if (value) {
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
-            buffer = lines.pop() || "";
-            for (const line of lines) {
-              if (thisController.signal.aborted || thisSeq !== activeStreamSeq) break;
-              processLine(line);
+          }, 26000);
+        };
+
+        armIdleTimer();
+        try {
+          while (true) {
+            if (thisController.signal.aborted || thisSeq !== activeStreamSeq || timedOutIdle) {
+              try { reader.cancel(); } catch (_) {}
+              break;
             }
-          }
-          if (done) {
-            // Flush remaining decoder buffer on stream end
-            buffer += decoder.decode();
-            if (buffer.trim()) {
+            const { done, value } = await reader.read();
+            if (thisController.signal.aborted || thisSeq !== activeStreamSeq || timedOutIdle) {
+              try { reader.cancel(); } catch (_) {}
+              break;
+            }
+            if (value) {
+              armIdleTimer();
+              buffer += decoder.decode(value, { stream: true });
               const lines = buffer.split("\n");
+              buffer = lines.pop() || "";
               for (const line of lines) {
                 if (thisController.signal.aborted || thisSeq !== activeStreamSeq) break;
                 processLine(line);
               }
             }
-            break;
+            if (done) {
+              // Flush remaining decoder buffer on stream end
+              buffer += decoder.decode();
+              if (buffer.trim()) {
+                const lines = buffer.split("\n");
+                for (const line of lines) {
+                  if (thisController.signal.aborted || thisSeq !== activeStreamSeq) break;
+                  processLine(line);
+                }
+              }
+              break;
+            }
           }
+        } finally {
+          if (idleTimer) clearTimeout(idleTimer);
         }
 
         if (thisController.signal.aborted || thisSeq !== activeStreamSeq) {
