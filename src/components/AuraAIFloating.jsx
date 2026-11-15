@@ -61,11 +61,14 @@ export function AuraAIFloating() {
   const [showUndoToast, setShowUndoToast] = useState(false);
   const [settings, setSettings] = useState({ enabled: true, showFloatingButton: true });
   const [mode, setMode] = useState("standard");
+  const [panditPrefs, setPanditPrefs] = useState(() => auraChatStore.getPanditPreferences());
+  const [savedPanditSessions, setSavedPanditSessions] = useState(() => auraChatStore.getSavedSessions("panditji"));
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [timeTheme, setTimeTheme] = useState("theme-classic");
   const [pillState, setPillState] = useState("default");
 
   const handleSendRef = useRef(null);
+  const skipNextModeResetRef = useRef(false);
 
   const executeQuickAction = (prompt) => {
     setShowQuickActions(false);
@@ -655,15 +658,12 @@ export function AuraAIFloating() {
 
   const prevIsOpenRef = useRef(false);
 
-  // Update messages when switching mode (e.g. standard vs panditji)
+  // Sync messages when switching mode (do NOT unconditionally abort in-flight streams triggered by handleSend)
   useEffect(() => {
-    auraAiClient.abortActiveStream();
-    turnSeqRef.current++;
-    setLoading(false);
-    setErrorOccurred(false);
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
+    setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
+    if (skipNextModeResetRef.current) {
+      skipNextModeResetRef.current = false;
+      return;
     }
     const msgs = auraChatStore.getMessages(mode);
     setMessages(msgs);
@@ -674,14 +674,18 @@ export function AuraAIFloating() {
     });
   }, [mode]);
 
-  // Handle Auth changes safely without wiping chats on page refresh
+  // Handle Auth changes safely without aborting active clicks on page refresh / same user
   useEffect(() => {
     let isMounted = true;
     const unsub = authClient.onAuthStateChanged(async (currentUser) => {
-      auraAiClient.abortActiveStream();
       const syncResult = auraChatStore.syncAuthSession(currentUser, mode);
-      if (isMounted) {
-        if (syncResult && Array.isArray(syncResult.messages) && syncResult.messages.length > 0) {
+      if (syncResult?.accountSwitched) {
+        auraAiClient.abortActiveStream();
+        turnSeqRef.current++;
+        if (isMounted) setLoading(false);
+      }
+      if (isMounted && syncResult?.accountSwitched) {
+        if (Array.isArray(syncResult.messages) && syncResult.messages.length > 0) {
           setMessages(syncResult.messages);
         }
         if (syncResult?.conversationId) {
@@ -705,7 +709,7 @@ export function AuraAIFloating() {
     }
   }, [input]);
 
-  // Listen to shared cross-component and cross-tab chat sync events
+  // Listen to shared cross-component and cross-tab chat sync events & consume any pre-mount trigger
   useEffect(() => {
     const handleChatSync = (e) => {
       if (e.detail && Array.isArray(e.detail.messages)) {
@@ -715,6 +719,24 @@ export function AuraAIFloating() {
       } else if (e.detail && Array.isArray(e.detail)) {
         setMessages(e.detail);
       }
+      setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
+    };
+
+    const handleSessionSwitched = (e) => {
+      if (e.detail?.conversationId) setConversationId(e.detail.conversationId);
+      if (Array.isArray(e.detail?.messages) && (!e.detail.mode || e.detail.mode === mode)) {
+        setMessages(e.detail.messages);
+      }
+      setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
+    };
+
+    const handleHistoryUpdated = () => {
+      setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
+    };
+
+    const handlePanditPrefsUpdated = (e) => {
+      if (e.detail) setPanditPrefs(e.detail);
+      else setPanditPrefs(auraChatStore.getPanditPreferences());
     };
 
     const handleDismissSync = (e) => {
@@ -748,21 +770,26 @@ export function AuraAIFloating() {
     };
 
     window.addEventListener("aura_ai_chat_sync", handleChatSync);
+    window.addEventListener("aura_ai_session_switched", handleSessionSwitched);
+    window.addEventListener("aura_ai_history_updated", handleHistoryUpdated);
+    window.addEventListener("aura_ai_pandit_prefs_updated", handlePanditPrefsUpdated);
     window.addEventListener("aura_ai_floating_dismiss_sync", handleDismissSync);
     window.addEventListener("aura_ai_open_change", handleOpenChange);
     window.addEventListener("aura_ai_birth_details_updated", handleBirthDetailsUpdate);
     window.addEventListener("aura_ai_birth_details_cleared", handleBirthDetailsCleared);
     window.addEventListener("storage", handleStorageChange);
 
-    const handleTriggerChat = (e) => {
-      const prompt = e.detail?.prompt;
-      if (e.detail?.mode) {
-        setMode(e.detail.mode);
-      } else if (prompt && (prompt.includes("पंडित") || prompt.includes("Pandit") || prompt.includes("kundli") || prompt.includes("कुंडली"))) {
-        setMode("panditji");
+    const runTriggerPayload = (detail) => {
+      if (!detail) return;
+      const prompt = detail.prompt;
+      const target = detail.mode
+        || (prompt && (prompt.includes("पंडित") || prompt.includes("Pandit") || prompt.includes("kundli") || prompt.includes("कुंडली")) ? "panditji" : null);
+      if (target && target !== mode) {
+        skipNextModeResetRef.current = true;
+        setMode(target);
       }
-      if (typeof e.detail?.fullWindow === "boolean") {
-        setIsFullWindow(e.detail.fullWindow);
+      if (typeof detail.fullWindow === "boolean") {
+        setIsFullWindow(detail.fullWindow);
       }
       setIsDismissed(false);
       setIsOpen(true);
@@ -771,13 +798,24 @@ export function AuraAIFloating() {
           if (handleSendRef.current) {
             handleSendRef.current(prompt.trim());
           }
-        }, 150);
+        }, 60);
       }
     };
+
+    const handleTriggerChat = (e) => runTriggerPayload(e.detail);
     window.addEventListener("aura_ai_trigger_chat", handleTriggerChat);
+
+    // Consume queued trigger fired before AuraAIFloating finished lazy-mounting
+    const pendingTrigger = auraChatStore.consumePendingTrigger();
+    if (pendingTrigger) {
+      runTriggerPayload(pendingTrigger);
+    }
 
     return () => {
       window.removeEventListener("aura_ai_chat_sync", handleChatSync);
+      window.removeEventListener("aura_ai_session_switched", handleSessionSwitched);
+      window.removeEventListener("aura_ai_history_updated", handleHistoryUpdated);
+      window.removeEventListener("aura_ai_pandit_prefs_updated", handlePanditPrefsUpdated);
       window.removeEventListener("aura_ai_floating_dismiss_sync", handleDismissSync);
       window.removeEventListener("aura_ai_open_change", handleOpenChange);
       window.removeEventListener("aura_ai_birth_details_updated", handleBirthDetailsUpdate);
@@ -788,7 +826,7 @@ export function AuraAIFloating() {
         clearInterval(timerRef.current);
       }
     };
-  }, [mode]);
+  }, [mode, setIsOpen]);
 
   // Scroll message area only when window first opens so existing history is visible
   useEffect(() => {
@@ -854,6 +892,7 @@ export function AuraAIFloating() {
       : null;
 
     if (isAstroQuery && mode !== "panditji") {
+      skipNextModeResetRef.current = true;
       setMode("panditji");
     }
 
@@ -914,6 +953,7 @@ export function AuraAIFloating() {
         history: currentMsgs.slice(-8),
         birthDetails: effectiveBirthDetails,
         notesContext,
+        panditPreferences: targetMode === "panditji" ? panditPrefs : null,
         onStatus: (statusMsg) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
           setStatusText(statusMsg);
@@ -1118,6 +1158,9 @@ export function AuraAIFloating() {
 
   const handleContinueChat = async (targetMsg, autoPassNumber = 0, maxPasses = 10) => {
     if (!targetMsg) return;
+    if (autoPassNumber === 0 && loading && activeAiMsgIdRef.current === targetMsg.id) {
+      return;
+    }
     const baseText = targetMsg.text || "";
 
     const prompt = "कृपया पिछले उत्तर को जहाँ से रुका था, वहीं से बिना कोई प्रारंभिक वाक्य या नमस्कार दोहराए आगे जारी रखें और पूरा करें। यदि उत्तर पहले ही पूर्ण हो चुका है, तो कुछ भी दोहराएं नहीं। (Please continue the rest of the answer seamlessly right from where it stopped without repeating any previous text).";
@@ -1173,6 +1216,8 @@ export function AuraAIFloating() {
         history: effectiveHistory.slice(-8),
         birthDetails: mode === "panditji" ? (activeBirthDetails || auraChatStore.getVerifiedBirthDetails()) : null,
         isContinuation: true,
+        continuationTail: baseText.slice(-500),
+        panditPreferences: mode === "panditji" ? panditPrefs : null,
         onStatus: (statusMsg) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
           setStatusText(statusMsg);
@@ -1342,7 +1387,10 @@ export function AuraAIFloating() {
     auraChatStore.saveVerifiedBirthDetails(verifiedDetails);
 
     setShowBirthForm(false);
-    setMode("panditji");
+    if (mode !== "panditji") {
+      skipNextModeResetRef.current = true;
+      setMode("panditji");
+    }
     handleSend(promptText, verifiedDetails);
   };
 
@@ -2036,6 +2084,168 @@ export function AuraAIFloating() {
                 </button>
               </div>
 
+              {/* AI Pandit Ji Multi-Chat Sessions & Custom Style/Graph Bar */}
+              {mode === "panditji" && (
+                <div
+                  style={{
+                    padding: "6px 10px",
+                    background: "linear-gradient(135deg, #fffaf2 0%, #fef5e7 100%)",
+                    borderBottom: "1px solid #ecd9bd",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "5px"
+                  }}
+                >
+                  {/* Multi-Chat Session Switcher + Create New Chat */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "5px", overflowX: "auto", paddingBottom: "1px" }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        auraAiClient.abortActiveStream();
+                        turnSeqRef.current++;
+                        setLoading(false);
+                        const { newConvId, messages: fresh } = auraChatStore.startNewSession("panditji");
+                        setConversationId(newConvId);
+                        setMessages(fresh);
+                        setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
+                        emitToast("नया पंडित जी चैट बन गया ✨", "success");
+                      }}
+                      style={{
+                        flexShrink: 0,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "3px",
+                        padding: "3px 8px",
+                        borderRadius: "12px",
+                        background: "#8c2b10",
+                        color: "#ffffff",
+                        border: "none",
+                        fontSize: "10.5px",
+                        fontWeight: 700,
+                        cursor: "pointer"
+                      }}
+                      title="नया चैट बनाएं (Create New Pandit Ji Chat)"
+                    >
+                      <Plus size={11} /> <span>नया चैट</span>
+                    </button>
+
+                    <span
+                      style={{
+                        flexShrink: 0,
+                        padding: "2px 8px",
+                        borderRadius: "12px",
+                        background: "#fef3c7",
+                        border: "1px solid #d97706",
+                        color: "#78350f",
+                        fontSize: "10.5px",
+                        fontWeight: 700
+                      }}
+                    >
+                      💬 सक्रिय चैट
+                    </span>
+
+                    {savedPanditSessions.filter((s) => s.id !== conversationId).slice(0, 5).map((sess) => (
+                      <button
+                        key={sess.id}
+                        type="button"
+                        onClick={() => {
+                          auraAiClient.abortActiveStream();
+                          turnSeqRef.current++;
+                          setLoading(false);
+                          const switched = auraChatStore.switchToSession(sess.id, "panditji");
+                          if (switched) {
+                            setConversationId(switched.conversationId);
+                            setMessages(switched.messages);
+                            setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
+                          }
+                        }}
+                        style={{
+                          flexShrink: 0,
+                          maxWidth: "135px",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          padding: "2px 8px",
+                          borderRadius: "12px",
+                          background: "#ffffff",
+                          border: "1px solid #e2cbb0",
+                          color: "#5c2a0c",
+                          fontSize: "10.5px",
+                          fontWeight: 600,
+                          cursor: "pointer"
+                        }}
+                        title={`चैट खोलें: ${sess.title}`}
+                      >
+                        {sess.title}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Custom Response Style & Chart/Graph View Preference */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "4px", fontSize: "10px" }}>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                      <span style={{ fontWeight: 700, color: "#78350f" }}>अंदाज़:</span>
+                      {[
+                        { id: "detailed", label: "📜 विस्तृत" },
+                        { id: "balanced", label: "💬 अपनी मर्ज़ी की बात" }
+                      ].map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => {
+                            const next = auraChatStore.savePanditPreferences({ responseStyle: opt.id });
+                            setPanditPrefs(next);
+                          }}
+                          style={{
+                            padding: "2px 6px",
+                            borderRadius: "10px",
+                            border: panditPrefs.responseStyle === opt.id ? "1px solid #8c2b10" : "1px solid #e5d2ba",
+                            background: panditPrefs.responseStyle === opt.id ? "#8c2b10" : "#ffffff",
+                            color: panditPrefs.responseStyle === opt.id ? "#ffffff" : "#6b2a0c",
+                            fontWeight: 700,
+                            fontSize: "10px",
+                            cursor: "pointer"
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                      <span style={{ fontWeight: 700, color: "#78350f" }}>ग्राफ:</span>
+                      {[
+                        { id: "auto", label: "Auto" },
+                        { id: "chart", label: "चक्र+ग्राफ" },
+                        { id: "cards", label: "कार्ड" },
+                        { id: "table", label: "तालिका" }
+                      ].map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => {
+                            const next = auraChatStore.savePanditPreferences({ chartStyle: opt.id });
+                            setPanditPrefs(next);
+                          }}
+                          style={{
+                            padding: "2px 6px",
+                            borderRadius: "10px",
+                            border: panditPrefs.chartStyle === opt.id ? "1px solid #b45309" : "1px solid #e5d2ba",
+                            background: panditPrefs.chartStyle === opt.id ? "#fef3c7" : "#ffffff",
+                            color: "#78350f",
+                            fontWeight: 700,
+                            fontSize: "10px",
+                            cursor: "pointer"
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Persistent Active Kundali Profile Banner */}
               {mode === "panditji" && activeBirthDetails && activeBirthDetails.dob && (
                 <div 
@@ -2320,46 +2530,13 @@ export function AuraAIFloating() {
                                 fullKundaliData={m.kundali}
                                 birthData={m.kundali?.verifiedBirthData}
                                 products={m.products}
+                                defaultChartStyle={mode === "panditji" ? panditPrefs.chartStyle : "auto"}
                               />
                             )}
                           </div>
                           {m.sender === "ai" && m.text && (
                             <div style={{ marginTop: "4px", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
                               <VoiceReader text={customerSafeAiText(stripAuraKeywords(m.text))} />
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleContinueChat(m, 0, 10);
-                                }}
-                                disabled={loading && activeAiMsgIdRef.current === m.id}
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: "4px",
-                                  padding: "4px 10px",
-                                  borderRadius: "14px",
-                                  background: (loading && activeAiMsgIdRef.current === m.id)
-                                    ? "linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)"
-                                    : "linear-gradient(135deg, #FFF7ED 0%, #FEF3C7 100%)",
-                                  color: "#8C2B10",
-                                  border: "1.5px solid #D97706",
-                                  cursor: (loading && activeAiMsgIdRef.current === m.id) ? "wait" : "pointer",
-                                  fontSize: "11px",
-                                  fontWeight: 700,
-                                  boxShadow: "0 1px 4px rgba(217, 119, 6, 0.18)",
-                                  transition: "all 0.2s ease",
-                                  userSelect: "none"
-                                }}
-                                title="उत्तर को जहाँ से रुका है, वहाँ से आगे शुरू करें (ऑटोमैटिक 10 बार तक / Auto continue up to 10 passes)"
-                              >
-                                <Sparkles size={11} className={(loading && activeAiMsgIdRef.current === m.id) ? "animate-spin text-amber-600" : "text-amber-700"} />
-                                <span>
-                                  {(loading && activeAiMsgIdRef.current === m.id)
-                                    ? `शुरू है (${activePassCount || 1}/10)...`
-                                    : "✨ शुरू करें (पूरा करें)"}
-                                </span>
-                              </button>
                             </div>
                           )}
 
@@ -2834,7 +3011,7 @@ export function AuraAIFloating() {
 
                             {m.sender === "ai" && (
                               <div style={{ display: "flex", alignItems: "center", gap: "5px", marginLeft: "auto", flexWrap: "wrap" }}>
-                                {isAuraResponseIncomplete(m.text, mode) && (
+                                {isAuraResponseIncomplete(m.text, mode) ? (
                                   <button
                                     type="button"
                                     onClick={(e) => {
@@ -2850,19 +3027,43 @@ export function AuraAIFloating() {
                                       fontSize: "11px",
                                       color: "#8c2b10",
                                       fontWeight: 700,
-                                      cursor: "pointer",
+                                      cursor: (loading && activeAiMsgIdRef.current === m.id) ? "wait" : "pointer",
                                       display: "inline-flex",
                                       alignItems: "center",
                                       gap: "4px",
                                       boxShadow: "0 2px 6px rgba(217, 119, 6, 0.25)",
                                       transition: "all 0.15s ease"
                                     }}
-                                    title="उत्तर जहाँ से रुका है, वहीं से आगे पूरा करें (Continue response from cutoff - 10 passes)"
+                                    title="उत्तर जहाँ से रुका है, वहीं से आगे पूरा करें (1-Click Auto Complete)"
                                   >
                                     <Sparkles size={11} className={(loading && activeAiMsgIdRef.current === m.id) ? "animate-spin" : ""} style={{ color: "#d97706" }} />
-                                    <span>{(loading && activeAiMsgIdRef.current === m.id) ? `जारी है (${activePassCount || 1}/10)...` : "✨ उत्तर आगे पूरा करें"}</span>
+                                    <span>{(loading && activeAiMsgIdRef.current === m.id) ? `जारी है (${activePassCount || 1}/10)...` : "✨ शुरू करें (आगे पूरा करें)"}</span>
                                   </button>
-                                )}
+                                ) : (mode === "panditji" && !m.id?.startsWith("init_") && index === messages.length - 1 && !loading) ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleSend("कृपया इसी विषय पर और विस्तार से उदाहरण व विशेष वैदिक उपाय बताएं।");
+                                    }}
+                                    style={{
+                                      padding: "3px 8px",
+                                      background: "#FFFDF8",
+                                      border: "1px solid #D97706",
+                                      borderRadius: "12px",
+                                      fontSize: "10.5px",
+                                      color: "#8c2b10",
+                                      fontWeight: 700,
+                                      cursor: "pointer",
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: "3px"
+                                    }}
+                                    title="और गहराई से विस्तार सुनें"
+                                  >
+                                    <Sparkles size={10} /> <span>और विस्तार से</span>
+                                  </button>
+                                ) : null}
 
                                 <button
                                   type="button"

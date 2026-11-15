@@ -19,7 +19,6 @@ import { ADMIN_BASE_PATH } from "../../lib/routes";
 export const getMenuItems = (counts = {}) => [
   { path: ADMIN_BASE_PATH, icon: <LayoutDashboard size={20} />, label: "Dashboard" },
   { path: `${ADMIN_BASE_PATH}/ai-chats`, icon: <Bot size={20} />, label: "AI Bot Customer Chats" },
-  { path: `${ADMIN_BASE_PATH}/ai`, icon: <Bot size={20} />, label: "Aura AI Chat Bot" },
   { path: `${ADMIN_BASE_PATH}/ai?tab=models`, icon: <Sparkles size={20} />, label: "Website AI Models" },
   { path: `${ADMIN_BASE_PATH}/home-products`, icon: <Megaphone size={20} />, label: "Home Products Order" },
   { path: `${ADMIN_BASE_PATH}/products`, icon: <Boxes size={20} />, label: "Products" },

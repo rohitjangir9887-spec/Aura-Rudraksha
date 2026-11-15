@@ -7,6 +7,7 @@ import { createApp } from "./server/app.js";
 import { connectDB } from "./server/config/db.js";
 import { reconcileAllOrders } from "./server/services/orderReconciliationService.js";
 import { injectSeoIntoHtml } from "./server/services/seoService.js";
+import { buildStoreRagIndex } from "./server/services/ragService.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -129,12 +130,18 @@ async function startServer() {
     console.log(`✨ Aura Rudraksha Server running on http://localhost:${PORT}`);
   });
 
-  // Attempt database connection in background
+  // Attempt database connection in background & warm up RAG index + public trends
   connectDB()
-    .then(() => reconcileAllOrders())
+    .then(() => {
+      reconcileAllOrders();
+      buildStoreRagIndex(true).catch((err) => {
+        console.warn("[RAG Warmup] Startup training notice:", err?.message || err);
+      });
+    })
     .catch((err) => {
       console.warn("MongoDB initial connection attempt completed with notice:", err?.message || err);
       reconcileAllOrders();
+      buildStoreRagIndex(true).catch(() => {});
     });
 }
 

@@ -1,6 +1,10 @@
 import { test } from 'vitest';
 import assert from 'node:assert';
-import { parseAuraAiPayload } from './auraAiResponse.js';
+import {
+  parseAuraAiPayload,
+  isAuraResponseIncomplete,
+  smartMergeContinuation
+} from './auraAiResponse.js';
 
 test('parseAuraAiPayload - handles null and undefined', (t) => {
   const expectedEmpty = {
@@ -144,3 +148,33 @@ test('parseAuraAiPayload - preserves and normalizes kundali payload', (t) => {
   assert.strictEqual(result.kundali.lagnaRashiHindi, "कर्क");
   assert.strictEqual(result.kundali.recommendedMukhi, "2 Mukhi Rudraksha");
 });
+
+test('isAuraResponseIncomplete - no false positive on single Sun mention or markdown/emoji endings', () => {
+  const singleSunReply = "सूर्य नमस्कार और 1 मुखी रुद्राक्ष आत्मविश्वास बढ़ाने के लिए अत्यंत शुभ माना जाता है।";
+  assert.strictEqual(isAuraResponseIncomplete(singleSunReply, "panditji"), false);
+
+  const boldEnded = "यह आपके जीवन में सुख, शांति और समृद्धि प्रदान करता है। *हर हर महादेव*";
+  assert.strictEqual(isAuraResponseIncomplete(boldEnded, "panditji"), false);
+
+  const emojiEnded = "ऑरा रुद्राक्ष के सभी मनके 100% लैब प्रमाणित हैं 🙏";
+  assert.strictEqual(isAuraResponseIncomplete(emojiEnded, "standard"), false);
+});
+
+test('isAuraResponseIncomplete - flags Navagraha chart missing Rahu/Ketu or mid-sentence cutoff', () => {
+  const incompleteChart = "### नवग्रह स्थिति तालिका\n• सूर्य: मेष\n• चंद्र: कर्क\n• मंगल: मकर\n• बुध: मिथुन";
+  assert.strictEqual(isAuraResponseIncomplete(incompleteChart, "panditji"), true);
+
+  const midSentence = "आपकी कुंडली में दशम भाव का स्वामी गुरु अत्यंत शुभ स्थिति में होकर करियर में उन्नति प्रदान";
+  assert.strictEqual(isAuraResponseIncomplete(midSentence, "panditji"), true);
+});
+
+test('smartMergeContinuation - strips repeated heading and preserves markdown paragraph breaks', () => {
+  const base = "### 6. नवग्रह फल\n• **सूर्य:** शुभ फल।";
+  const cont = "### 6. नवग्रह फल\n### 7. द्वादश भाव फल\n• **प्रथम भाव:** उत्तम स्वास्थ्य।";
+  const merged = smartMergeContinuation(base, cont);
+
+  assert.strictEqual(merged.includes("### 6. नवग्रह फल\n### 6. नवग्रह फल"), false);
+  assert.ok(merged.includes("\n\n### 7. द्वादश भाव फल"));
+  assert.ok(merged.includes("उत्तम स्वास्थ्य।"));
+});
+

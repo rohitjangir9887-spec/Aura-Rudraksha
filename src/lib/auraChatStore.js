@@ -18,6 +18,7 @@ try {
 let isFloatingDismissedSession = false;
 let isFloatingOpenState = false;
 let currentActiveMode = "standard";
+let _pendingTrigger = null;
 
 // High performance in-memory message cache & debounced disk sync to prevent touch freezing during streaming
 const _messagesCache = {
@@ -470,11 +471,12 @@ export const auraChatStore = {
       this.clearActiveBirthDetails();
     }
 
+    const customTopicLine = options.topic ? `\n\n📌 विषय: **${String(options.topic).trim()}**` : "";
     const welcomeMessage = mode === "panditji" ? {
       id: "init_panditji_" + Date.now(),
       sender: "ai",
-      text: "Namaste Devotee 🙏 Main AI Panditji (🕉️) hoon. Nayi Vedic consultation shuru ho gayi hai.\n\nAaj aap kis Rashi, Kundali ya Rudraksha ke baare mein janna chahte hain?",
-      quickReplies: ["Rashi Rudraksha", "Dharan Vidhi", "1-14 Mukhi Benefits", "Gauri Shankar"],
+      text: `Namaste Devotee 🙏 Main AI Panditji (🕉️) hoon. Nayi consultation shuru ho gayi hai.${customTopicLine}\n\nAap apni marzi se kuch bhi pooch sakte hain — chahe simple baat ho, gyaan charcha ho, ya poori 11-bhag ki Kundali & Rudraksha report.`,
+      quickReplies: ["✨ मेरी जन्म कुंडली देखें", "📿 मेरे लिए शुभ रुद्राक्ष", "🕉️ सरल आध्यात्मिक चर्चा", "💰 करियर व धन उपाय"],
       timestamp: new Date().toISOString()
     } : {
       id: "init_standard_" + Date.now(),
@@ -485,8 +487,129 @@ export const auraChatStore = {
     };
 
     const updated = [welcomeMessage];
-    this.saveMessages(updated, mode);
+    _messagesCache[mode] = updated;
+    this.saveMessages(updated, mode, true);
+    try {
+      window.dispatchEvent(new CustomEvent("aura_ai_session_switched", { detail: { mode, conversationId: newConvId, messages: updated } }));
+    } catch (_) {}
     return { newConvId, messages: updated };
+  },
+
+  // Get saved sessions list for current user & mode
+  getSavedSessions(mode = "standard") {
+    try {
+      const uid = this.getCurrentUserUid();
+      const storageKey = `aura_ai_saved_sessions_${mode}_${uid}`;
+      const raw = localStorage.getItem(storageKey);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      return [];
+    }
+  },
+
+  // Switch active chat to an existing saved session (saving current session first)
+  switchToSession(sessionOrId, mode = "standard") {
+    try {
+      const targetId = typeof sessionOrId === "string" ? sessionOrId : sessionOrId?.id;
+      if (!targetId) return null;
+
+      // Archive current session first so nothing is lost
+      this.saveSessionToHistory(mode);
+
+      const sessions = this.getSavedSessions(mode);
+      const target = typeof sessionOrId === "object" && Array.isArray(sessionOrId?.messages)
+        ? sessionOrId
+        : sessions.find((s) => s.id === targetId);
+      if (!target || !Array.isArray(target.messages) || target.messages.length === 0) return null;
+
+      this.setConversationId(target.id);
+      if (target.birthDetails && target.birthDetails.dob) {
+        this.saveVerifiedBirthDetails(target.birthDetails);
+      }
+      _messagesCache[mode] = target.messages;
+      this.saveMessages(target.messages, mode, true);
+      try {
+        window.dispatchEvent(
+          new CustomEvent("aura_ai_session_switched", {
+            detail: { mode, conversationId: target.id, messages: target.messages, session: target }
+          })
+        );
+      } catch (_) {}
+      return { conversationId: target.id, messages: target.messages, session: target };
+    } catch (_) {
+      return null;
+    }
+  },
+
+  // Rename a saved session
+  renameSession(sessionId, newTitle, mode = "standard") {
+    try {
+      const cleanTitle = String(newTitle || "").trim();
+      if (!sessionId || !cleanTitle) return false;
+      const uid = this.getCurrentUserUid();
+      const storageKey = `aura_ai_saved_sessions_${mode}_${uid}`;
+      const list = this.getSavedSessions(mode);
+      const next = list.map((s) => (s.id === sessionId ? { ...s, title: cleanTitle.slice(0, 80) } : s));
+      localStorage.setItem(storageKey, JSON.stringify(next));
+      window.dispatchEvent(new CustomEvent("aura_ai_history_updated", { detail: { mode, uid, count: next.length } }));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  // Delete a saved session
+  deleteSession(sessionId, mode = "standard") {
+    try {
+      if (!sessionId) return false;
+      const uid = this.getCurrentUserUid();
+      const storageKey = `aura_ai_saved_sessions_${mode}_${uid}`;
+      const list = this.getSavedSessions(mode);
+      const next = list.filter((s) => s.id !== sessionId);
+      localStorage.setItem(storageKey, JSON.stringify(next));
+      window.dispatchEvent(new CustomEvent("aura_ai_history_updated", { detail: { mode, uid, count: next.length } }));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  // Get & save user's AI Pandit Ji custom style/chart preferences
+  getPanditPreferences() {
+    const defaults = { responseStyle: "detailed", chartStyle: "auto" };
+    try {
+      const uid = this.getCurrentUserUid();
+      const raw = localStorage.getItem(`aura_pandit_prefs_${uid}`);
+      if (!raw) return defaults;
+      const parsed = JSON.parse(raw);
+      return {
+        responseStyle: ["detailed", "balanced", "concise"].includes(parsed?.responseStyle) ? parsed.responseStyle : "detailed",
+        chartStyle: ["auto", "cards", "chart", "table"].includes(parsed?.chartStyle) ? parsed.chartStyle : "auto"
+      };
+    } catch (_) {
+      return defaults;
+    }
+  },
+
+  savePanditPreferences(prefs = {}) {
+    try {
+      const uid = this.getCurrentUserUid();
+      const current = this.getPanditPreferences();
+      const next = {
+        responseStyle: ["detailed", "balanced", "concise"].includes(prefs.responseStyle)
+          ? prefs.responseStyle
+          : current.responseStyle,
+        chartStyle: ["auto", "cards", "chart", "table"].includes(prefs.chartStyle)
+          ? prefs.chartStyle
+          : current.chartStyle
+      };
+      localStorage.setItem(`aura_pandit_prefs_${uid}`, JSON.stringify(next));
+      window.dispatchEvent(new CustomEvent("aura_ai_pandit_prefs_updated", { detail: next }));
+      return next;
+    } catch (_) {
+      return { responseStyle: "detailed", chartStyle: "auto" };
+    }
   },
 
   setConversationId(id) {
@@ -604,15 +727,33 @@ export const auraChatStore = {
     }
   },
 
-  // Helper to trigger chat assistant in standard or panditji mode
-  triggerChat(prompt = "", mode = "standard") {
+  hasPendingTrigger() {
+    return Boolean(_pendingTrigger && (Date.now() - (_pendingTrigger.createdAt || 0) < 30000));
+  },
+
+  consumePendingTrigger() {
+    const t = _pendingTrigger;
+    _pendingTrigger = null;
+    if (!t || (Date.now() - (t.createdAt || 0) >= 30000)) return null;
+    return t;
+  },
+
+  // Helper to trigger chat assistant in standard or panditji mode (queues pending trigger in case widget isn't mounted yet)
+  triggerChat(prompt = "", mode = "standard", options = {}) {
     this.setMode(mode);
     this.setFloatingDismissed(false);
     this.setFloatingOpen(true);
+    _pendingTrigger = {
+      mode,
+      prompt: String(prompt || ""),
+      startNewChat: Boolean(options?.startNewChat),
+      createdAt: Date.now()
+    };
     try {
+      window.dispatchEvent(new Event("aura:open-ai"));
       window.dispatchEvent(
         new CustomEvent("aura_ai_trigger_chat", {
-          detail: { mode, prompt }
+          detail: { mode, prompt, startNewChat: Boolean(options?.startNewChat) }
         })
       );
       window.dispatchEvent(new CustomEvent("aura_ai_open_change", { detail: true }));

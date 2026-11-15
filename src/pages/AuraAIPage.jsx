@@ -29,7 +29,8 @@ import {
   Copy,
   Share2,
   Bookmark,
-  History
+  History,
+  Plus
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Shell } from "../components/Shell";
@@ -81,6 +82,8 @@ export function AuraAIPage() {
   const [showChatHistoryModal, setShowChatHistoryModal] = useState(false);
   const [showSavedKundaliModal, setShowSavedKundaliModal] = useState(false);
   const [activeBirthDetails, setActiveBirthDetails] = useState(() => auraChatStore.getVerifiedBirthDetails());
+  const [panditPrefs, setPanditPrefs] = useState(() => auraChatStore.getPanditPreferences());
+  const [savedPanditSessions, setSavedPanditSessions] = useState(() => auraChatStore.getSavedSessions("panditji"));
 
   // Helper to parse [AURA_KEYWORDS]: kw1 | kw2 | ... from AI text
   const parseAuraKeywords = (text) => {
@@ -137,6 +140,12 @@ export function AuraAIPage() {
   const turnSeqRef = useRef(0);
   const autoContinuationCountRef = useRef(0);
   const activeAiMsgIdRef = useRef(null);
+  const skipNextModeResetRef = useRef(false);
+
+  const handlePanditPrefChange = (patch) => {
+    const updated = auraChatStore.savePanditPreferences(patch);
+    setPanditPrefs(updated);
+  };
 
   // Check for pending prompts and birth details (e.g. from RudrakshaCalculator)
   useEffect(() => {
@@ -151,6 +160,7 @@ export function AuraAIPage() {
           try { parsedDetails = JSON.parse(pendingDetailsRaw); } catch (_) {}
         }
         if (parsedDetails) {
+          skipNextModeResetRef.current = true;
           setMode("panditji");
           setActiveBirthDetails(parsedDetails);
           auraChatStore.saveVerifiedBirthDetails(parsedDetails);
@@ -162,8 +172,12 @@ export function AuraAIPage() {
     } catch (_) {}
   }, []);
 
-  // Update messages when switching mode (e.g. standard vs panditji)
+  // Update messages when switching mode (e.g. standard vs panditji) without aborting auto-promoted active sends
   useEffect(() => {
+    if (skipNextModeResetRef.current) {
+      skipNextModeResetRef.current = false;
+      return;
+    }
     auraAiClient.abortActiveStream();
     turnSeqRef.current++;
     setLoading(false);
@@ -174,6 +188,9 @@ export function AuraAIPage() {
     }
     const msgs = auraChatStore.getMessages(mode);
     setMessages(msgs);
+    if (mode === "panditji") {
+      setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
+    }
     requestAnimationFrame(() => {
       if (chatScrollContainerRef.current) {
         chatScrollContainerRef.current.scrollTop = chatScrollContainerRef.current.scrollHeight;
@@ -181,14 +198,16 @@ export function AuraAIPage() {
     });
   }, [mode]);
 
-  // Handle Auth changes safely without wiping chats on page refresh
+  // Handle Auth changes safely without aborting live turns on transient auth refresh
   useEffect(() => {
     let isMounted = true;
     const unsub = authClient.onAuthStateChanged(async (currentUser) => {
-      auraAiClient.abortActiveStream();
       const syncResult = auraChatStore.syncAuthSession(currentUser, mode);
+      if (syncResult?.accountSwitched) {
+        auraAiClient.abortActiveStream();
+      }
       if (isMounted) {
-        if (syncResult && Array.isArray(syncResult.messages) && syncResult.messages.length > 0) {
+        if (syncResult?.accountSwitched && Array.isArray(syncResult.messages) && syncResult.messages.length > 0) {
           setMessages(syncResult.messages);
         }
         if (syncResult?.conversationId) {
@@ -227,6 +246,24 @@ export function AuraAIPage() {
       }
     };
 
+    const handleSessionSwitched = (e) => {
+      if (e.detail?.conversationId) {
+        setConversationId(e.detail.conversationId);
+      }
+      if (!e.detail?.mode || e.detail.mode === mode) {
+        setMessages(e.detail?.messages || auraChatStore.getMessages(mode));
+      }
+      setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
+    };
+
+    const handleHistoryUpdated = () => {
+      setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
+    };
+
+    const handlePrefsUpdated = (e) => {
+      setPanditPrefs(e.detail || auraChatStore.getPanditPreferences());
+    };
+
     const handleDismissSync = (e) => {
       setIsFloatingDismissed(!!e.detail);
     };
@@ -248,6 +285,9 @@ export function AuraAIPage() {
     };
 
     window.addEventListener("aura_ai_chat_sync", handleChatSync);
+    window.addEventListener("aura_ai_session_switched", handleSessionSwitched);
+    window.addEventListener("aura_ai_history_updated", handleHistoryUpdated);
+    window.addEventListener("aura_ai_pandit_prefs_updated", handlePrefsUpdated);
     window.addEventListener("aura_ai_floating_dismiss_sync", handleDismissSync);
     window.addEventListener("aura_ai_birth_details_updated", handleBirthDetailsUpdate);
     window.addEventListener("aura_ai_birth_details_cleared", handleBirthDetailsCleared);
@@ -255,6 +295,9 @@ export function AuraAIPage() {
 
     return () => {
       window.removeEventListener("aura_ai_chat_sync", handleChatSync);
+      window.removeEventListener("aura_ai_session_switched", handleSessionSwitched);
+      window.removeEventListener("aura_ai_history_updated", handleHistoryUpdated);
+      window.removeEventListener("aura_ai_pandit_prefs_updated", handlePrefsUpdated);
       window.removeEventListener("aura_ai_floating_dismiss_sync", handleDismissSync);
       window.removeEventListener("aura_ai_birth_details_updated", handleBirthDetailsUpdate);
       window.removeEventListener("aura_ai_birth_details_cleared", handleBirthDetailsCleared);
@@ -344,6 +387,18 @@ export function AuraAIPage() {
       timerRef.current = null;
     }
 
+    const effectiveBirthDetails = customBirthDetails || activeBirthDetails || auraChatStore.getVerifiedBirthDetails() || null;
+    const isAstroQuery = (
+      mode === "panditji" ||
+      Boolean(effectiveBirthDetails) ||
+      /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र/i.test(textToSend || "")
+    );
+    const targetMode = isAstroQuery ? "panditji" : mode;
+    if (isAstroQuery && mode !== "panditji") {
+      skipNextModeResetRef.current = true;
+      setMode("panditji");
+    }
+
     const userMsg = {
       id: "msg_" + Date.now(),
       sender: "user",
@@ -351,7 +406,7 @@ export function AuraAIPage() {
       timestamp: new Date().toISOString()
     };
 
-    const currentMsgs = auraChatStore.appendMessage(userMsg, mode);
+    const currentMsgs = auraChatStore.appendMessage(userMsg, targetMode);
     setMessages(currentMsgs);
     if (!customText) setInput("");
     setMobileTab("chat");
@@ -369,7 +424,7 @@ export function AuraAIPage() {
     setLastUserQuery(textToSend.trim());
     setErrorOccurred(false);
     autoContinuationCountRef.current = 0;
-    setStatusText(getDynamicThinkingStatus(0, mode));
+    setStatusText(getDynamicThinkingStatus(0, targetMode));
     setElapsedTime(0);
     setLoading(true);
 
@@ -377,7 +432,7 @@ export function AuraAIPage() {
       setElapsedTime((prev) => {
         const next = prev + 1;
         if (!streamInitialized) {
-          setStatusText(getDynamicThinkingStatus(next, mode));
+          setStatusText(getDynamicThinkingStatus(next, targetMode));
         }
         return next;
       });
@@ -391,16 +446,6 @@ export function AuraAIPage() {
       const currentUser = authClient.getUser();
       const userEmail = currentUser?.email || "";
       const userName = currentUser?.displayName || "Devotee";
-      const effectiveBirthDetails = customBirthDetails || activeBirthDetails || auraChatStore.getVerifiedBirthDetails() || null;
-      const isAstroQuery = (
-        mode === "panditji" ||
-        Boolean(effectiveBirthDetails) ||
-        /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र/i.test(textToSend || "")
-      );
-      const targetMode = isAstroQuery ? "panditji" : mode;
-      if (isAstroQuery && mode !== "panditji") {
-        setMode("panditji");
-      }
 
       await auraAiClient.sendMessageStream({
         message: textToSend,
@@ -411,6 +456,7 @@ export function AuraAIPage() {
         cartItems: cart.lines || [],
         history: currentMsgs.slice(-8),
         birthDetails: effectiveBirthDetails,
+        panditPreferences: targetMode === "panditji" ? panditPrefs : null,
         onStatus: (statusMsg) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
           setStatusText(statusMsg);
@@ -436,7 +482,7 @@ export function AuraAIPage() {
               setActiveBirthDetails(verified);
             }
           }
-          setStatusText(mode === "panditji" ? "✍️ वैदिक परामर्श लिखा जा रहा है..." : "✍️ उत्तर लिखा जा रहा है...");
+          setStatusText(targetMode === "panditji" ? "✍️ वैदिक परामर्श लिखा जा रहा है..." : "✍️ उत्तर लिखा जा रहा है...");
           setMessages((prev) => {
             if (currentTurnSeq !== turnSeqRef.current) return prev;
             const idx = prev.findIndex((m) => m.id === aiMsgId);
@@ -493,7 +539,7 @@ export function AuraAIPage() {
             kundali: finalData.kundali || null,
             timestamp: new Date().toISOString()
           };
-          auraChatStore.upsertMessage(aiMsg, mode);
+          auraChatStore.upsertMessage(aiMsg, targetMode);
           setMessages((prev) => {
             if (currentTurnSeq !== turnSeqRef.current) return prev;
             const idx = prev.findIndex((m) => m.id === aiMsgId);
@@ -506,6 +552,16 @@ export function AuraAIPage() {
           });
           setLoading(false);
 
+          // Automatic background continuation when response appears cut off
+          if (currentTurnSeq === turnSeqRef.current && isAuraResponseIncomplete(cleanText, targetMode)) {
+            autoContinuationCountRef.current = 1;
+            setTimeout(() => {
+              if (currentTurnSeq === turnSeqRef.current) {
+                handleContinueChat(aiMsg, 1, 10);
+              }
+            }, 300);
+            return;
+          }
           autoContinuationCountRef.current = 0;
         },
         onError: (err) => {
@@ -528,7 +584,7 @@ export function AuraAIPage() {
               requiresHuman: !hasStreamedText,
               timestamp: existing?.timestamp || new Date().toISOString()
             };
-            auraChatStore.upsertMessage(updatedMsg, mode);
+            auraChatStore.upsertMessage(updatedMsg, targetMode);
             if (idx >= 0) {
               const clone = [...prev];
               clone[idx] = updatedMsg;
@@ -563,7 +619,7 @@ export function AuraAIPage() {
           requiresHuman: true,
           timestamp: existing?.timestamp || new Date().toISOString()
         };
-        auraChatStore.upsertMessage(updatedMsg, mode);
+        auraChatStore.upsertMessage(updatedMsg, targetMode);
         if (idx >= 0) {
           const clone = [...prev];
           clone[idx] = updatedMsg;
@@ -580,6 +636,9 @@ export function AuraAIPage() {
 
   const handleContinueChat = async (targetMsg, autoPassNumber = 0, maxPasses = 10) => {
     if (!targetMsg) return;
+    if (autoPassNumber === 0 && loading && activeAiMsgIdRef.current === targetMsg.id) {
+      return;
+    }
     const baseText = targetMsg.text || "";
 
     const prompt = "कृपया पिछले उत्तर को जहाँ से रुका था, वहीं से बिना कोई प्रारंभिक वाक्य या नमस्कार दोहराए आगे जारी रखें और पूरा करें। यदि उत्तर पहले ही पूर्ण हो चुका है, तो कुछ भी दोहराएं नहीं। (Please continue the rest of the answer seamlessly right from where it stopped without repeating any previous text).";
@@ -635,6 +694,8 @@ export function AuraAIPage() {
         history: effectiveHistory.slice(-8),
         birthDetails: mode === "panditji" ? (activeBirthDetails || auraChatStore.getVerifiedBirthDetails()) : null,
         isContinuation: true,
+        continuationTail: baseText.slice(-500),
+        panditPreferences: mode === "panditji" ? panditPrefs : null,
         onStatus: (statusMsg) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
           setStatusText(statusMsg);
@@ -1075,6 +1136,158 @@ export function AuraAIPage() {
               </div>
             </div>
 
+            {/* AI Pandit Ji Multi-Chat Sessions & Custom Style/Graph Bar */}
+            {mode === "panditji" && (
+              <div
+                style={{
+                  padding: "8px 14px",
+                  background: "linear-gradient(135deg, #fffaf2 0%, #fef5e7 100%)",
+                  borderBottom: "1px solid #ecd9bd",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "6px"
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", overflowX: "auto", paddingBottom: "2px" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      auraAiClient.abortActiveStream();
+                      turnSeqRef.current++;
+                      setLoading(false);
+                      const { newConvId, messages: fresh } = auraChatStore.startNewSession("panditji");
+                      setConversationId(newConvId);
+                      setMessages(fresh);
+                      setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
+                      emitToast("नया पंडित जी चैट बन गया ✨", "success");
+                    }}
+                    style={{
+                      flexShrink: 0,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      padding: "4px 10px",
+                      borderRadius: "14px",
+                      background: "#8c2b10",
+                      color: "#ffffff",
+                      border: "none",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      cursor: "pointer"
+                    }}
+                    title="नया चैट बनाएं (Create New Pandit Ji Chat)"
+                  >
+                    <Plus size={12} /> <span>नया चैट</span>
+                  </button>
+
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      padding: "3px 9px",
+                      borderRadius: "14px",
+                      background: "#fef3c7",
+                      border: "1px solid #d97706",
+                      color: "#78350f",
+                      fontSize: "11px",
+                      fontWeight: 700
+                    }}
+                  >
+                    💬 सक्रिय चैट
+                  </span>
+
+                  {savedPanditSessions.filter((s) => s.id !== conversationId).slice(0, 6).map((sess) => (
+                    <button
+                      key={sess.id}
+                      type="button"
+                      onClick={() => {
+                        auraAiClient.abortActiveStream();
+                        turnSeqRef.current++;
+                        setLoading(false);
+                        const switched = auraChatStore.switchToSession(sess.id, "panditji");
+                        if (switched) {
+                          setConversationId(switched.conversationId);
+                          setMessages(switched.messages);
+                          setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
+                        }
+                      }}
+                      style={{
+                        flexShrink: 0,
+                        maxWidth: "160px",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        padding: "3px 9px",
+                        borderRadius: "14px",
+                        background: "#ffffff",
+                        border: "1px solid #e2cbb0",
+                        color: "#5c2a0c",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        cursor: "pointer"
+                      }}
+                      title={`चैट खोलें: ${sess.title}`}
+                    >
+                      {sess.title}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "6px", fontSize: "10.5px" }}>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
+                    <span style={{ color: "#78350f", fontWeight: 700 }}>अंदाज़:</span>
+                    {[
+                      { id: "detailed", label: "📜 विस्तृत" },
+                      { id: "balanced", label: "💬 अपनी मर्ज़ी की बात" }
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => handlePanditPrefChange({ responseStyle: opt.id })}
+                        style={{
+                          padding: "2px 8px",
+                          borderRadius: "10px",
+                          border: panditPrefs.responseStyle === opt.id ? "1px solid #d97706" : "1px solid #e7d7c2",
+                          background: panditPrefs.responseStyle === opt.id ? "#fef3c7" : "#ffffff",
+                          color: panditPrefs.responseStyle === opt.id ? "#78350f" : "#6b4f3a",
+                          fontWeight: panditPrefs.responseStyle === opt.id ? 700 : 500,
+                          cursor: "pointer"
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
+                    <span style={{ color: "#78350f", fontWeight: 700 }}>ग्राफ:</span>
+                    {[
+                      { id: "auto", label: "Auto" },
+                      { id: "chart", label: "चक्र+ग्राफ" },
+                      { id: "cards", label: "कार्ड" },
+                      { id: "table", label: "तालिका" }
+                    ].map((gOpt) => (
+                      <button
+                        key={gOpt.id}
+                        type="button"
+                        onClick={() => handlePanditPrefChange({ chartStyle: gOpt.id })}
+                        style={{
+                          padding: "2px 7px",
+                          borderRadius: "10px",
+                          border: panditPrefs.chartStyle === gOpt.id ? "1px solid #d97706" : "1px solid #e7d7c2",
+                          background: panditPrefs.chartStyle === gOpt.id ? "#fef3c7" : "#ffffff",
+                          color: panditPrefs.chartStyle === gOpt.id ? "#78350f" : "#6b4f3a",
+                          fontWeight: panditPrefs.chartStyle === gOpt.id ? 700 : 500,
+                          cursor: "pointer"
+                        }}
+                      >
+                        {gOpt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Persistent Active Kundali Profile Banner */}
             {mode === "panditji" && activeBirthDetails && activeBirthDetails.dob && (
               <div 
@@ -1204,46 +1417,13 @@ export function AuraAIPage() {
                               fullKundaliData={m.kundali}
                               birthData={m.kundali?.verifiedBirthData}
                               products={m.products}
+                              defaultChartStyle={mode === "panditji" ? panditPrefs.chartStyle : "auto"}
                             />
                           )}
                         </div>
                         {m.sender === "ai" && m.text && (
                           <div style={{ marginTop: "6px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                             <VoiceReader text={customerSafeAiText(stripAuraKeywords(m.text))} />
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleContinueChat(m, 0, 10);
-                              }}
-                              disabled={loading && activeAiMsgIdRef.current === m.id}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "5px",
-                                padding: "4px 12px",
-                                borderRadius: "16px",
-                                background: (loading && activeAiMsgIdRef.current === m.id)
-                                  ? "linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)"
-                                  : "linear-gradient(135deg, #FFF7ED 0%, #FEF3C7 100%)",
-                                color: "#8C2B10",
-                                border: "1.5px solid #D97706",
-                                cursor: (loading && activeAiMsgIdRef.current === m.id) ? "wait" : "pointer",
-                                fontSize: "11px",
-                                fontWeight: 700,
-                                boxShadow: "0 1px 4px rgba(217, 119, 6, 0.18)",
-                                transition: "all 0.2s ease",
-                                userSelect: "none"
-                              }}
-                              title="उत्तर को जहाँ से रुका है, वहाँ से आगे शुरू करें (ऑटोमैटिक 10 बार तक / Auto continue up to 10 passes)"
-                            >
-                              <Sparkles size={12} className={(loading && activeAiMsgIdRef.current === m.id) ? "animate-spin text-amber-600" : "text-amber-700"} />
-                              <span>
-                                {(loading && activeAiMsgIdRef.current === m.id)
-                                  ? `शुरू है (${activePassCount || 1}/10)...`
-                                  : "✨ शुरू करें (पूरा करें)"}
-                              </span>
-                            </button>
                           </div>
                         )}
 
@@ -1494,36 +1674,47 @@ export function AuraAIPage() {
                           )}
 
                           {m.sender === "ai" && (
-                            <div style={{ display: "flex", items: "center", gap: "5px", marginLeft: "auto", flexWrap: "wrap" }}>
-                              {isAuraResponseIncomplete(m.text, mode) && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleContinueChat(m, 0, 10);
-                                  }}
-                                  disabled={loading && activeAiMsgIdRef.current === m.id}
-                                  style={{
-                                    padding: "4px 10px",
-                                    background: "linear-gradient(135deg, #FFF7ED, #FEF3C7)",
-                                    border: "1.5px solid #D97706",
-                                    borderRadius: "14px",
-                                    fontSize: "11px",
-                                    color: "#8c2b10",
-                                    fontWeight: 700,
-                                    cursor: "pointer",
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: "4px",
-                                    boxShadow: "0 2px 6px rgba(217, 119, 6, 0.25)",
-                                    transition: "all 0.15s ease"
-                                  }}
-                                  title="उत्तर जहाँ से रुका है, वहीं से आगे पूरा करें (Continue response from cutoff - 10 passes)"
-                                >
-                                  <Sparkles size={11} className={(loading && activeAiMsgIdRef.current === m.id) ? "animate-spin" : ""} style={{ color: "#d97706" }} />
-                                  <span>{(loading && activeAiMsgIdRef.current === m.id) ? `जारी है (${activePassCount || 1}/10)...` : "✨ उत्तर आगे पूरा करें"}</span>
-                                </button>
-                              )}
+                            <div style={{ display: "flex", alignItems: "center", gap: "5px", marginLeft: "auto", flexWrap: "wrap" }}>
+                              {(() => {
+                                const isIncomplete = isAuraResponseIncomplete(m.text, mode);
+                                const isThisContinuing = loading && activeAiMsgIdRef.current === m.id;
+                                if (!isIncomplete && mode !== "panditji" && !isThisContinuing) return null;
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleContinueChat(m, 0, 10);
+                                    }}
+                                    disabled={isThisContinuing}
+                                    style={{
+                                      padding: "4px 10px",
+                                      background: "linear-gradient(135deg, #FFF7ED, #FEF3C7)",
+                                      border: "1.5px solid #D97706",
+                                      borderRadius: "14px",
+                                      fontSize: "11px",
+                                      color: "#8c2b10",
+                                      fontWeight: 700,
+                                      cursor: isThisContinuing ? "wait" : "pointer",
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: "4px",
+                                      boxShadow: "0 2px 6px rgba(217, 119, 6, 0.25)",
+                                      transition: "all 0.15s ease"
+                                    }}
+                                    title="उत्तर जहाँ से रुका है, वहीं से आगे पूरा करें (Continue response automatically up to 10 passes)"
+                                  >
+                                    <Sparkles size={11} className={isThisContinuing ? "animate-spin" : ""} style={{ color: "#d97706" }} />
+                                    <span>
+                                      {isThisContinuing
+                                        ? `जारी है (${activePassCount || 1}/10)...`
+                                        : isIncomplete
+                                          ? "✨ शुरू करें (आगे पूरा करें)"
+                                          : "✨ और विस्तार से"}
+                                    </span>
+                                  </button>
+                                );
+                              })()}
 
                               <button
                                 type="button"
@@ -1856,6 +2047,7 @@ export function AuraAIPage() {
           const concern = profile.concern || "all";
           const profileData = { name, dob, birthTime, birthPlace, concern };
 
+          skipNextModeResetRef.current = true;
           setMode("panditji");
           setActiveBirthDetails(profileData);
           auraChatStore.saveVerifiedBirthDetails(profileData);
@@ -1871,6 +2063,7 @@ export function AuraAIPage() {
           const concern = profile.concern || "all";
           const profileData = { name, dob, birthTime, birthPlace, concern };
 
+          skipNextModeResetRef.current = true;
           setMode("panditji");
           setActiveBirthDetails(profileData);
           auraChatStore.saveVerifiedBirthDetails(profileData);

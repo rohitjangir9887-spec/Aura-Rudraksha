@@ -530,18 +530,87 @@ export function ResponsivePlanetaryReport({
   showChart = true,
   birthData = null,
   fullKundaliData = null,
-  products = []
+  products = [],
+  defaultChartStyle = "auto"
 }) {
+  const [viewMode, setViewMode] = React.useState(defaultChartStyle || "auto");
+
+  React.useEffect(() => {
+    if (defaultChartStyle && ["auto", "chart", "cards", "table"].includes(defaultChartStyle)) {
+      setViewMode(defaultChartStyle);
+    }
+  }, [defaultChartStyle]);
+
   const planetList = planets && planets.length > 0
     ? planets
     : rawRows.map(r => parsePlanetaryRow(r, headers));
 
   const hasPlanets = planetList && planetList.length > 0;
+  const shouldRenderChart = showChart && hasPlanets && (viewMode === "auto" || viewMode === "chart");
+  const shouldRenderTable = hasPlanets && viewMode === "table";
+  const shouldRenderCards = hasPlanets && (viewMode === "auto" || viewMode === "cards");
+  const shouldRenderGraph = hasPlanets && (viewMode === "chart");
+
+  const getStrengthScore = (status = "") => {
+    const s = String(status || "").toLowerCase();
+    if (s.includes("उच्च") || s.includes("exalt")) return { pct: 94, label: "उच्च बल (94%)", bar: "#15803d" };
+    if (s.includes("स्वगृही") || s.includes("own")) return { pct: 86, label: "स्वगृही (86%)", bar: "#047857" };
+    if (s.includes("मित्र") || s.includes("friend")) return { pct: 74, label: "मित्र बल (74%)", bar: "#b45309" };
+    if (s.includes("नीच") || s.includes("debilit")) return { pct: 34, label: "नीच / उपाय योग्य (34%)", bar: "#b91c1c" };
+    if (s.includes("शत्रु") || s.includes("enemy")) return { pct: 48, label: "शत्रु क्षेत्र (48%)", bar: "#c2410c" };
+    return { pct: 64, label: "सामान्य बल (64%)", bar: "#a54d2b" };
+  };
 
   return (
     <div className="w-full my-2 box-border space-y-3">
-      {/* 1. Vedic Kundali Chart - Rendered ONLY ONCE per message if showChart is true */}
-      {showChart && hasPlanets && (
+      {hasPlanets && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "6px",
+            padding: "6px 8px",
+            borderRadius: "10px",
+            background: "#fffaf0",
+            border: "1px solid #f0dfcc"
+          }}
+        >
+          <span style={{ fontSize: "11px", fontWeight: 700, color: "#78350f", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+            <Compass size={12} /> <span>व्यू / ग्राफ चुनें:</span>
+          </span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+            {[
+              { id: "auto", label: "Auto (चक्र+फल)" },
+              { id: "chart", label: "चक्र व ग्राफ" },
+              { id: "cards", label: "ग्रह कार्ड्स" },
+              { id: "table", label: "तालिका" }
+            ].map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setViewMode(opt.id)}
+                style={{
+                  padding: "3px 8px",
+                  borderRadius: "12px",
+                  fontSize: "10.5px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  border: viewMode === opt.id ? "1px solid #8c2b10" : "1px solid #e7d5be",
+                  background: viewMode === opt.id ? "#8c2b10" : "#ffffff",
+                  color: viewMode === opt.id ? "#ffffff" : "#6b2a0c"
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 1. Vedic Kundali Chart */}
+      {shouldRenderChart && (
         <div className="space-y-1.5">
           <div className="flex items-center gap-1.5 pb-1 border-b border-[#ebdccb]">
             <span className="text-base text-[#8c2b10] flex-shrink-0">🕉️</span>
@@ -561,8 +630,66 @@ export function ResponsivePlanetaryReport({
         </div>
       )}
 
-      {/* 2. Full Navagraha Transit & House Position - Rendered as clean normal chat text lines */}
-      {planetList.length > 0 && (
+      {/* 1b. Planet Strength Visual Graph */}
+      {shouldRenderGraph && (
+        <div
+          style={{
+            padding: "10px 12px",
+            borderRadius: "10px",
+            background: "linear-gradient(135deg, #fffdf9 0%, #fef6e7 100%)",
+            border: "1px solid #ead4aa"
+          }}
+        >
+          <div style={{ fontSize: "12px", fontWeight: 700, color: "#5c1c0a", marginBottom: "8px", display: "flex", alignItems: "center", gap: "5px" }}>
+            <Sparkles size={13} className="text-[#8c2b10]" />
+            <span>नवग्रह बल एवं प्रभाव ग्राफ (Planet Strength Graph)</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {planetList.map((p, idx) => {
+              const pName = (p.planetName || `ग्रह ${idx + 1}`).replace(/\*\*/g, "").trim();
+              const strength = getStrengthScore(p.status);
+              return (
+                <div key={idx} style={{ display: "grid", gridTemplateColumns: "92px 1fr 96px", alignItems: "center", gap: "8px", fontSize: "11px" }}>
+                  <span style={{ fontWeight: 700, color: "#4a2511", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pName}</span>
+                  <div style={{ height: "8px", background: "#f2e5d2", borderRadius: "999px", overflow: "hidden" }}>
+                    <div style={{ width: `${strength.pct}%`, height: "100%", background: strength.bar, borderRadius: "999px" }} />
+                  </div>
+                  <span style={{ fontSize: "10px", fontWeight: 600, color: "#6b4423", textAlign: "right" }}>{strength.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 2. Compact Planetary Table */}
+      {shouldRenderTable && (
+        <div style={{ overflowX: "auto", border: "1px solid #ebdccb", borderRadius: "8px", background: "#fffdfa" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", textAlign: "left" }}>
+            <thead>
+              <tr style={{ background: "#f8ede0", color: "#5c1c0a" }}>
+                <th style={{ padding: "6px 8px", borderBottom: "1px solid #ebdccb" }}>ग्रह</th>
+                <th style={{ padding: "6px 8px", borderBottom: "1px solid #ebdccb" }}>भाव</th>
+                <th style={{ padding: "6px 8px", borderBottom: "1px solid #ebdccb" }}>राशि</th>
+                <th style={{ padding: "6px 8px", borderBottom: "1px solid #ebdccb" }}>स्थिति</th>
+              </tr>
+            </thead>
+            <tbody>
+              {planetList.map((p, idx) => (
+                <tr key={idx} style={{ borderBottom: "1px solid #f5ebe0" }}>
+                  <td style={{ padding: "6px 8px", fontWeight: 700, color: "#8c2b10" }}>{(p.planetName || "").replace(/\*\*/g, "").trim()}</td>
+                  <td style={{ padding: "6px 8px", color: "#3b1b08" }}>{(p.house || "—").replace(/\*\*/g, "").trim()}</td>
+                  <td style={{ padding: "6px 8px", color: "#3b1b08" }}>{(p.rashi || "—").replace(/\*\*/g, "").trim()}</td>
+                  <td style={{ padding: "6px 8px", color: "#5c1c0a", fontWeight: 600 }}>{(p.status || "—").replace(/\*\*/g, "").trim()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* 3. Full Navagraha Transit & House Position - Rendered as clean normal chat text lines */}
+      {shouldRenderCards && (
         <div className="space-y-2.5 my-2.5">
           <div className="flex items-center gap-1.5 pb-1 border-b border-[#ebdccb]">
             <Sparkles size={14} className="text-[#8c2b10] flex-shrink-0" />
@@ -762,7 +889,7 @@ function isHeadingLine(line) {
   return false;
 }
 
-export function AuraAIMessageContent({ text, content, sender = "ai", className = "", fullKundaliData = null, birthData = null, products = [] }) {
+export function AuraAIMessageContent({ text, content, sender = "ai", className = "", fullKundaliData = null, birthData = null, products = [], defaultChartStyle = "auto" }) {
   const actualText = text !== undefined && text !== null && text !== "" ? text : content;
 
   // Render glowing thinking badge if AI message text is empty during reasoning phase
@@ -1096,6 +1223,7 @@ export function AuraAIMessageContent({ text, content, sender = "ai", className =
               fullKundaliData={fullKundaliData}
               birthData={birthData}
               products={products}
+              defaultChartStyle={defaultChartStyle}
             />
           );
         }

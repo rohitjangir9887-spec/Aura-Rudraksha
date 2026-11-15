@@ -40,7 +40,7 @@ describe('auraAiClient', () => {
             }
         });
 
-        assert.strictEqual(mockFetch.mock.calls.length, 1);
+        assert.strictEqual(mockFetch.mock.calls.length, 2);
         assert.strictEqual(onErrorCalled, true);
         assert.strictEqual(receivedError.message, "Network Error");
         assert.strictEqual(result.requiresHuman, true);
@@ -80,5 +80,48 @@ describe('auraAiClient', () => {
         assert.strictEqual(onErrorCalled, false);
         assert.strictEqual(onDoneCalled, false);
         assert.strictEqual(result.aborted, true);
+    });
+
+    test('sendMessageStream recovers cleanly via JSON sendMessage when SSE endpoint fails', async () => {
+        const mockFetch = vi.fn((url) => {
+            if (String(url).includes('/chat/stream')) {
+                return Promise.resolve({
+                    ok: false,
+                    status: 502,
+                    json: async () => ({ message: 'SSE timeout' })
+                });
+            }
+            return Promise.resolve({
+                ok: true,
+                status: 200,
+                headers: { get: () => 'application/json' },
+                json: async () => ({
+                    success: true,
+                    data: {
+                        text: '🙏 हर हर महादेव! यह JSON बैकअप से प्राप्त पूर्ण उत्तर है।',
+                        products: [],
+                        coupons: []
+                    }
+                })
+            });
+        });
+        vi.stubGlobal('fetch', mockFetch);
+
+        let doneData = null;
+        let errorCalled = false;
+
+        const result = await auraAiClient.sendMessageStream({
+            message: '5 mukhi benefits',
+            mode: 'panditji',
+            panditPreferences: { responseStyle: 'balanced', chartStyle: 'chart' },
+            conversationId: 'conv-recover-1',
+            onDone: (d) => { doneData = d; },
+            onError: () => { errorCalled = true; }
+        });
+
+        assert.strictEqual(errorCalled, false);
+        assert.ok(doneData);
+        assert.ok(doneData.text.includes('पूर्ण उत्तर है'));
+        assert.ok(result.text.includes('पूर्ण उत्तर है'));
     });
 });

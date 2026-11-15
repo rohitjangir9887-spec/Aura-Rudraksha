@@ -243,6 +243,46 @@ export async function buildStoreRagIndex(forceRefresh = false) {
     }
   }
 
+  // 2.6 Comprehensive 1-21 Mukhi Matrix & Vedic Combination Therapy (Bandhs) + Common FAQs (Zero PII)
+  docs.push({
+    docId: "vedic_mukhi_1_21_matrix",
+    docType: "knowledge",
+    title: "Complete 1 to 21 Mukhi Rudraksha Quick Reference Matrix",
+    content: [
+      "1 Mukhi (Sun / Paramshiva - Om Hreem Namah): Leadership, Surya dosha relief, focus & moksha.",
+      "2 Mukhi (Moon / Ardhanarishwar - Om Namah): Emotional peace, overthinking relief, marriage & harmony.",
+      "3 Mukhi (Mars / Agni Dev - Om Kleem Namah): Energy, Manglik balance, confidence, digestion.",
+      "4 Mukhi (Mercury / Brahma-Saraswati - Om Hreem Namah): Memory, exams (UPSC/NEET/JEE), speech & intellect.",
+      "5 Mukhi (Jupiter / Kalagni Rudra - Om Hreem Namah): Universal peace, BP balance, daily Jaap & meditation.",
+      "6 Mukhi (Venus / Kartikeya - Om Hreem Hum Namah): Willpower, charisma, artistic & career drive.",
+      "7 Mukhi (Saturn & Lakshmi - Om Hum Namah): Wealth, steady income, debt relief, Shani Sade Sati & Dhaiya.",
+      "8 Mukhi (Rahu / Ganesha - Om Hum Namah): Obstacle removal, Rahu Dasha & Kaal Sarp balance.",
+      "9 Mukhi (Ketu / Navdurga - Om Hreem Hum Namah): Fearlessness, Ketu relief, negative energy shield.",
+      "10 Mukhi (All 9 Planets / Mahavishnu - Om Hreem Namah): Complete Navagraha pacification, Vastu & protection.",
+      "11 Mukhi (Mars-Saturn / Ekadash Rudra Hanuman - Om Hreem Hum Namah): Courage, Sade Sati relief, travel safety.",
+      "12 Mukhi (Sun / Dwadash Aditya - Om Kraum Kshaum Raum Namah): Authority, government/executive leadership.",
+      "13 Mukhi (Venus / Kamadeva-Indra - Om Hreem Namah): Attraction, persuasion, business & luxury success.",
+      "14 Mukhi (Saturn-Mars / Devmani Shiva - Om Namah): Third-eye intuition, strategic foresight, high Rajayoga.",
+      "15-21 Mukhi (Pashupatinath to Kuber): High prosperity, property/real estate, Narayan & Kuber blessings."
+    ].join(" "),
+    metadata: { category: "1_to_21_mukhi" }
+  });
+
+  docs.push({
+    docId: "vedic_bandhs_and_faqs",
+    docType: "knowledge",
+    title: "Sacred Rudraksha Combination Bandhs, Muhurat & Wearing FAQs",
+    content: [
+      "Saraswati Vidya Bandh (4+6 Mukhi): Students, competitive exams, sharp memory and speech.",
+      "Mahalakshmi Dhana Bandh (7+8+12 Mukhi): Business growth, cashflow, debt relief, leadership.",
+      "Gauri Shankar Vivah Bandh (2 Mukhi + Gauri Shankar): Early marriage, removing delays, marital harmony.",
+      "Shani-Rahu Raksha Bandh (7+8+10 or 14 Mukhi): Shani Sade Sati, Dhaiya, Rahu Mahadasha, evil eye & enemy shield.",
+      "Arogya Swasthya Bandh (3+5+11 Mukhi): Vitality, stress/BP balance, immunity.",
+      "Daily Care & Rules: Wear after Monday/planet-day morning bath; cleanse with Ganga Jal or raw milk every 1-2 months and apply light sandalwood/almond oil; keep away from chemical soap; Nepali beads are larger with deeper natural clefts than Indonesian beads."
+    ].join(" "),
+    metadata: { category: "bandhs_faqs" }
+  });
+
   // 3. Index Live Published Products, Real Public Orders (line items only), Verified Reviews, Offers & Coupons
   let liveProducts = [];
   let liveOrders = [];
@@ -335,6 +375,35 @@ export async function buildStoreRagIndex(forceRefresh = false) {
       title: `Coupon Code: ${c.code}`,
       content: `Coupon Code '${c.code}': Offers ${c.type === "percentage" ? `${c.discount}%` : `₹${c.discount}`} OFF. Minimum order amount: ₹${c.minAmount || 0}. Verified active admin code.`,
       metadata: { code: c.code, discount: c.discount, type: c.type }
+    });
+  }
+
+  // 4.5 Enriched Public Catalog Highlights & Active Public Offers Summary (Zero PII)
+  const inStockCatalog = (liveProducts || []).filter(p => Number(p.stock ?? 0) > 0 && Number(p.price || 0) > 0);
+  if (inStockCatalog.length > 0) {
+    const budgetPicks = [...inStockCatalog].sort((a, b) => Number(a.price) - Number(b.price)).slice(0, 6);
+    const premiumPicks = [...inStockCatalog].sort((a, b) => Number(b.price) - Number(a.price)).slice(0, 4);
+    docs.push({
+      docId: "catalog_in_stock_highlights",
+      docType: "product",
+      title: "In-Stock Sacred Catalog Value & Premium Highlights",
+      content: `Affordable In-Stock Picks: ${budgetPicks.map(p => `${p.name} (₹${Number(p.price).toLocaleString("en-IN")})`).join(", ")}. Rare & Premium Beads: ${premiumPicks.map(p => `${p.name} (₹${Number(p.price).toLocaleString("en-IN")})`).join(", ")}.`,
+      metadata: { count: inStockCatalog.length }
+    });
+  }
+
+  if ((dbActiveOffers && dbActiveOffers.length > 0) || (dbStoreOffers && dbStoreOffers.length > 0) || activeCoupons.length > 0) {
+    const offerSummaries = [
+      ...(dbActiveOffers || []).map(o => `${o.title || "Special Campaign"}${o.couponCode ? ` (Code: ${o.couponCode})` : ""}`),
+      ...(dbStoreOffers || []).map(o => `${o.title || o.name || "Store Offer"}`),
+      ...activeCoupons.map(c => `Code ${c.code}: ${c.type === "percentage" ? `${c.discount}% OFF` : `₹${c.discount} OFF`}`)
+    ].filter(Boolean);
+    docs.push({
+      docId: "offers_public_summary",
+      docType: "coupon",
+      title: "Active Store Promotions & Public Offers",
+      content: `Verified Store Offers & Coupons: ${offerSummaries.join(" | ")}.`,
+      metadata: { offerCount: offerSummaries.length }
     });
   }
 

@@ -411,17 +411,33 @@ export function smartMergeContinuation(baseText, continuationText) {
     }
   }
 
-  // 5. If base ends with a newline or table pipe, join cleanly
+  // 4b. Avoid repeating the exact last markdown heading present in baseText
+  const headingMatches = cleanBase.match(/^(?:#{2,4}|\*\*)\s*[^\n]+/gm);
+  if (headingMatches && headingMatches.length > 0) {
+    const lastHeading = headingMatches[headingMatches.length - 1].trim();
+    const contFirstLine = cleanCont.split("\n")[0]?.trim() || "";
+    if (lastHeading && contFirstLine && contFirstLine === lastHeading) {
+      cleanCont = cleanCont.split("\n").slice(1).join("\n").trimStart();
+      if (!cleanCont) return cleanBase;
+    }
+  }
+
+  // 5. If continuation starts with markdown heading, bullet, or numbered list, preserve paragraph break
+  if (/^(?:#{1,4}\s|[-•*]\s|\d+\.\s|\*\*[^*\n]{2,60}\*\*)/.test(cleanCont)) {
+    return cleanBase + "\n\n" + cleanCont;
+  }
+
+  // 6. If base ends with a newline or table pipe, join cleanly
   if (/[\n|]$/.test(cleanBase)) {
     return cleanBase + "\n" + cleanCont;
   }
 
-  // 6. If base ends with sentence punctuation (danda । , period , exclamation , question mark)
+  // 7. If base ends with sentence punctuation (danda । , period , exclamation , question mark)
   if (/[।!?.:]$/.test(cleanBase)) {
     return cleanBase + " " + cleanCont;
   }
 
-  // 7. If base ended mid-word or mid-sentence without punctuation
+  // 8. If base ended mid-word or mid-sentence without punctuation
   const needsSpace = !/\s$/.test(cleanBase) && !/^\s/.test(cleanCont) && !/^[।,.;:!?]/.test(cleanCont);
   return cleanBase + (needsSpace ? " " : "") + cleanCont;
 }
@@ -444,9 +460,22 @@ export function isAuraResponseIncomplete(text, mode = "standard") {
   // 3. Unclosed markdown table row cut off mid-cell
   if (/\|[^\n|]+$/.test(trimmed) && !trimmed.endsWith("|")) return true;
 
-  // 3b. If in panditji mode, check if a 9-planet table was started (has Surya/Sun) but was cut off before finishing planets (missing Rahu/Ketu)
-  if (mode === "panditji" && (trimmed.includes("सूर्य") || trimmed.includes("Sun")) && !(trimmed.includes("राहु") || trimmed.includes("Rahu") || trimmed.includes("केतु") || trimmed.includes("Ketu"))) {
-    return true;
+  // 3b. In panditji mode, ONLY flag missing Rahu/Ketu if a full Navagraha / 9-planet chart/table was clearly started
+  if (mode === "panditji") {
+    const hasPlanetChartHeader = /(नवग्रह|Navagraha|Planetary Placement|9 Planets|ग्रह स्थिति तालिका)/i.test(trimmed);
+    const mentionedCorePlanets = [
+      /सूर्य|\bSun\b/i.test(trimmed),
+      /चंद्र|चन्द्र|\bMoon\b/i.test(trimmed),
+      /मंगल|\bMars\b/i.test(trimmed),
+      /बुध|\bMercury\b/i.test(trimmed),
+      /गुरु|बृहस्पति|\bJupiter\b/i.test(trimmed),
+      /शुक्र|\bVenus\b/i.test(trimmed),
+      /शनि|\bSaturn\b/i.test(trimmed)
+    ].filter(Boolean).length;
+    const hasRahuOrKetu = /(राहु|Rahu|केतु|Ketu)/i.test(trimmed);
+    if ((hasPlanetChartHeader || mentionedCorePlanets >= 4) && !hasRahuOrKetu) {
+      return true;
+    }
   }
 
   // 4. Check explicit continuation/truncation signals
@@ -458,9 +487,9 @@ export function isAuraResponseIncomplete(text, mode = "standard") {
   const trueDanglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|जिसका|जो कि|यानी|अतः|इसलिए|तदोपरांत|and|or|but|because|with|by|to|for|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.|\(-)$/i;
   if (trueDanglingConnectors.test(trimmed)) return true;
 
-  // 6. Check last non-whitespace character. If it ends with complete sentence punctuation or closing bracket/emoji, it is complete!
+  // 6. Check last non-whitespace character. If it ends with complete sentence punctuation, closing markdown bold, or emoji, it is complete!
   const lastChar = trimmed.slice(-1);
-  const completeEndPattern = /[।\.!\?\)\}\]>\|\n🙏🕉️✨🚩💯🏷️📦📿📞👍😊🌸🍀]/;
+  const completeEndPattern = /[।\.!\?\)\}\]>\|\n\*"'”’%🙏🕉️✨🚩💯🏷️📦📿📞👍😊🌸🍀🔮🌟💎✅🌺👇👉🪔🙌🤝🎯⚡ॐ]/;
 
   if (completeEndPattern.test(lastChar)) {
     return false; // Complete response -> Do NOT show "आगे पूरा करें"

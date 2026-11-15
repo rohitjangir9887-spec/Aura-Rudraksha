@@ -1,6 +1,6 @@
-import React, { useEffect, useState, Suspense, lazy } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Menu, X, Store, MoreHorizontal, LogOut, Sparkles, Bot, ArrowLeft, Maximize2 } from "lucide-react";
+import { Menu, X, Store, MoreHorizontal, LogOut, Bot, ArrowLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useAdminAuth } from "../hooks/useAdminAuth";
@@ -10,10 +10,6 @@ import { AdminNavLinks } from "./admin/AdminNavLinks";
 import { ADMIN_BASE_PATH } from "../lib/routes";
 import { preloadAllAdminRoutes } from "../lib/adminRoutePreloader";
 
-const LazyAdminAIAgentChat = lazy(() =>
-  import("./admin/AdminAIAgentChat").then((m) => ({ default: m.AdminAIAgentChat }))
-);
-
 export function AdminLayout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -21,7 +17,6 @@ export function AdminLayout({ children }) {
   const counts = useAdminMetrics();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [agentDrawerOpen, setAgentDrawerOpen] = useState(false);
 
   useEffect(() => {
     preloadAllAdminRoutes();
@@ -45,7 +40,6 @@ export function AdminLayout({ children }) {
       i.path === location.pathname ||
       (i.path !== ADMIN_BASE_PATH && location.pathname.startsWith(i.path + "/"))
   );
-  const isDedicatedAiPage = location.pathname === `${ADMIN_BASE_PATH}/ai`;
   const pageTitle = currentItem?.label || "Admin";
 
   if (loadingAuth) {
@@ -135,30 +129,6 @@ export function AdminLayout({ children }) {
         </div>
 
         <div className="mobile-header-actions" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <button
-            type="button"
-            onClick={() => {
-              if (isDedicatedAiPage) return;
-              setAgentDrawerOpen(true);
-            }}
-            className="mobile-store-icon"
-            title="Aura AI Agent Copilot"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-              fontSize: "12px",
-              fontWeight: "700",
-              color: isDedicatedAiPage || agentDrawerOpen ? "#ffffff" : "#a84118",
-              background: isDedicatedAiPage || agentDrawerOpen ? "#7c2d12" : "#fff1f2",
-              padding: "6px 10px",
-              borderRadius: "8px",
-              border: "1px solid #fecdd3",
-              cursor: "pointer"
-            }}
-          >
-            <Bot size={14} /> AI Agent
-          </button>
           <Link
             to="/"
             className="mobile-store-icon"
@@ -249,24 +219,6 @@ export function AdminLayout({ children }) {
             >
               <Bot size={14} /> AI Chats & Logs
             </Link>
-            <button
-              type="button"
-              onClick={() => {
-                if (isDedicatedAiPage) return;
-                setAgentDrawerOpen((prev) => !prev);
-              }}
-              className="view-store-pill"
-              style={{
-                background: isDedicatedAiPage || agentDrawerOpen ? "#7c2d12" : "#fff1f2",
-                color: isDedicatedAiPage || agentDrawerOpen ? "#ffffff" : "#a84118",
-                borderColor: isDedicatedAiPage || agentDrawerOpen ? "#7c2d12" : "#fecdd3",
-                fontWeight: "700",
-                cursor: "pointer"
-              }}
-              title="Open Autonomous Admin AI Agent Copilot"
-            >
-              <Sparkles size={14} /> Aura AI Agent
-            </button>
             <Link to="/" className="view-store-pill" target="_blank">
               <Store size={14} /> Store Preview
             </Link>
@@ -338,51 +290,6 @@ export function AdminLayout({ children }) {
           <span>More</span>
         </button>
       </nav>
-
-      {/* On-Demand Lazy Autonomous AI Agent Copilot Drawer (Mounts ONLY when Admin opens it) */}
-      {agentDrawerOpen && !isDedicatedAiPage && (
-        <div
-          className="fixed inset-0 z-[9990] flex justify-end bg-slate-900/45 backdrop-blur-[1px]"
-          onClick={() => setAgentDrawerOpen(false)}
-        >
-          <div
-            className="flex h-screen w-[min(640px,100vw)] flex-col border-l border-slate-200 bg-[#F8FAFC] shadow-2xl"
-            style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2.5 text-xs text-slate-700">
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="font-semibold text-slate-900">Copilot Studio</span>
-                <span className="text-slate-300">·</span>
-                <span className="truncate font-mono text-[11px] text-slate-500">{location.pathname}</span>
-              </div>
-              <Link
-                to="/admin/ai"
-                onClick={() => setAgentDrawerOpen(false)}
-                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-[#8C2B10] transition hover:border-[#8C2B10]/30 hover:bg-[#8C2B10]/5"
-              >
-                <Maximize2 size={12} />
-                <span>Full Command Center</span>
-              </Link>
-            </div>
-            <div className="min-h-0 flex-1 overflow-hidden p-3">
-              <Suspense
-                fallback={
-                  <div className="flex h-full items-center justify-center text-sm font-medium text-slate-600">
-                    Loading AI Copilot Studio...
-                  </div>
-                }
-              >
-                <LazyAdminAIAgentChat
-                  drawerMode
-                  pageContext={location.pathname}
-                  onCloseDrawer={() => setAgentDrawerOpen(false)}
-                />
-              </Suspense>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );

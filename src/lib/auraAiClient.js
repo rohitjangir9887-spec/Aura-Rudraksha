@@ -329,6 +329,8 @@ export const auraAiClient = {
     birthDetails = null,
     notesContext = "",
     isContinuation = false,
+    continuationTail = "",
+    panditPreferences = null,
     onChunk,
     onStatus,
     onDone,
@@ -417,6 +419,8 @@ export const auraAiClient = {
           birthDetails: effectiveBirthDetails,
           notesContext,
           isContinuation: Boolean(isContinuation),
+          continuationTail: String(continuationTail || ""),
+          panditPreferences: panditPreferences || null,
           stream: true
         })
       });
@@ -506,10 +510,14 @@ export const auraAiClient = {
               conversationId,
               userEmail,
               userName,
-              mode,
+              mode: targetMode,
               cartItems,
               history,
-              birthDetails
+              birthDetails: effectiveBirthDetails,
+              notesContext,
+              isContinuation,
+              continuationTail,
+              panditPreferences
             });
             if (fallbackRes && fallbackRes.text && fallbackRes.text.trim()) {
               finalData = fallbackRes;
@@ -616,6 +624,34 @@ export const auraAiClient = {
         return partialResult;
       }
 
+      // If SSE failed before any chunk was received, attempt non-streaming JSON chat fallback before giving up
+      try {
+        const savedBirthFallback = typeof auraChatStore.getVerifiedBirthDetails === "function" ? auraChatStore.getVerifiedBirthDetails() : null;
+        const recoveryRes = await this.sendMessage({
+          message,
+          conversationId,
+          userEmail,
+          userName,
+          mode,
+          cartItems,
+          history,
+          birthDetails: birthDetails || (mode === "panditji" ? savedBirthFallback : null),
+          notesContext,
+          isContinuation,
+          continuationTail,
+          panditPreferences
+        });
+        if (recoveryRes && recoveryRes.text && recoveryRes.text.trim() && !recoveryRes.isStaticFallback) {
+          if (onChunk && !thisController.signal.aborted && thisSeq === activeStreamSeq) {
+            onChunk(recoveryRes.text, recoveryRes.text, recoveryRes);
+          }
+          if (onDone && !thisController.signal.aborted && thisSeq === activeStreamSeq) {
+            onDone(recoveryRes);
+          }
+          return recoveryRes;
+        }
+      } catch (_) {}
+
       if (onError) onError(err);
       
       const preservedKundali = finalData?.kundali || null;
@@ -648,7 +684,20 @@ export const auraAiClient = {
   },
 
   // Send chat message to Aura AI (Standard Promise)
-  async sendMessage({ message, conversationId, userEmail, userName, mode = "standard", cartItems = [], history = [], birthDetails = null }) {
+  async sendMessage({
+    message,
+    conversationId,
+    userEmail,
+    userName,
+    mode = "standard",
+    cartItems = [],
+    history = [],
+    birthDetails = null,
+    notesContext = "",
+    isContinuation = false,
+    continuationTail = "",
+    panditPreferences = null
+  }) {
     try {
       const token = await authClient.getToken();
       const guestSessionId = auraChatStore.getGuestSessionId();
@@ -668,7 +717,11 @@ export const auraAiClient = {
           mode,
           cartItems,
           history,
-          birthDetails
+          birthDetails,
+          notesContext,
+          isContinuation: Boolean(isContinuation),
+          continuationTail: String(continuationTail || ""),
+          panditPreferences: panditPreferences || null
         })
       });
 
@@ -676,7 +729,7 @@ export const auraAiClient = {
         throw new Error(`Server returned status ${res.status}`);
       }
 
-      const contentType = res.headers.get("content-type") || "";
+      const contentType = res.headers?.get?.("content-type") || "";
       if (!contentType.includes("application/json")) {
         let textBody = "";
         try {
@@ -704,6 +757,7 @@ export const auraAiClient = {
         products: [],
         coupons: [],
         requiresHuman: true,
+        isStaticFallback: true,
         quickReplies: ["Talk to Support", "Today's Offers", "Help Me Choose"],
         conversationId
       };

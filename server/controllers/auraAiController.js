@@ -2027,6 +2027,60 @@ export function generate1To14MukhiGuideResponse(allStoreProds = [], activeCoupon
  * Smart Vedic & Customer Store Fallback Engine
  * Guarantees that when external LLM connections are down or timing out,
  * the customer bot answers meaningfully, intelligently, and contextually
+ * Extract ONLY unseen remaining sections when continuing a truncated Pandit Ji / long Vedic reply
+ */
+export function extractRemainingContinuationSection(referenceText = "", priorTail = "", priorFullText = "") {
+  const ref = String(referenceText || "").trim();
+  if (!ref) return "";
+  const fullPrior = String(priorFullText || "").trim();
+  const completionNotice = "🙏 **आपका उपरोक्त वैदिक परामर्श व कुंडली विवरण पूर्ण हो चुका है।** यदि आप किसी विशेष विषय (जैसे विवाह, करियर, धन, ग्रह शांति या रुद्राक्ष धारण विधि) पर और गहराई से पूछना चाहते हैं, तो कृपया बताएं। **हर हर महादेव!**";
+
+  if (fullPrior && (fullPrior === ref || fullPrior.includes(ref))) {
+    return completionNotice;
+  }
+
+  const seenCorpus = `${fullPrior}\n${String(priorTail || "")}`.trim();
+  const seenLower = seenCorpus.toLowerCase();
+  if (!seenLower) return ref;
+
+  const tailSnippet = String(priorTail || priorFullText || "").trim().slice(-220);
+  if (tailSnippet.length >= 25) {
+    const cleanTail = tailSnippet.replace(/\*\*/g, "").trim();
+    const tailWords = cleanTail.split(/\s+/).filter(Boolean).slice(-6).join(" ");
+    if (tailWords.length >= 10) {
+      const idx = ref.indexOf(tailWords);
+      if (idx >= 0) {
+        const after = ref.slice(idx + tailWords.length).replace(/^[\s\-—:|,.*]+/, "").trim();
+        if (after.length > 40) return after;
+      }
+    }
+  }
+
+  const blocks = ref
+    .split(/\n(?=###\s|\*\*\d+\.\s|---\s*\n###\s)/)
+    .map(b => b.trim())
+    .filter(Boolean);
+
+  if (blocks.length > 1) {
+    const unseenBlocks = blocks.filter((blk) => {
+      const firstLine = blk.split("\n")[0].replace(/^[#*\-\s\d.]+/, "").trim().toLowerCase();
+      if (firstLine.length >= 2 && seenLower.includes(firstLine.slice(0, 28))) {
+        return false;
+      }
+      return true;
+    });
+    if (unseenBlocks.length > 0 && unseenBlocks.length < blocks.length) {
+      return unseenBlocks.join("\n\n---\n\n");
+    }
+    if (unseenBlocks.length === 0) {
+      return completionNotice;
+    }
+  }
+
+  return ref;
+}
+
+/**
  * using ONLY real catalog products and real active admin coupons!
  */
 export function generateSmartCustomerFallbackResponse(message = "", matchedProducts = [], activeCoupons = [], effectiveMode = "standard", calculatedKundaliData = null, allStoreProds = [], precomputedCalc = null, mukhiRange = null) {
@@ -2230,7 +2284,9 @@ export async function chatAuraAI(req, res, next) {
       cartItems = [],
       history = [],
       birthDetails = null, // { dob, birthTime, birthPlace, name, gender, concern }
-      notesContext = ""
+      notesContext = "",
+      panditPreferences = null,
+      continuationTail = ""
     } = req.body || {};
 
     const isStreamingRequest = req.body?.stream === true || req.query?.stream === "true" || req.headers?.accept?.includes("text/event-stream");
@@ -2896,6 +2952,17 @@ LINK FORMAT RULES:
       (astroIntent.type !== "greeting" && astroIntent.type !== "full_kundali")
     );
 
+    const requestedResponseStyle = String(panditPreferences?.responseStyle || "").toLowerCase();
+    const requestedChartStyle = String(panditPreferences?.chartStyle || "").toLowerCase();
+    const isDetailedExplicit = /(detail|diteld|vistaar|विस्तार|sampurna|संपूर्ण|poori\s*kundali|full\s*kundali|सब\s*कुछ)/i.test(message || "");
+    const isBalancedConversationalStyle = effectiveMode === "panditji" && requestedResponseStyle === "balanced" && !hasNewBirthDetails && !isDetailedExplicit;
+
+    const priorAiMsg = Array.isArray(history)
+      ? [...history].reverse().find(m => m && (m.sender === "ai" || m.role === "assistant") && (m.text || m.content))
+      : null;
+    const priorAssistantText = String(priorAiMsg?.text || priorAiMsg?.content || "");
+    const effectiveContinuationTail = String(continuationTail || priorAssistantText.slice(-400) || "").trim();
+
     const precomputedPanditJiReference = effectiveMode === "panditji"
       ? (calculatedKundaliData
           ? (isTopicOrFollowUpQuery
@@ -2904,16 +2971,21 @@ LINK FORMAT RULES:
           : generateNonKundaliPanditJiGuidance(message, allStoreProds))
       : "";
 
-    // 7. Build High-Integrity Persona System Prompt for NVIDIA NIM (nemotron-3-super-120b-a12b)
+    const continuationReferenceFallback = (isContinuation && precomputedPanditJiReference)
+      ? extractRemainingContinuationSection(precomputedPanditJiReference, effectiveContinuationTail, priorAssistantText)
+      : precomputedPanditJiReference;
+
+    // 7. Build High-Integrity Persona System Prompt for Website Active AI Model
     let systemPrompt = "";
 
     if (effectiveMode === "panditji") {
-      systemPrompt = `आप मेरी वेबसाइट (Aura Rudraksha - https://aurarudraksha.bond) के लिए एक अत्यंत बुद्धिमान, विनम्र, स्पष्ट, प्रामाणिक और विस्तृत "AI Vedic Astrologer / AI Panditji" (🕉️) की तरह कार्य करेंगे।
+      systemPrompt = `आप मेरी वेबसाइट (Aura Rudraksha - https://aurarudraksha.bond) के लिए एक अत्यंत बुद्धिमान, विनम्र, स्पष्ट, प्रामाणिक और विद्वान "AI Vedic Astrologer / AI Panditji" (🕉️) की तरह कार्य करेंगे।
 
-AI मॉडल: NVIDIA Nemotron-3-Super-120B-A12B
-
-मुख्य उद्देश्य:
-उपयोगकर्ता की अपलोड की गई Kundali PDF, रिपोर्ट, स्क्रीनशॉट, JSON या structured sidereal calculation data को पढ़कर उसके प्रश्न का कुंडली-आधारित, उपयोगी, जिम्मेदार, प्रामाणिक और पूर्णतः विस्तृत (Deeply Detailed) उत्तर देना। कभी भी संक्षिप्त (Short) या अधूरा उत्तर न दें!
+${isBalancedConversationalStyle ? `FLEXIBLE CONVERSATIONAL MODE (उपयोगकर्ता की पसंद — अपनी मर्ज़ी की बात):
+- उपयोगकर्ता ने "अपनी मर्ज़ी की बात / Flexible" संवाद चुना है। इसलिए उनके प्रश्न के बिल्कुल अनुरूप, स्वाभाविक, स्पष्ट, विनम्र और सटीक उत्तर दें।
+- अनावश्यक रूप से हर छोटे या सामान्य प्रश्न पर पूरा 11-खंडीय निबंध न थोपें; जितना जातक ने पूछा है उस पर केंद्रित, मधुर व व्यावहारिक ज्योतिषीय/आध्यात्मिक संवाद करें। (यदि वे किसी विषय या कुंडली का विस्तार मांगें, तभी पूरा विस्तार दें।)` : `मुख्य उद्देश्य:
+उपयोगकर्ता की अपलोड की गई Kundali PDF, रिपोर्ट, स्क्रीनशॉट, JSON या structured sidereal calculation data को पढ़कर उसके प्रश्न का कुंडली-आधारित, उपयोगी, जिम्मेदार, प्रामाणिक और पूर्णतः विस्तृत (Deeply Detailed) उत्तर देना। कभी भी संक्षिप्त (Short) या अधूरा उत्तर न दें!`}
+${requestedChartStyle === "chart" ? `\nGRAPH & CHART PREFERENCE (चक्र+ग्राफ सक्रिय): जब ग्रहों की चर्चा करें, तो सूर्य, चंद्र, मंगल, बुध, गुरु, शुक्र, शनि, राहु व केतु के भाव/राशि/बल संक्षेप में स्पष्ट लिखें ताकि उत्तर के साथ ग्रह-बल ग्राफ व उत्तर-भारतीय चक्र स्वतः दिखे।` : ""}
 
 SOURCE PRIORITY (स्रोतों की सर्वोच्च प्राथमिकता):
 1. Verified birth details (नाम, जन्म तारीख, समय, स्थान, Lat/Lon, अयनांश)
@@ -3129,8 +3201,8 @@ ${memoryContextText || "Guest shopper."}`;
     if (isContinuation) {
       effectiveSystemPrompt += `\n\nCONTINUATION DIRECTIVE (MANDATORY): The user is asking to seamlessly continue the previous response directly from where it stopped.
 - DO NOT start with any greeting (e.g. "Namaste", "🙏", "Pranam", or "Devotee").
-- DO NOT repeat what was already written in the assistant's previous message above.
-- Continue directly from the exact point of interruption. Complete any unfinished sentences, remaining Graha/Bhava analysis, remedies, Final Astrological Summary table, and [AURA_KEYWORDS].`;
+- DO NOT repeat headings or paragraphs that were already written before.
+${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveContinuationTail.slice(-300)}\n"""\n` : ""}- Continue IMMEDIATELY from the exact cutoff point with ONLY the remaining unseen analysis, remedies, conclusion, and [AURA_KEYWORDS]. If everything was already covered, add a brief concluding blessing.`;
     }
 
     const nimMessages = [
@@ -3425,27 +3497,44 @@ ${memoryContextText || "Guest shopper."}`;
 
       clearInterval(heartbeatTimer);
 
-      // Guarantee comprehensive detail in Pandit Ji mode even if LLM streamed a brief summary
-      if (streamSucceeded && !clientDisconnected && effectiveMode === "panditji" && astroIntent.type !== "greeting" && precomputedPanditJiReference) {
+      // Guarantee comprehensive detail in Pandit Ji mode unless user specifically chose Flexible/Balanced conversational mode
+      if (streamSucceeded && !clientDisconnected && effectiveMode === "panditji" && astroIntent.type !== "greeting" && !isBalancedConversationalStyle && precomputedPanditJiReference) {
         const cleanedCurrent = cleanServerAiText(stripInternalJsonFromCustomerText(fullStreamedText));
-        const needsFullKundaliExpansion = calculatedKundaliData && !isTopicOrFollowUpQuery && (
-          cleanedCurrent.length < 2200 ||
-          !(cleanedCurrent.includes("राहु") && cleanedCurrent.includes("केतु") && cleanedCurrent.includes("शनि"))
-        );
-        const needsTopicExpansion = calculatedKundaliData && isTopicOrFollowUpQuery && cleanedCurrent.length < 900;
-        const needsNonKundaliExpansion = !calculatedKundaliData && astroIntent.type !== "authenticity_verification" && cleanedCurrent.length < 700;
+        if (isContinuation) {
+          if (cleanedCurrent.length < 180 && continuationReferenceFallback) {
+            const supplement = `\n\n${continuationReferenceFallback}`;
+            fullStreamedText += supplement;
+            const suppTokens = supplement.split(/(\s+)/);
+            for (let i = 0; i < suppTokens.length; i += 4) {
+              if (clientDisconnected) break;
+              const chunkStr = suppTokens.slice(i, i + 4).join("");
+              if (chunkStr) {
+                res.write(`data: ${JSON.stringify({ type: "chunk", delta: chunkStr })}\n\n`);
+                res.flush?.();
+                await new Promise((r) => setTimeout(r, 10));
+              }
+            }
+          }
+        } else {
+          const needsFullKundaliExpansion = calculatedKundaliData && !isTopicOrFollowUpQuery && (
+            cleanedCurrent.length < 2200 ||
+            !(cleanedCurrent.includes("राहु") && cleanedCurrent.includes("केतु") && cleanedCurrent.includes("शनि"))
+          );
+          const needsTopicExpansion = calculatedKundaliData && isTopicOrFollowUpQuery && cleanedCurrent.length < 900;
+          const needsNonKundaliExpansion = !calculatedKundaliData && astroIntent.type !== "authenticity_verification" && cleanedCurrent.length < 700;
 
-        if (needsFullKundaliExpansion || needsTopicExpansion || needsNonKundaliExpansion) {
-          const supplement = `\n\n---\n\n${precomputedPanditJiReference}`;
-          fullStreamedText += supplement;
-          const suppTokens = supplement.split(/(\s+)/);
-          for (let i = 0; i < suppTokens.length; i += 4) {
-            if (clientDisconnected) break;
-            const chunkStr = suppTokens.slice(i, i + 4).join("");
-            if (chunkStr) {
-              res.write(`data: ${JSON.stringify({ type: "chunk", delta: chunkStr })}\n\n`);
-              res.flush?.();
-              await new Promise((r) => setTimeout(r, 12));
+          if (needsFullKundaliExpansion || needsTopicExpansion || needsNonKundaliExpansion) {
+            const supplement = `\n\n---\n\n${precomputedPanditJiReference}`;
+            fullStreamedText += supplement;
+            const suppTokens = supplement.split(/(\s+)/);
+            for (let i = 0; i < suppTokens.length; i += 4) {
+              if (clientDisconnected) break;
+              const chunkStr = suppTokens.slice(i, i + 4).join("");
+              if (chunkStr) {
+                res.write(`data: ${JSON.stringify({ type: "chunk", delta: chunkStr })}\n\n`);
+                res.flush?.();
+                await new Promise((r) => setTimeout(r, 12));
+              }
             }
           }
         }
@@ -3455,7 +3544,9 @@ ${memoryContextText || "Guest shopper."}`;
       if (!streamSucceeded && !clientDisconnected) {
         let fallbackText = "";
         if (effectiveMode === "panditji") {
-          if (calculatedKundaliData) {
+          if (isContinuation && continuationReferenceFallback) {
+            fallbackText = continuationReferenceFallback;
+          } else if (calculatedKundaliData) {
             fallbackText = precomputedPanditJiReference || calculatedKundaliData.astronomicalKundali?.panditJiDiagnosis?.fullPanditJiReportMarkdown || "";
           } else if (astroIntent.type === "authenticity_verification") {
             fallbackText = `🙏 **प्रणाम भक्त! हर हर महादेव।**\n\nआपकी यह बात शत-प्रतिशत सत्य एवं सराहनीय है — **बिना जन्म कुंडली देखे किसी को भी कोई भी रुद्राक्ष या फलादेश बताना अनुचित और फर्जी (Fake) है।**\n\nऑरा रुद्राक्ष पर हम किसी भी जातक को कोई सामान्य, मनगढ़ंत या फर्जी रुद्राक्ष कभी नहीं थोपते। वैदिक ज्योतिष (महर्षि पाराशर के बृहत्पाराशर होरा शास्त्र एवं शिव पुराण) का सर्वोच्च नियम है कि प्रत्येक व्यक्ति का रुद्राक्ष उसकी **जन्म तिथि (DOB)**, **जन्म समय (Time)** और **जन्म स्थान (Place)** से बनने वाले शुद्ध खगोलीय लग्न, चंद्र राशि और सक्रिय विंशोत्तरी महादशा देखकर ही तय किया जाता है।\n\n👇 **कृपया नीचे दिए गए फॉर्म में अपनी जन्म जानकारी दर्ज करें या चैट में लिखें:**\n• **जन्म तिथि (Date of Birth)** — उदा. 15-08-1995\n• **जन्म समय (Birth Time)** — उदा. 10:30 AM\n• **जन्म स्थान (Birth City)** — उदा. जयपुर, राजस्थान\n\nजैसे ही आप अपना विवरण देंगे, मैं तुरंत आपकी संपूर्ण 11-खंडीय प्रामाणिक वैदिक कुंडली (सभी 9 ग्रह, 12 भाव, पंचांग, अवकहड़ा, विंशोत्तरी दशा, वर्तमान परेशानियों का कारण व समाधान) बनाकर वही सिद्ध नेपाली रुद्राक्ष बताऊँगा जो सीधे आपकी कुंडली से प्रमाणित होगा।`;
@@ -3662,25 +3753,33 @@ ${memoryContextText || "Guest shopper."}`;
       if (!generatedSuccessfully) await tryNonStreamGemini();
     }
 
-    // Guarantee comprehensive detail in Non-Streaming Pandit Ji mode
-    if (generatedSuccessfully && effectiveMode === "panditji" && astroIntent.type !== "greeting" && precomputedPanditJiReference) {
+    // Guarantee comprehensive detail in Non-Streaming Pandit Ji mode (unless balanced/flexible style requested)
+    if (generatedSuccessfully && effectiveMode === "panditji" && astroIntent.type !== "greeting" && !isBalancedConversationalStyle && precomputedPanditJiReference) {
       const cleanedCurrent = cleanServerAiText(stripInternalJsonFromCustomerText(aiResponseText));
-      const needsFullKundaliExpansion = calculatedKundaliData && !isTopicOrFollowUpQuery && (
-        cleanedCurrent.length < 2200 ||
-        !(cleanedCurrent.includes("राहु") && cleanedCurrent.includes("केतु") && cleanedCurrent.includes("शनि"))
-      );
-      const needsTopicExpansion = calculatedKundaliData && isTopicOrFollowUpQuery && cleanedCurrent.length < 900;
-      const needsNonKundaliExpansion = !calculatedKundaliData && astroIntent.type !== "authenticity_verification" && cleanedCurrent.length < 700;
+      if (isContinuation) {
+        if (cleanedCurrent.length < 180 && continuationReferenceFallback) {
+          aiResponseText = `${aiResponseText}\n\n${continuationReferenceFallback}`;
+        }
+      } else {
+        const needsFullKundaliExpansion = calculatedKundaliData && !isTopicOrFollowUpQuery && (
+          cleanedCurrent.length < 2200 ||
+          !(cleanedCurrent.includes("राहु") && cleanedCurrent.includes("केतु") && cleanedCurrent.includes("शनि"))
+        );
+        const needsTopicExpansion = calculatedKundaliData && isTopicOrFollowUpQuery && cleanedCurrent.length < 900;
+        const needsNonKundaliExpansion = !calculatedKundaliData && astroIntent.type !== "authenticity_verification" && cleanedCurrent.length < 700;
 
-      if (needsFullKundaliExpansion || needsTopicExpansion || needsNonKundaliExpansion) {
-        aiResponseText = `${aiResponseText}\n\n---\n\n${precomputedPanditJiReference}`;
+        if (needsFullKundaliExpansion || needsTopicExpansion || needsNonKundaliExpansion) {
+          aiResponseText = `${aiResponseText}\n\n---\n\n${precomputedPanditJiReference}`;
+        }
       }
     }
 
     // Deterministic Vedic / Store Fallback if AI models are momentarily disconnected
     if (!generatedSuccessfully || !aiResponseText.trim()) {
       if (effectiveMode === "panditji") {
-        if (calculatedKundaliData) {
+        if (isContinuation && continuationReferenceFallback) {
+          aiResponseText = continuationReferenceFallback;
+        } else if (calculatedKundaliData) {
           aiResponseText = precomputedPanditJiReference || calculatedKundaliData.astronomicalKundali?.panditJiDiagnosis?.fullPanditJiReportMarkdown || "";
         } else if (astroIntent.type === "authenticity_verification") {
           aiResponseText = `🙏 **प्रणाम भक्त! हर हर महादेव।**\n\nआपकी यह बात शत-प्रतिशत सत्य एवं सराहनीय है — **बिना जन्म कुंडली देखे किसी को भी कोई भी रुद्राक्ष या फलादेश बताना अनुचित और फर्जी (Fake) है।**\n\nऑरा रुद्राक्ष पर हम किसी भी जातक को कोई सामान्य, मनगढ़ंत या फर्जी रुद्राक्ष कभी नहीं थोपते। वैदिक ज्योतिष (महर्षि पाराशर के बृहत्पाराशर होरा शास्त्र एवं शिव पुराण) का सर्वोच्च नियम है कि प्रत्येक व्यक्ति का रुद्राक्ष उसकी **जन्म तिथि (DOB)**, **जन्म समय (Time)** और **जन्म स्थान (Place)** से बनने वाले शुद्ध खगोलीय लग्न, चंद्र राशि और सक्रिय विंशोत्तरी महादशा देखकर ही तय किया जाता है।\n\n👇 **कृपया नीचे दिए गए फॉर्म में अपनी जन्म जानकारी दर्ज करें या चैट में लिखें:**\n• **जन्म तिथि (Date of Birth)** — उदा. 15-08-1995\n• **जन्म समय (Birth Time)** — उदा. 10:30 AM\n• **जन्म स्थान (Birth City)** — उदा. जयपुर, राजस्थान\n\nजैसे ही आप अपना विवरण देंगे, मैं तुरंत आपकी संपूर्ण 11-खंडीय प्रामाणिक वैदिक कुंडली (सभी 9 ग्रह, 12 भाव, पंचांग, अवकहड़ा, विंशोत्तरी दशा, वर्तमान परेशानियों का कारण व समाधान) बनाकर वही सिद्ध नेपाली रुद्राक्ष बताऊँगा जो सीधे आपकी कुंडली से प्रमाणित होगा।`;
@@ -3771,25 +3870,43 @@ ${memoryContextText || "Guest shopper."}`;
     });
 
   } catch (err) {
-    console.error("[chatAuraAI uncaught error]:", err?.message || err);
+    console.error("[chatAuraAI recovered notice]:", err?.message || err);
+    const reqMsg = String(req.body?.message || "").trim();
+    const reqMode = String(req.body?.mode || "standard");
+    const emergencyText = generateSmartCustomerFallbackResponse(
+      reqMsg || "Namaste",
+      [],
+      [],
+      reqMode === "panditji" ? "panditji" : "standard",
+      null,
+      [],
+      null,
+      null
+    );
+    const emergencyPayload = {
+      text: emergencyText || "🙏 **हर हर महादेव!** मैं आपकी सहायता के लिए तैयार हूँ। कृपया अपना प्रश्न या जन्म विवरण साझा करें।",
+      products: [],
+      coupons: [],
+      quickReplies: reqMode === "panditji"
+        ? ["मेरी जन्म कुंडली देखें", "1 से 14 मुखी रुद्राक्ष", "विवाह व करियर उपाय"]
+        : ["1 से 14 मुखी कीमत", "आज के एक्टिव कूपन", "ऑर्डर ट्रैक करें"],
+      conversationId: String(req.body?.conversationId || `conv_${Date.now()}`),
+      isRecoveredFallback: true
+    };
     if (res.headersSent) {
       if (!res.writableEnded) {
         try {
-          res.write(`data: ${JSON.stringify({
-            type: "final",
-            data: {
-              text: "Namaste 🙏 Aapka sawaal samajh gaya. Ek moment dijiye, main aapki help karta hoon.",
-              products: [],
-              coupons: []
-            }
-          })}\n\n`);
+          res.write(`data: ${JSON.stringify({ type: "final", data: emergencyPayload })}\n\n`);
           res.write("data: [DONE]\n\n");
           res.end();
         } catch (_) {}
       }
       return;
     }
-    next(err);
+    return res.status(200).json({
+      success: true,
+      data: emergencyPayload
+    });
   }
 }
 

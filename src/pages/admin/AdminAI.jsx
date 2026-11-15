@@ -2,19 +2,11 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
-  Bot,
   Cpu,
-  History,
-  Clock,
   Wrench,
   BarChart3,
   Settings as SettingsIcon,
   RefreshCw,
-  RotateCcw,
-  Trash2,
-  Play,
-  Pause,
-  Square,
   Loader2,
   Check,
   CheckCircle2,
@@ -23,23 +15,18 @@ import {
   Search,
   MessageSquare,
   ExternalLink,
-  AlertTriangle,
   ShieldCheck,
   Database,
-  Send,
   Sparkles
 } from "lucide-react";
 import { AdminLayout } from "../../components/AdminLayout";
-import { AdminAIAgentChat, WEBSITE_AI_MODEL_OPTIONS } from "../../components/admin/AdminAIAgentChat";
+import { WEBSITE_AI_MODEL_OPTIONS } from "../../lib/websiteAiModels";
 import { auraAiClient } from "../../lib/auraAiClient";
 import { emitToast } from "../../context/ToastContext";
 import { db, isPublicProduct, emitStoreUpdate, onStoreUpdate } from "../../lib/db";
 
 const TOP_TABS = [
-  { id: "agent", label: "Agent Studio", icon: Bot },
   { id: "models", label: "Website AI Models", icon: Cpu },
-  { id: "actions", label: "Action Ledger", icon: History },
-  { id: "tasks", label: "Background Tasks", icon: Clock },
   { id: "diagnostics", label: "Diagnostics & Trends", icon: Wrench },
   { id: "customer", label: "Customer Bot", icon: BarChart3 },
   { id: "config", label: "Configuration", icon: SettingsIcon }
@@ -65,44 +52,23 @@ export function AdminAI() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTab = searchParams.get("tab");
-  const initialTab = VALID_TAB_IDS.has(urlTab) ? urlTab : "agent";
+  const initialTab = VALID_TAB_IDS.has(urlTab) ? urlTab : "models";
   const [activeTab, setActiveTab] = useState(initialTab);
 
   useEffect(() => {
     const paramTab = searchParams.get("tab");
-    const nextTab = VALID_TAB_IDS.has(paramTab) ? paramTab : "agent";
+    const nextTab = VALID_TAB_IDS.has(paramTab) ? paramTab : "models";
     setActiveTab(nextTab);
   }, [searchParams]);
 
   const handleSelectTab = (tabId) => {
     setActiveTab(tabId);
-    if (tabId === "agent") {
-      setSearchParams({}, { replace: true });
+    if (tabId === "models") {
+      setSearchParams({ tab: "models" }, { replace: true });
     } else {
       setSearchParams({ tab: tabId }, { replace: true });
     }
   };
-
-  // Action Ledger state
-  const [actions, setActions] = useState([]);
-  const [loadingActions, setLoadingActions] = useState(false);
-  const [undoingId, setUndoingId] = useState("");
-  const [expandedActionId, setExpandedActionId] = useState("");
-  const actionsLoadedRef = useRef(false);
-
-  // Background Tasks state
-  const [tasks, setTasks] = useState([]);
-  const [loadingTasks, setLoadingTasks] = useState(false);
-  const [creatingTask, setCreatingTask] = useState(false);
-  const [taskCmdInputs, setTaskCmdInputs] = useState({});
-  const [newTask, setNewTask] = useState({
-    title: "",
-    prompt: "",
-    taskType: "growth_audit",
-    durationMinutes: 60,
-    intervalMinutes: 15
-  });
-  const tasksLoadedRef = useRef(false);
 
   // Diagnostics & Public Trends state
   const [diagnostics, setDiagnostics] = useState(null);
@@ -180,28 +146,6 @@ export function AdminAI() {
     });
   }, [syncSettingsFromServer]);
 
-  const loadActions = useCallback(async () => {
-    setLoadingActions(true);
-    try {
-      const res = await auraAiClient.getAdminActionLogs();
-      if (res?.success) setActions(Array.isArray(res.actions) ? res.actions : []);
-    } finally {
-      setLoadingActions(false);
-      actionsLoadedRef.current = true;
-    }
-  }, []);
-
-  const loadTasks = useCallback(async (silent = false) => {
-    if (!silent) setLoadingTasks(true);
-    try {
-      const res = await auraAiClient.getAdminTasks();
-      if (res?.success) setTasks(Array.isArray(res.tasks) ? res.tasks : []);
-    } finally {
-      if (!silent) setLoadingTasks(false);
-      tasksLoadedRef.current = true;
-    }
-  }, []);
-
   const loadDiagnostics = useCallback(async (refreshTrends = false) => {
     setLoadingDiagnostics(true);
     try {
@@ -243,26 +187,12 @@ export function AdminAI() {
 
   // Lazy load per top-level view
   useEffect(() => {
-    if (activeTab === "actions" && !actionsLoadedRef.current) loadActions();
-    if (activeTab === "tasks" && !tasksLoadedRef.current) loadTasks();
     if (activeTab === "diagnostics" && !diagnosticsLoadedRef.current) loadDiagnostics(false);
     if (activeTab === "customer" && !customerLoadedRef.current) loadCustomerBotData();
-  }, [activeTab, loadActions, loadTasks, loadDiagnostics, loadCustomerBotData]);
-
-  // Conditional 15s polling when viewing Background Tasks and at least one task is running
-  const hasRunningTask = tasks.some((t) => t.status === "running");
-  useEffect(() => {
-    if (activeTab !== "tasks" || !hasRunningTask) return undefined;
-    const timer = setInterval(() => {
-      loadTasks(true);
-    }, 15000);
-    return () => clearInterval(timer);
-  }, [activeTab, hasRunningTask, loadTasks]);
+  }, [activeTab, loadDiagnostics, loadCustomerBotData]);
 
   const handleGlobalRefresh = () => {
-    if (activeTab === "actions") loadActions();
-    else if (activeTab === "tasks") loadTasks();
-    else if (activeTab === "diagnostics") loadDiagnostics(true);
+    if (activeTab === "diagnostics") loadDiagnostics(true);
     else if (activeTab === "customer") loadCustomerBotData();
     else {
       auraAiClient.getSettings().then((s) => {
@@ -272,82 +202,12 @@ export function AdminAI() {
     }
   };
 
-  const handleUndo = async (actionId) => {
-    if (!actionId || undoingId) return;
-    setUndoingId(actionId);
-    try {
-      const res = await auraAiClient.undoAdminAction(actionId);
-      if (res?.success) {
-        emitToast(res.message || "Reverted store change.", "success");
-        setActions((prev) =>
-          prev.map((a) =>
-            a.actionId === actionId ? { ...a, reverted: true, revertedAt: new Date().toISOString() } : a
-          )
-        );
-      } else {
-        emitToast(res?.message || "Undo failed.", "error");
-      }
-    } finally {
-      setUndoingId("");
-    }
-  };
-
-  const handleDeleteAction = async (actionId) => {
-    setActions((prev) => prev.filter((a) => a.actionId !== actionId));
-    await auraAiClient.deleteAdminActionLog(actionId).catch(() => {});
-  };
-
-  const handleCreateTask = async (e) => {
-    e.preventDefault();
-    if (!newTask.title.trim() || !newTask.prompt.trim() || creatingTask) return;
-    setCreatingTask(true);
-    try {
-      const res = await auraAiClient.createAdminTask(newTask);
-      if (res?.success && res.task) {
-        setTasks((prev) => [res.task, ...prev]);
-        setNewTask({
-          title: "",
-          prompt: "",
-          taskType: "growth_audit",
-          durationMinutes: 60,
-          intervalMinutes: 15
-        });
-        emitToast("Autonomous background task started.", "success");
-      } else {
-        emitToast(res?.message || "Failed to create task.", "error");
-      }
-    } finally {
-      setCreatingTask(false);
-    }
-  };
-
-  const handleTaskControl = async (taskId, command, extra = {}) => {
-    const res = await auraAiClient.controlAdminTask(taskId, command, extra);
-    if (res?.success) {
-      if (res.task) {
-        setTasks((prev) => prev.map((t) => (t.taskId === taskId ? res.task : t)));
-      } else {
-        loadTasks(true);
-      }
-      emitToast(res.message || `Task ${command} completed.`, "success");
-    } else {
-      emitToast(res?.message || "Task command failed.", "error");
-    }
-  };
-
-  const handleDeleteTask = async (taskId) => {
-    setTasks((prev) => prev.filter((t) => t.taskId !== taskId));
-    await auraAiClient.deleteAdminTask(taskId).catch(() => {});
-    emitToast("Task removed.", "success");
-  };
-
   const handleAutoFix = async () => {
     setAutoFixing(true);
     try {
       const res = await auraAiClient.executeAdminAgentAction("AUTO_FIX_BUGS", {});
       if (res?.success) {
         emitToast(res.result?.title || "Detected issues auto-repaired.", "success");
-        actionsLoadedRef.current = false;
         await loadDiagnostics(false);
       } else {
         emitToast(res?.message || "Auto-fix failed.", "error");
@@ -360,18 +220,15 @@ export function AdminAI() {
   const handleRetrainPublicTrends = async () => {
     setRetraining(true);
     try {
-      const res = await auraAiClient.executeAdminAgentAction("RETRAIN_AI_KNOWLEDGE", { forceRefresh: true });
-      if (res?.success) {
-        emitToast("RAG knowledge & public trends retrained.", "success");
-        if (res.result?.trends) setPublicTrends(res.result.trends);
-        else {
-          const fresh = await auraAiClient.getPublicTrends(true);
-          if (fresh) setPublicTrends(fresh);
-        }
-        actionsLoadedRef.current = false;
+      const fresh = await auraAiClient.getPublicTrends(true);
+      if (fresh) {
+        setPublicTrends(fresh);
+        emitToast("Website AI knowledge & public trends retrained.", "success");
       } else {
-        emitToast(res?.message || "Retrain failed.", "error");
+        emitToast("Retrain request completed.", "success");
       }
+    } catch (_) {
+      emitToast("Retrain failed. Please try again.", "error");
     } finally {
       setRetraining(false);
     }
@@ -453,10 +310,10 @@ export function AdminAI() {
             </button>
             <div className="min-w-0">
               <h1 className="truncate text-lg font-semibold tracking-tight text-slate-900">
-                Aura AI Command Center
+                Website AI Models & Customer Bot
               </h1>
               <p className="truncate text-xs text-slate-500">
-                Autonomous Store Agent · Live Diagnostics · Customer Bot Telemetry
+                Website-Wide AI Model Switcher · Live Knowledge & Trends · Customer Bot Telemetry
               </p>
             </div>
           </div>
@@ -507,19 +364,7 @@ export function AdminAI() {
           })}
         </nav>
 
-        {/* VIEW 1: AGENT STUDIO (No nested tabs) */}
-        {activeTab === "agent" && (
-          <AdminAIAgentChat
-            embedStudio
-            pageContext="/admin/ai"
-            onActionExecuted={() => {
-              actionsLoadedRef.current = false;
-              diagnosticsLoadedRef.current = false;
-            }}
-          />
-        )}
-
-        {/* VIEW 1B: WEBSITE AI MODELS (Global Model Switcher across Customer & Admin Surfaces) */}
+        {/* VIEW 1: WEBSITE AI MODELS (Global Model Switcher across Storefront & AI Pandit Ji) */}
         {activeTab === "models" && (
           <section className="space-y-5">
             {/* Current Active Model Banner */}
@@ -548,7 +393,7 @@ export function AdminAI() {
                     </h2>
                     <p className="font-mono text-xs text-slate-500">{currentModelId}</p>
                     <p className="text-xs text-slate-600">
-                      Jo model yahan save kiya jayega wahi poori website par (Customer Aura AI Floating Window, AI Pandit Ji, Admin Copilot aur Background Tasks) sabse pehle use hoga.
+                      Jo model yahan save kiya jayega wahi poori website par (Customer Aura AI Floating Window, Full Page Chat aur AI Pandit Ji) sabse pehle use hoga.
                     </p>
                   </div>
 
@@ -746,369 +591,7 @@ export function AdminAI() {
           </section>
         )}
 
-        {/* VIEW 2: ACTION LEDGER */}
-        {activeTab === "actions" && (
-          <section className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-5 py-4">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900">Action Ledger & 1-Click Rollback</h2>
-                <p className="text-xs text-slate-500">
-                  Audit log of all database writes executed by the Admin AI Agent with restore snapshots.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={loadActions}
-                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-[#F8FAFC] px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
-              >
-                <RefreshCw size={12} className={loadingActions ? "animate-spin" : ""} />
-                <span>Reload Ledger</span>
-              </button>
-            </div>
-
-            {loadingActions ? (
-              <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-xs text-slate-500">
-                Loading action history...
-              </div>
-            ) : actions.length === 0 ? (
-              <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-xs text-slate-500">
-                No agent actions recorded yet.
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
-                {actions.map((act) => {
-                  const expanded = expandedActionId === act.actionId;
-                  return (
-                    <div key={act.actionId} className="p-4 transition hover:bg-slate-50/70">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2.5">
-                            <span
-                              className={`rounded px-2 py-0.5 text-[10.5px] font-semibold uppercase ${
-                                act.reverted
-                                  ? "border border-amber-200 bg-amber-50 text-amber-800"
-                                  : "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                              }`}
-                            >
-                              {act.reverted ? "Reverted" : "Applied"}
-                            </span>
-                            <h3 className="truncate text-sm font-semibold text-slate-900">{act.title}</h3>
-                          </div>
-                          {act.description && (
-                            <p className="mt-1 text-xs text-slate-600">{act.description}</p>
-                          )}
-                          <div className="mt-1.5 flex flex-wrap items-center gap-2 font-mono text-[11px] text-slate-500">
-                            <span>{act.actionType}</span>
-                            <span>·</span>
-                            <span>{act.targetCollection}</span>
-                            {act.previewRoute && (
-                              <>
-                                <span>·</span>
-                                <span>{act.previewRoute}</span>
-                              </>
-                            )}
-                            <span>·</span>
-                            <span className="tabular-nums">{formatDateTime(act.timestamp)}</span>
-                          </div>
-                        </div>
-
-                        <div className="flex shrink-0 items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setExpandedActionId(expanded ? "" : act.actionId)}
-                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                          >
-                            {expanded ? "Hide Diff" : "Snapshot"}
-                          </button>
-                          {!act.reverted && (
-                            <button
-                              type="button"
-                              disabled={undoingId === act.actionId}
-                              onClick={() => handleUndo(act.actionId)}
-                              className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
-                            >
-                              {undoingId === act.actionId ? (
-                                <Loader2 size={12} className="animate-spin" />
-                              ) : (
-                                <RotateCcw size={12} />
-                              )}
-                              <span>Undo</span>
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteAction(act.actionId)}
-                            title="Delete action log"
-                            className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-400 hover:text-red-600"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {expanded && (
-                        <div className="mt-3 grid grid-cols-1 gap-3 border-t border-slate-200 pt-3 md:grid-cols-2">
-                          <div>
-                            <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">
-                              Previous Snapshot
-                            </div>
-                            <pre className="max-h-48 overflow-auto rounded-lg border border-slate-200 bg-[#F8FAFC] p-2.5 font-mono text-[11px] text-slate-700">
-                              {JSON.stringify(act.previousData ?? null, null, 2)}
-                            </pre>
-                          </div>
-                          <div>
-                            <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">
-                              New State
-                            </div>
-                            <pre className="max-h-48 overflow-auto rounded-lg border border-slate-200 bg-[#F8FAFC] p-2.5 font-mono text-[11px] text-slate-700">
-                              {JSON.stringify(act.newData ?? null, null, 2)}
-                            </pre>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* VIEW 3: BACKGROUND TASKS */}
-        {activeTab === "tasks" && (
-          <section className="grid grid-cols-1 gap-5 lg:grid-cols-12">
-            {/* Create Task Form */}
-            <form
-              onSubmit={handleCreateTask}
-              className="space-y-3.5 rounded-xl border border-slate-200 bg-white p-5 lg:col-span-4 lg:self-start"
-            >
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900">Schedule Autonomous Task</h2>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  Runs periodically on the server to monitor bugs, SEO, or growth.
-                </p>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-700">Task Title</label>
-                <input
-                  type="text"
-                  required
-                  value={newTask.title}
-                  onChange={(e) => setNewTask((p) => ({ ...p, title: e.target.value }))}
-                  placeholder="e.g., Catalog SEO & Stock Watch"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-[#8C2B10] focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-700">Task Type</label>
-                <select
-                  value={newTask.taskType}
-                  onChange={(e) => setNewTask((p) => ({ ...p, taskType: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs focus:border-[#8C2B10] focus:outline-none"
-                >
-                  <option value="growth_audit">Growth & Orders Audit</option>
-                  <option value="bug_scanner">Bug & Health Scanner</option>
-                  <option value="inventory_guardian">Inventory Guardian</option>
-                  <option value="seo_optimizer">SEO Optimizer</option>
-                  <option value="product_generator">Product Generator</option>
-                  <option value="custom">Custom Instruction</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-700">Execution Prompt</label>
-                <textarea
-                  rows={3}
-                  required
-                  value={newTask.prompt}
-                  onChange={(e) => setNewTask((p) => ({ ...p, prompt: e.target.value }))}
-                  placeholder="Describe what the AI agent should inspect or fix on every interval..."
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-[#8C2B10] focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-700">Duration (min)</label>
-                  <input
-                    type="number"
-                    min={5}
-                    max={1440}
-                    value={newTask.durationMinutes}
-                    onChange={(e) => setNewTask((p) => ({ ...p, durationMinutes: Number(e.target.value) || 60 }))}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-1.5 font-mono text-xs tabular-nums focus:border-[#8C2B10] focus:outline-none"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-700">Interval (min)</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={180}
-                    value={newTask.intervalMinutes}
-                    onChange={(e) => setNewTask((p) => ({ ...p, intervalMinutes: Number(e.target.value) || 15 }))}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-1.5 font-mono text-xs tabular-nums focus:border-[#8C2B10] focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={creatingTask}
-                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#8C2B10] px-4 py-2 text-xs font-semibold text-white hover:bg-[#73230c] disabled:opacity-50"
-              >
-                {creatingTask ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
-                <span>Launch Background Task</span>
-              </button>
-            </form>
-
-            {/* Task Queue */}
-            <div className="space-y-3 lg:col-span-8">
-              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
-                <span className="text-xs font-semibold text-slate-900">
-                  Scheduled Tasks ({tasks.length})
-                  {hasRunningTask ? " · Auto-refresh 15s" : ""}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => loadTasks(false)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-[#F8FAFC] px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                >
-                  <RefreshCw size={12} className={loadingTasks ? "animate-spin" : ""} />
-                  <span>Sync</span>
-                </button>
-              </div>
-
-              {loadingTasks ? (
-                <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-xs text-slate-500">
-                  Loading tasks...
-                </div>
-              ) : tasks.length === 0 ? (
-                <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-xs text-slate-500">
-                  No background tasks created yet.
-                </div>
-              ) : (
-                tasks.map((t) => (
-                  <div key={t.taskId} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`rounded px-2 py-0.5 text-[10.5px] font-semibold uppercase ${
-                              t.status === "running"
-                                ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                                : t.status === "paused"
-                                ? "border border-amber-200 bg-amber-50 text-amber-800"
-                                : "border border-slate-200 bg-slate-100 text-slate-600"
-                            }`}
-                          >
-                            {t.status}
-                          </span>
-                          <h3 className="truncate text-sm font-semibold text-slate-900">{t.title}</h3>
-                        </div>
-                        <p className="mt-1 text-xs text-slate-600">{t.prompt}</p>
-                        <div className="mt-1.5 font-mono text-[11px] tabular-nums text-slate-500">
-                          {t.taskType} · Runs: {t.runsCount || 0} · Every {t.intervalMinutes}m · Updated{" "}
-                          {formatDateTime(t.lastRunAt || t.startedAt)}
-                        </div>
-                      </div>
-
-                      <div className="flex shrink-0 items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => handleTaskControl(t.taskId, "run_now")}
-                          className="rounded-lg border border-slate-200 bg-[#F8FAFC] px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                        >
-                          Run Now
-                        </button>
-                        {t.status === "running" ? (
-                          <button
-                            type="button"
-                            onClick={() => handleTaskControl(t.taskId, "pause")}
-                            className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50"
-                            title="Pause task"
-                          >
-                            <Pause size={13} />
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleTaskControl(t.taskId, "resume")}
-                            className="rounded-lg border border-slate-200 bg-white p-1.5 text-emerald-700 hover:bg-emerald-50"
-                            title="Resume task"
-                          >
-                            <Play size={13} />
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => handleTaskControl(t.taskId, "stop")}
-                          className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50"
-                          title="Stop task"
-                        >
-                          <Square size={13} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteTask(t.taskId)}
-                          className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-400 hover:text-red-600"
-                          title="Delete task"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Dispatch Live Instruction */}
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={taskCmdInputs[t.taskId] || ""}
-                        onChange={(e) => setTaskCmdInputs((p) => ({ ...p, [t.taskId]: e.target.value }))}
-                        placeholder="Dispatch new instruction to this background worker..."
-                        className="flex-1 rounded-lg border border-slate-200 bg-[#F8FAFC] px-3 py-1.5 text-xs focus:border-[#8C2B10] focus:outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const instruction = (taskCmdInputs[t.taskId] || "").trim();
-                          if (!instruction) return;
-                          handleTaskControl(t.taskId, "send_command", { instruction });
-                          setTaskCmdInputs((p) => ({ ...p, [t.taskId]: "" }));
-                        }}
-                        className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#8C2B10] hover:bg-[#8C2B10]/5"
-                      >
-                        <Send size={11} />
-                        <span>Dispatch</span>
-                      </button>
-                    </div>
-
-                    {/* Latest Logs */}
-                    {Array.isArray(t.logs) && t.logs.length > 0 && (
-                      <div className="space-y-1.5 border-t border-slate-200 pt-2.5">
-                        {t.logs.slice(0, 3).map((lg, idx) => (
-                          <div
-                            key={lg.runId || idx}
-                            className="flex items-start justify-between gap-3 rounded-lg bg-[#F8FAFC] px-3 py-2 text-[11.5px]"
-                          >
-                            <span className="text-slate-700">{lg.summary || lg.aiOutput}</span>
-                            <span className="shrink-0 font-mono text-[10.5px] tabular-nums text-slate-400">
-                              {formatDateTime(lg.timestamp)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* VIEW 4: DIAGNOSTICS & TRENDS */}
+        {/* VIEW 2: DIAGNOSTICS & TRENDS */}
         {activeTab === "diagnostics" && (
           <section className="space-y-5">
             {/* Control Strip */}

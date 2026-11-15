@@ -108,15 +108,21 @@ function OrderParamRedirect() {
   return <Navigate to={id ? `/account/orders/${id}${location.search}` : `/account/orders${location.search}`} replace />;
 }
 
+import { auraChatStore } from "./lib/auraChatStore";
+
 export function App() {
   const location = useLocation();
-  const [mountAIWidget, setMountAIWidget] = useState(false);
+  const [mountAIWidget, setMountAIWidget] = useState(() => Boolean(auraChatStore.hasPendingTrigger?.()));
 
   useEffect(() => {
     let timerId;
     let idleId;
     const enableWidget = () => setMountAIWidget(true);
     window.addEventListener("aura:open-ai", enableWidget, { once: true });
+
+    if (auraChatStore.hasPendingTrigger?.()) {
+      setMountAIWidget(true);
+    }
 
     if (typeof window.requestIdleCallback === "function") {
       idleId = window.requestIdleCallback(enableWidget, { timeout: 1200 });
