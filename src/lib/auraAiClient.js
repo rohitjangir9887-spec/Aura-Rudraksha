@@ -674,7 +674,11 @@ export const auraAiClient = {
       recommendOffers: true,
       cartActions: true,
       orderSupport: true,
-      humanSupport: true
+      humanSupport: true,
+      activeAiModel: "nvidia/llama-3.1-nemotron-70b-instruct",
+      nemotronModel: "nvidia/llama-3.1-nemotron-70b-instruct",
+      selectedNimModel: "nvidia/llama-3.1-nemotron-70b-instruct",
+      nvidiaModel: "nvidia/llama-3.1-nemotron-70b-instruct"
     };
   },
 

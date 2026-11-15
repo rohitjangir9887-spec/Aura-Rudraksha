@@ -36,7 +36,11 @@ class InMemoryStore {
       cartActions: true,
       orderSupport: true,
       humanSupport: true,
-      personalization: true
+      personalization: true,
+      activeAiModel: "nvidia/llama-3.1-nemotron-70b-instruct",
+      nemotronModel: "nvidia/llama-3.1-nemotron-70b-instruct",
+      selectedNimModel: "nvidia/llama-3.1-nemotron-70b-instruct",
+      nvidiaModel: "nvidia/llama-3.1-nemotron-70b-instruct"
     };
     this.aiConversations = [];
   }

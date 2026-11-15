@@ -29,17 +29,84 @@ import {
   PanelRightClose
 } from "lucide-react";
 import { auraAiClient } from "../../lib/auraAiClient";
-import { db, emitStoreUpdate } from "../../lib/db";
+import { db, emitStoreUpdate, onStoreUpdate } from "../../lib/db";
 import { AuraAIMessageContent } from "../AuraAIMessageContent";
 import { emitToast } from "../../context/ToastContext";
 
-export const NIM_MODEL_OPTIONS = [
-  { id: "nvidia/llama-3.1-nemotron-70b-instruct", label: "NVIDIA Llama-3.1-Nemotron-70B-Instruct (Primary)" },
-  { id: "nvidia/nemotron-3-super-120b-a12b", label: "NVIDIA Nemotron-3 Super 120B" },
-  { id: "meta/llama-3.3-70b-instruct", label: "Meta Llama-3.3-70B-Instruct (NIM)" },
-  { id: "mistralai/mixtral-8x22b-instruct-v0.1", label: "Mixtral 8x22B Instruct (NIM)" },
-  { id: "deepseek-ai/deepseek-r1", label: "DeepSeek-R1 Reasoning (NIM)" }
+export const WEBSITE_AI_MODEL_OPTIONS = [
+  {
+    id: "nvidia/nemotron-3-ultra-550b-a55b",
+    label: "NVIDIA Nemotron-3 Ultra 550B (New Flagship)",
+    provider: "nvidia",
+    badge: "New · 550B Ultra",
+    description: "Flagship 550B reasoning & conversation model from NVIDIA NIM (build.nvidia.com/nvidia/nemotron-3-ultra-550b-a55b)."
+  },
+  {
+    id: "nvidia/nemotron-3-super-120b-a12b",
+    label: "NVIDIA Nemotron-3 Super 120B",
+    provider: "nvidia",
+    badge: "120B Super",
+    description: "High-precision 120B NVIDIA model for Vedic astrology, catalog analysis & Hindi/English."
+  },
+  {
+    id: "nvidia/llama-3.1-nemotron-70b-instruct",
+    label: "NVIDIA Llama-3.1-Nemotron-70B-Instruct",
+    provider: "nvidia",
+    badge: "Default Primary",
+    description: "Fast, instruction-tuned NVIDIA model for shopping assistance & customer support."
+  },
+  {
+    id: "meta/llama-3.3-70b-instruct",
+    label: "Meta Llama-3.3-70B-Instruct (NIM)",
+    provider: "nvidia",
+    badge: "Multilingual",
+    description: "Balanced 70B general assistant hosted on NVIDIA NIM."
+  },
+  {
+    id: "mistralai/mixtral-8x22b-instruct-v0.1",
+    label: "Mixtral 8x22B Instruct (NIM)",
+    provider: "nvidia",
+    badge: "Fast MoE",
+    description: "Mixture-of-Experts model for fast storefront responses."
+  },
+  {
+    id: "deepseek-ai/deepseek-r1",
+    label: "DeepSeek-R1 Reasoning (NIM)",
+    provider: "nvidia",
+    badge: "Deep Reasoning",
+    description: "Step-by-step analytical reasoning model via NVIDIA NIM."
+  },
+  {
+    id: "gemini-4-hydrogen",
+    label: "Google Gemini 4 Hydrogen",
+    provider: "gemini",
+    badge: "Google Tool + Search",
+    description: "Latest Gemini model with native store tool execution, Google Search grounding & Hinglish support."
+  },
+  {
+    id: "gemini-3.8-flash",
+    label: "Google Gemini 3.8 Flash",
+    provider: "gemini",
+    badge: "Fast Multimodal",
+    description: "High-speed Gemini Flash model for storefront & admin tasks."
+  },
+  {
+    id: "gemini-3.1-flash-lite",
+    label: "Google Gemini 3.1 Flash Lite",
+    provider: "gemini",
+    badge: "Ultra Low Latency",
+    description: "Lightweight Gemini Flash variant for instant replies."
+  },
+  {
+    id: "gemini-2.5-flash",
+    label: "Google Gemini 2.5 Flash",
+    provider: "gemini",
+    badge: "Stable Flash",
+    description: "Proven Gemini 2.5 Flash model for reliable fallback & general Q&A."
+  }
 ];
+
+export const NIM_MODEL_OPTIONS = WEBSITE_AI_MODEL_OPTIONS;
 
 const QUICK_COMMANDS = [
   {
@@ -190,7 +257,7 @@ export function AdminAIAgentChat({
         setSessionError(sessionRes?.message || "Could not load Admin Agent session.");
       }
       if (settingsRes) {
-        const m = settingsRes.selectedNimModel || settingsRes.nemotronModel || settingsRes.nvidiaModel;
+        const m = settingsRes.activeAiModel || settingsRes.selectedNimModel || settingsRes.nemotronModel || settingsRes.nvidiaModel;
         if (m) setSelectedNimModel(m);
       }
     } catch (e) {
@@ -203,6 +270,16 @@ export function AdminAIAgentChat({
   useEffect(() => {
     loadSession();
   }, [loadSession]);
+
+  useEffect(() => {
+    if (typeof onStoreUpdate !== "function") return undefined;
+    return onStoreUpdate((eventName, payload) => {
+      if (eventName === "ai-settings:updated" && payload) {
+        const m = payload.activeAiModel || payload.selectedNimModel || payload.nemotronModel || payload.nvidiaModel;
+        if (m) setSelectedNimModel(m);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     if (subTab === "chat" && chatEndRef.current) {
@@ -533,11 +610,21 @@ export function AdminAIAgentChat({
     setSavingModel(true);
     try {
       const res = await auraAiClient.updateSettings({
+        activeAiModel: selectedNimModel,
         nemotronModel: selectedNimModel,
-        selectedNimModel
+        selectedNimModel,
+        nvidiaModel: selectedNimModel
       });
       if (res?.success !== false) {
-        emitToast(`Active model updated to ${selectedNimModel}`, "success");
+        if (typeof emitStoreUpdate === "function") {
+          emitStoreUpdate("ai-settings:updated", {
+            activeAiModel: selectedNimModel,
+            selectedNimModel,
+            nemotronModel: selectedNimModel,
+            nvidiaModel: selectedNimModel
+          });
+        }
+        emitToast(`Website AI model saved: ${selectedNimModel}`, "success");
         setShowModelModal(false);
       } else {
         emitToast(res?.message || "Could not update model setting.", "error");
@@ -1399,18 +1486,27 @@ export function AdminAIAgentChat({
 
             <div className="space-y-1.5">
               <label className="block text-xs font-medium text-slate-700">
-                NVIDIA NIM Primary Model (Automatic Gemini Fallback Active)
+                Website-Wide AI Model (Aura AI Floating Window, Pandit Ji & Admin Agent)
               </label>
               <select
                 value={selectedNimModel}
                 onChange={(e) => setSelectedNimModel(e.target.value)}
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 focus:border-[#8C2B10] focus:outline-none"
               >
-                {NIM_MODEL_OPTIONS.map(opt => (
-                  <option key={opt.id} value={opt.id}>
-                    {opt.label}
-                  </option>
-                ))}
+                <optgroup label="NVIDIA NIM Models">
+                  {WEBSITE_AI_MODEL_OPTIONS.filter(o => o.provider === "nvidia").map(opt => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Google Gemini Models">
+                  {WEBSITE_AI_MODEL_OPTIONS.filter(o => o.provider === "gemini").map(opt => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </div>
 

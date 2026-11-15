@@ -25,7 +25,9 @@ import {
   getGeminiClient,
   PRIMARY_NIM_MODEL,
   GEMINI_TEXT_MODELS,
-  convertNimMessagesToGemini
+  convertNimMessagesToGemini,
+  isGeminiModelName,
+  resolveActiveWebsiteAiModel
 } from "../controllers/auraAiController.js";
 
 // Resilient in-memory mirrors when DB is warming up
@@ -35,6 +37,8 @@ export const memTasks = new Map();
 export const memWorkLogs = [];
 
 export const NIM_FALLBACK_MODELS = [
+  "nvidia/nemotron-3-ultra-550b-a55b",
+  "nvidia/nemotron-3-super-120b-a12b",
   "nvidia/llama-3.1-nemotron-70b-instruct",
   "meta/llama-3.3-70b-instruct",
   "mistralai/mixtral-8x22b-instruct-v0.1",
@@ -1208,21 +1212,16 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
   const nvidia = getNvidiaClient();
   const nimMessages = sanitizeNimMessages(systemPrompt, rawMessages);
 
-  // 1. Check Admin's preferred engine/model configuration
-  let userSelectedModel = "";
-  if (isDbConnected()) {
-    try {
-      const setting = await AuraAISetting.findOne().select("selectedNimModel nemotronModel nvidiaModel").lean();
-      userSelectedModel = (setting?.selectedNimModel || setting?.nemotronModel || setting?.nvidiaModel || "").trim();
-    } catch (_) {}
-  }
+  // 1. Resolve Admin's website-wide active AI model (DB + inMemory fallback)
+  const userSelectedModel = await resolveActiveWebsiteAiModel();
+  const preferGemini = isGeminiModelName(userSelectedModel);
 
-  // 2. Primary Path when Gemini is available: Native Multi-Tool Function Calling (gemini-4-hydrogen)
   const executedViaTools = [];
   let previewRouteFromTools = "";
   let previewTitleFromTools = "";
 
-  if (gemini) {
+  const tryGeminiToolAgent = async () => {
+    if (!gemini) return null;
     const contents = convertNimMessagesToGemini(nimMessages);
     const hybridTools = [
       { googleSearch: {} },
@@ -1230,7 +1229,11 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
       { functionDeclarations: ADMIN_AGENT_FUNCTION_DECLARATIONS }
     ];
     const functionOnlyTools = [{ functionDeclarations: ADMIN_AGENT_FUNCTION_DECLARATIONS }];
-    const modelsToTry = [...new Set(["gemini-4-hydrogen", ...GEMINI_TEXT_MODELS])].filter(Boolean);
+    const modelsToTry = [...new Set([
+      preferGemini ? userSelectedModel : "",
+      "gemini-4-hydrogen",
+      ...GEMINI_TEXT_MODELS
+    ])].filter(Boolean);
 
     for (const gModel of modelsToTry) {
       let useHybrid = gModel.startsWith("gemini-4") || gModel.startsWith("gemini-3");
@@ -1243,7 +1246,6 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
         for (let round = 0; round < 5; round++) {
           const requestConfig = {
             systemInstruction: systemPrompt + "\n\nIMPORTANT: You have native function calling tools AND live Google Search + URL Context attached! ALWAYS call the appropriate tool(s) to inspect data, research public trends/GitHub tools, or mutate MongoDB instead of guessing. When Admin writes in Hindi/Hinglish or has typos like 'produced' (product), 'htana' (delete), 'ad' (add), understand the true intent and execute immediately. Summarize exact results cleanly.",
-            temperature: 0.4,
             tools: useHybrid ? hybridTools : functionOnlyTools,
             ...(useHybrid ? { toolConfig: { includeServerSideToolInvocations: true } } : {})
           };
@@ -1267,7 +1269,6 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
                   contents: currentContents,
                   config: {
                     systemInstruction: requestConfig.systemInstruction,
-                    temperature: 0.4,
                     tools: functionOnlyTools
                   }
                 }),
@@ -1337,8 +1338,7 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
                 model: gModel,
                 contents: currentContents,
                 config: {
-                  systemInstruction: systemPrompt + "\nSummarize the completed tool results clearly for the Admin in the same language (Hindi/Hinglish/English).",
-                  temperature: 0.35
+                  systemInstruction: systemPrompt + "\nSummarize the completed tool results clearly for the Admin in the same language (Hindi/Hinglish/English)."
                 }
               }),
               10000
@@ -1357,7 +1357,7 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
           }
           return {
             text: finalText,
-            modelUsed: `${gModel} (Google + Store Tool Agent)`,
+            modelUsed: gModel,
             provider: "Gemini Tool Agent",
             executedViaTools,
             previewRoute: previewRouteFromTools,
@@ -1369,13 +1369,16 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
         console.warn(`[AdminAgent] Gemini (${gModel}) notice:`, gErr?.message || gErr);
       }
     }
-  }
+    return null;
+  };
 
-  // 3. NVIDIA NIM Path (Primary when Gemini key isn't set or failed)
-  const candidateModels = [userSelectedModel, ...NIM_FALLBACK_MODELS].filter(Boolean);
-  const uniqueCandidateModels = [...new Set(candidateModels)];
+  const tryNvidiaNimAgent = async () => {
+    if (!nvidia) return null;
+    const uniqueCandidateModels = [...new Set([
+      !preferGemini ? userSelectedModel : "",
+      ...NIM_FALLBACK_MODELS
+    ].filter(m => m && !isGeminiModelName(m)))];
 
-  if (nvidia) {
     for (const modelName of uniqueCandidateModels) {
       try {
         console.log(`[AdminAgent] Attempting NVIDIA NIM model: ${modelName}`);
@@ -1397,6 +1400,20 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
         console.warn(`[AdminAgent] NVIDIA NIM (${modelName}) notice:`, nimErr?.message || nimErr);
       }
     }
+    return null;
+  };
+
+  // 2. Respect website-wide saved model provider first, with cross-provider fallback
+  if (preferGemini) {
+    const gRes = await tryGeminiToolAgent();
+    if (gRes) return gRes;
+    const nimRes = await tryNvidiaNimAgent();
+    if (nimRes) return nimRes;
+  } else {
+    const nimRes = await tryNvidiaNimAgent();
+    if (nimRes) return nimRes;
+    const gRes = await tryGeminiToolAgent();
+    if (gRes) return gRes;
   }
 
   // 4. Fallback Tier: Context-Aware Autonomous Live Store Engine (Answers all queries & commands using live DB data)
@@ -3747,7 +3764,7 @@ Execute this scheduled background task on Live Store Snapshot:
 Provide a clear, concise executive summary of what you analyzed and accomplished in this cycle.`;
 
   let aiText = "";
-  let modelUsed = PRIMARY_NIM_MODEL;
+  let modelUsed = await resolveActiveWebsiteAiModel();
   let actionsTaken = [];
 
   try {

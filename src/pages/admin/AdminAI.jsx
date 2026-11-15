@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   Bot,
+  Cpu,
   History,
   Clock,
   Wrench,
@@ -16,6 +17,7 @@ import {
   Square,
   Loader2,
   Check,
+  CheckCircle2,
   X,
   TrendingUp,
   Search,
@@ -24,22 +26,26 @@ import {
   AlertTriangle,
   ShieldCheck,
   Database,
-  Send
+  Send,
+  Sparkles
 } from "lucide-react";
 import { AdminLayout } from "../../components/AdminLayout";
-import { AdminAIAgentChat, NIM_MODEL_OPTIONS } from "../../components/admin/AdminAIAgentChat";
+import { AdminAIAgentChat, WEBSITE_AI_MODEL_OPTIONS } from "../../components/admin/AdminAIAgentChat";
 import { auraAiClient } from "../../lib/auraAiClient";
 import { emitToast } from "../../context/ToastContext";
-import { db, isPublicProduct } from "../../lib/db";
+import { db, isPublicProduct, emitStoreUpdate, onStoreUpdate } from "../../lib/db";
 
 const TOP_TABS = [
   { id: "agent", label: "Agent Studio", icon: Bot },
+  { id: "models", label: "Website AI Models", icon: Cpu },
   { id: "actions", label: "Action Ledger", icon: History },
   { id: "tasks", label: "Background Tasks", icon: Clock },
   { id: "diagnostics", label: "Diagnostics & Trends", icon: Wrench },
   { id: "customer", label: "Customer Bot", icon: BarChart3 },
   { id: "config", label: "Configuration", icon: SettingsIcon }
 ];
+
+const VALID_TAB_IDS = new Set(TOP_TABS.map((t) => t.id));
 
 function formatDateTime(iso) {
   if (!iso) return "—";
@@ -57,7 +63,25 @@ function formatDateTime(iso) {
 
 export function AdminAI() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("agent");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get("tab");
+  const initialTab = VALID_TAB_IDS.has(urlTab) ? urlTab : "agent";
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    const paramTab = searchParams.get("tab");
+    const nextTab = VALID_TAB_IDS.has(paramTab) ? paramTab : "agent";
+    setActiveTab(nextTab);
+  }, [searchParams]);
+
+  const handleSelectTab = (tabId) => {
+    setActiveTab(tabId);
+    if (tabId === "agent") {
+      setSearchParams({}, { replace: true });
+    } else {
+      setSearchParams({ tab: tabId }, { replace: true });
+    }
+  };
 
   // Action Ledger state
   const [actions, setActions] = useState([]);
@@ -99,7 +123,7 @@ export function AdminAI() {
   const [loadingCustomer, setLoadingCustomer] = useState(false);
   const customerLoadedRef = useRef(false);
 
-  // Customer Bot Settings state
+  // Customer Bot & Website AI Model Settings state
   const [settings, setSettings] = useState({
     enabled: true,
     showFloatingButton: true,
@@ -113,19 +137,48 @@ export function AdminAI() {
     cartActions: true,
     orderSupport: true,
     humanSupport: true,
-    nemotronModel: "nvidia/llama-3.1-nemotron-70b-instruct"
+    activeAiModel: "nvidia/llama-3.1-nemotron-70b-instruct",
+    nemotronModel: "nvidia/llama-3.1-nemotron-70b-instruct",
+    selectedNimModel: "nvidia/llama-3.1-nemotron-70b-instruct",
+    nvidiaModel: "nvidia/llama-3.1-nemotron-70b-instruct"
   });
+  const [availableModels, setAvailableModels] = useState(WEBSITE_AI_MODEL_OPTIONS);
+  const [customModelId, setCustomModelId] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  const syncSettingsFromServer = useCallback((s) => {
+    if (!s) return;
+    const resolved =
+      s.activeAiModel || s.selectedNimModel || s.nemotronModel || s.nvidiaModel || "nvidia/llama-3.1-nemotron-70b-instruct";
+    setSettings((prev) => ({
+      ...prev,
+      ...s,
+      activeAiModel: resolved,
+      selectedNimModel: resolved,
+      nemotronModel: resolved,
+      nvidiaModel: resolved
+    }));
+    if (Array.isArray(s.availableModels) && s.availableModels.length > 0) {
+      setAvailableModels(s.availableModels);
+    }
+  }, []);
 
   useEffect(() => {
     auraAiClient
       .getSettings()
-      .then((s) => {
-        if (s) setSettings((prev) => ({ ...prev, ...s }));
-      })
+      .then((s) => syncSettingsFromServer(s))
       .catch(() => {});
-  }, []);
+  }, [syncSettingsFromServer]);
+
+  useEffect(() => {
+    if (typeof onStoreUpdate !== "function") return undefined;
+    return onStoreUpdate((eventName, payload) => {
+      if (eventName === "ai-settings:updated" && payload) {
+        syncSettingsFromServer(payload);
+      }
+    });
+  }, [syncSettingsFromServer]);
 
   const loadActions = useCallback(async () => {
     setLoadingActions(true);
@@ -213,7 +266,7 @@ export function AdminAI() {
     else if (activeTab === "customer") loadCustomerBotData();
     else {
       auraAiClient.getSettings().then((s) => {
-        if (s) setSettings((prev) => ({ ...prev, ...s }));
+        syncSettingsFromServer(s);
       });
       emitToast("Live configuration synced.", "success");
     }
@@ -324,26 +377,48 @@ export function AdminAI() {
     }
   };
 
-  const handleSaveSettings = async (e) => {
-    e.preventDefault();
+  const saveWebsiteAiModel = async (chosenModelId) => {
+    const cleanModel = String(chosenModelId || "").trim();
+    if (!cleanModel) {
+      emitToast("Please select or enter a valid AI model ID.", "error");
+      return;
+    }
     setSavingSettings(true);
     try {
-      const res = await auraAiClient.updateSettings({
+      const payload = {
         ...settings,
-        selectedNimModel: settings.nemotronModel
-      });
+        activeAiModel: cleanModel,
+        selectedNimModel: cleanModel,
+        nemotronModel: cleanModel,
+        nvidiaModel: cleanModel
+      };
+      const res = await auraAiClient.updateSettings(payload);
       if (res?.success) {
+        syncSettingsFromServer(res.data || payload);
+        if (typeof emitStoreUpdate === "function") {
+          emitStoreUpdate("ai-settings:updated", payload);
+        }
         setSavedSuccess(true);
-        emitToast("Aura AI settings updated.", "success");
+        emitToast(`Website-wide AI model saved: ${cleanModel}`, "success");
         setTimeout(() => setSavedSuccess(false), 3000);
       } else {
-        emitToast(res?.message || "Failed to save settings.", "error");
+        emitToast(res?.message || "Failed to save AI model.", "error");
       }
     } catch (err) {
-      emitToast(`Failed to save settings: ${err?.message || "Unknown error"}`, "error");
+      emitToast(`Failed to save AI model: ${err?.message || "Unknown error"}`, "error");
     } finally {
       setSavingSettings(false);
     }
+  };
+
+  const handleSaveSettings = async (e) => {
+    e.preventDefault();
+    const chosen =
+      settings.activeAiModel ||
+      settings.nemotronModel ||
+      settings.selectedNimModel ||
+      "nvidia/llama-3.1-nemotron-70b-instruct";
+    await saveWebsiteAiModel(chosen);
   };
 
   const filteredConvos = conversations.filter((c) => {
@@ -418,7 +493,7 @@ export function AdminAI() {
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleSelectTab(tab.id)}
                 className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-2 text-xs font-medium transition ${
                   active
                     ? "bg-[#8C2B10] font-semibold text-white"
@@ -442,6 +517,233 @@ export function AdminAI() {
               diagnosticsLoadedRef.current = false;
             }}
           />
+        )}
+
+        {/* VIEW 1B: WEBSITE AI MODELS (Global Model Switcher across Customer & Admin Surfaces) */}
+        {activeTab === "models" && (
+          <section className="space-y-5">
+            {/* Current Active Model Banner */}
+            {(() => {
+              const currentModelId =
+                settings.activeAiModel ||
+                settings.selectedNimModel ||
+                settings.nemotronModel ||
+                "nvidia/llama-3.1-nemotron-70b-instruct";
+              const currentMeta = availableModels.find((m) => m.id === currentModelId);
+              const isGemini = /^gemini-/i.test(currentModelId);
+              return (
+                <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                        <CheckCircle2 size={12} />
+                        <span>Active Website-Wide Model</span>
+                      </span>
+                      <span className="rounded border border-slate-200 bg-[#F8FAFC] px-2 py-0.5 font-mono text-[11px] text-slate-700">
+                        {isGemini ? "Google Gemini" : "NVIDIA NIM"}
+                      </span>
+                    </div>
+                    <h2 className="text-base font-semibold text-slate-900">
+                      {currentMeta?.label || currentModelId}
+                    </h2>
+                    <p className="font-mono text-xs text-slate-500">{currentModelId}</p>
+                    <p className="text-xs text-slate-600">
+                      Jo model yahan save kiya jayega wahi poori website par (Customer Aura AI Floating Window, AI Pandit Ji, Admin Copilot aur Background Tasks) sabse pehle use hoga.
+                    </p>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-3">
+                    {savedSuccess && (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+                        <Check size={14} />
+                        <span>Saved & Active Website-Wide</span>
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      disabled={savingSettings}
+                      onClick={() => saveWebsiteAiModel(currentModelId)}
+                      className="inline-flex items-center gap-2 whitespace-nowrap rounded-lg bg-[#8C2B10] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#73230c] disabled:opacity-50"
+                    >
+                      {savingSettings ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                      <span>Save Model Website-Wide</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* NVIDIA NIM Models Group */}
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">NVIDIA NIM Models</h3>
+                  <p className="text-xs text-slate-500">
+                    High-capacity Nemotron, Llama, Mixtral & DeepSeek models (including NVIDIA Nemotron-3 Ultra 550B).
+                  </p>
+                </div>
+                <span className="font-mono text-[11px] text-slate-500">
+                  {availableModels.filter((m) => m.provider === "nvidia").length} models
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+                {availableModels
+                  .filter((m) => m.provider === "nvidia")
+                  .map((model) => {
+                    const selected =
+                      (settings.activeAiModel || settings.selectedNimModel || settings.nemotronModel) === model.id;
+                    const isNewUltra = model.id === "nvidia/nemotron-3-ultra-550b-a55b";
+                    return (
+                      <button
+                        key={model.id}
+                        type="button"
+                        onClick={() =>
+                          setSettings((s) => ({
+                            ...s,
+                            activeAiModel: model.id,
+                            selectedNimModel: model.id,
+                            nemotronModel: model.id,
+                            nvidiaModel: model.id
+                          }))
+                        }
+                        className={`flex flex-col justify-between rounded-xl border p-4 text-left transition ${
+                          selected
+                            ? "border-[#8C2B10] bg-[#8C2B10]/[0.04] ring-1 ring-[#8C2B10]"
+                            : "border-slate-200 bg-[#F8FAFC] hover:border-slate-300 hover:bg-white"
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-xs font-semibold text-slate-900">{model.label}</span>
+                            {selected ? (
+                              <span className="inline-flex shrink-0 items-center gap-1 rounded bg-[#8C2B10] px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                                <Check size={10} />
+                                <span>Selected</span>
+                              </span>
+                            ) : model.badge ? (
+                              <span
+                                className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                  isNewUltra
+                                    ? "border border-amber-300 bg-amber-50 text-amber-800"
+                                    : "border border-slate-200 bg-white text-slate-600"
+                                }`}
+                              >
+                                {model.badge}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="mt-1 truncate font-mono text-[11px] text-slate-500">{model.id}</div>
+                          {model.description && (
+                            <p className="mt-2 text-[11.5px] leading-relaxed text-slate-600">{model.description}</p>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+
+            {/* Google Gemini Models Group */}
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Google Gemini Models</h3>
+                  <p className="text-xs text-slate-500">
+                    Fast Gemini Flash & Tool-Calling models with Google Search grounding support.
+                  </p>
+                </div>
+                <span className="font-mono text-[11px] text-slate-500">
+                  {availableModels.filter((m) => m.provider === "gemini").length} models
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+                {availableModels
+                  .filter((m) => m.provider === "gemini")
+                  .map((model) => {
+                    const selected =
+                      (settings.activeAiModel || settings.selectedNimModel || settings.nemotronModel) === model.id;
+                    return (
+                      <button
+                        key={model.id}
+                        type="button"
+                        onClick={() =>
+                          setSettings((s) => ({
+                            ...s,
+                            activeAiModel: model.id,
+                            selectedNimModel: model.id,
+                            nemotronModel: model.id,
+                            nvidiaModel: model.id
+                          }))
+                        }
+                        className={`flex flex-col justify-between rounded-xl border p-4 text-left transition ${
+                          selected
+                            ? "border-[#8C2B10] bg-[#8C2B10]/[0.04] ring-1 ring-[#8C2B10]"
+                            : "border-slate-200 bg-[#F8FAFC] hover:border-slate-300 hover:bg-white"
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-xs font-semibold text-slate-900">{model.label}</span>
+                            {selected ? (
+                              <span className="inline-flex shrink-0 items-center gap-1 rounded bg-[#8C2B10] px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                                <Check size={10} />
+                                <span>Selected</span>
+                              </span>
+                            ) : model.badge ? (
+                              <span className="shrink-0 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                                {model.badge}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="mt-1 truncate font-mono text-[11px] text-slate-500">{model.id}</div>
+                          {model.description && (
+                            <p className="mt-2 text-[11.5px] leading-relaxed text-slate-600">{model.description}</p>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+
+            {/* Custom Model Slug + Save Action */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const target =
+                  customModelId.trim() ||
+                  settings.activeAiModel ||
+                  settings.selectedNimModel ||
+                  settings.nemotronModel;
+                saveWebsiteAiModel(target);
+              }}
+              className="flex flex-wrap items-end justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5"
+            >
+              <div className="min-w-[240px] flex-1 space-y-1">
+                <label className="flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                  <Sparkles size={13} className="text-[#8C2B10]" />
+                  <span>Custom Model ID (Optional — e.g. nvidia/nemotron-3-ultra-550b-a55b)</span>
+                </label>
+                <input
+                  type="text"
+                  value={customModelId}
+                  onChange={(e) => setCustomModelId(e.target.value)}
+                  placeholder="Leave blank to save the selected card above, or enter any NIM/Gemini model ID"
+                  className="w-full rounded-lg border border-slate-300 bg-[#F8FAFC] px-3 py-2 font-mono text-xs text-slate-900 focus:border-[#8C2B10] focus:bg-white focus:outline-none"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={savingSettings}
+                className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-[#8C2B10] px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-[#73230c] disabled:opacity-50"
+              >
+                {savingSettings ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                <span>Save Model Website-Wide</span>
+              </button>
+            </form>
+          </section>
         )}
 
         {/* VIEW 2: ACTION LEDGER */}
@@ -1351,17 +1653,38 @@ export function AdminAI() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-700">Primary NVIDIA NIM Model</label>
+                  <label className="text-xs font-medium text-slate-700">Active Website-Wide AI Model</label>
                   <select
-                    value={settings.nemotronModel || "nvidia/llama-3.1-nemotron-70b-instruct"}
-                    onChange={(e) => setSettings((s) => ({ ...s, nemotronModel: e.target.value }))}
+                    value={settings.activeAiModel || settings.nemotronModel || "nvidia/llama-3.1-nemotron-70b-instruct"}
+                    onChange={(e) =>
+                      setSettings((s) => ({
+                        ...s,
+                        activeAiModel: e.target.value,
+                        selectedNimModel: e.target.value,
+                        nemotronModel: e.target.value,
+                        nvidiaModel: e.target.value
+                      }))
+                    }
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs focus:border-[#8C2B10] focus:outline-none"
                   >
-                    {NIM_MODEL_OPTIONS.map((opt) => (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.label}
-                      </option>
-                    ))}
+                    <optgroup label="NVIDIA NIM Models">
+                      {availableModels
+                        .filter((opt) => opt.provider === "nvidia")
+                        .map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
+                          </option>
+                        ))}
+                    </optgroup>
+                    <optgroup label="Google Gemini Models">
+                      {availableModels
+                        .filter((opt) => opt.provider === "gemini")
+                        .map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
+                          </option>
+                        ))}
+                    </optgroup>
                   </select>
                 </div>
               </div>

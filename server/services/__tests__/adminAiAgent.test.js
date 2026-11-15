@@ -13,6 +13,12 @@ import {
   normalizeAdminPrompt
 } from "../adminAiAgentService.js";
 import { handleAdminAgentChat } from "../../controllers/adminAiAgentController.js";
+import {
+  resolveActiveWebsiteAiModel,
+  isGeminiModelName,
+  WEBSITE_AI_MODELS,
+  PRIMARY_NIM_MODEL
+} from "../../controllers/auraAiController.js";
 
 function makeFakeJwt(payload) {
   const h = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64");
@@ -653,6 +659,92 @@ describe("Admin AI Agent: Hinglish/Typo Product CRUD, Auto SEO & Public Google/G
     } finally {
       globalThis.fetch = origFetch;
     }
+  });
+});
+
+describe("Website-Wide AI Models Selector & nvidia/nemotron-3-ultra-550b-a55b Persistence", () => {
+  const app = express();
+  app.use(express.json());
+  app.use("/api/aura-ai", auraAiRouter);
+
+  let server;
+  let baseUrl = "";
+  let prevAiSettings;
+
+  beforeAll(async () => {
+    server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const addr = server.address();
+    baseUrl = `http://127.0.0.1:${addr.port}`;
+  });
+
+  afterAll(async () => {
+    if (server) await new Promise((resolve) => server.close(resolve));
+  });
+
+  beforeEach(() => {
+    prevAiSettings = { ...(inMemoryStore.aiSettings || {}) };
+  });
+
+  afterEach(() => {
+    inMemoryStore.aiSettings = prevAiSettings;
+  });
+
+  test("GET /api/aura-ai/settings exposes all website models including nvidia/nemotron-3-ultra-550b-a55b and Gemini models", async () => {
+    expect(WEBSITE_AI_MODELS.some(m => m.id === "nvidia/nemotron-3-ultra-550b-a55b")).toBe(true);
+
+    const res = await fetch(`${baseUrl}/api/aura-ai/settings`);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(Array.isArray(json.data.availableModels)).toBe(true);
+    expect(json.data.availableModels.some(m => m.id === "nvidia/nemotron-3-ultra-550b-a55b")).toBe(true);
+    expect(json.data.availableModels.some(m => m.id === "gemini-4-hydrogen")).toBe(true);
+  });
+
+  test("PUT /api/aura-ai/settings saves selected NIM or Gemini model and enforces it website-wide", async () => {
+    // 1. Save new NVIDIA Nemotron-3 Ultra 550B model
+    const putUltra = await fetch(`${baseUrl}/api/aura-ai/settings`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer admin_test_session"
+      },
+      body: JSON.stringify({ activeAiModel: "nvidia/nemotron-3-ultra-550b-a55b" })
+    });
+    expect(putUltra.status).toBe(200);
+    const ultraJson = await putUltra.json();
+    expect(ultraJson.success).toBe(true);
+    expect(ultraJson.data.activeAiModel).toBe("nvidia/nemotron-3-ultra-550b-a55b");
+    expect(ultraJson.data.selectedNimModel).toBe("nvidia/nemotron-3-ultra-550b-a55b");
+    expect(ultraJson.data.nemotronModel).toBe("nvidia/nemotron-3-ultra-550b-a55b");
+
+    expect(await resolveActiveWebsiteAiModel()).toBe("nvidia/nemotron-3-ultra-550b-a55b");
+    expect(isGeminiModelName(await resolveActiveWebsiteAiModel())).toBe(false);
+
+    // 2. Switch to Google Gemini 4 Hydrogen and verify GET + resolver reflect it immediately
+    const putGemini = await fetch(`${baseUrl}/api/aura-ai/settings`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer admin_test_session"
+      },
+      body: JSON.stringify({
+        activeAiModel: "gemini-4-hydrogen",
+        selectedNimModel: "gemini-4-hydrogen",
+        nemotronModel: "gemini-4-hydrogen"
+      })
+    });
+    expect(putGemini.status).toBe(200);
+
+    const getRes = await fetch(`${baseUrl}/api/aura-ai/settings`);
+    const getJson = await getRes.json();
+    expect(getJson.data.activeAiModel).toBe("gemini-4-hydrogen");
+    expect(await resolveActiveWebsiteAiModel()).toBe("gemini-4-hydrogen");
+    expect(isGeminiModelName(await resolveActiveWebsiteAiModel())).toBe(true);
+
+    // Restore primary default
+    inMemoryStore.aiSettings.activeAiModel = PRIMARY_NIM_MODEL;
   });
 });
 

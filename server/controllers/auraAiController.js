@@ -34,7 +34,7 @@ const AI_SETTING_FIELDS = {
   recommendProducts: "bool", recommendOffers: "bool", cartActions: "bool",
   orderSupport: "bool", humanSupport: "bool", personalization: "bool",
   nvidiaApiKey: "string", nemotronApiKey: "string", nemotronModel: "string",
-  selectedNimModel: "string", nvidiaModel: "string"
+  selectedNimModel: "string", nvidiaModel: "string", activeAiModel: "string"
 };
 
 // Rate limiting in-memory map
@@ -74,15 +74,119 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
-// Strict NVIDIA NIM Model Configuration
+// Website-wide AI Models Catalog (NVIDIA NIM & Google Gemini)
 export const PRIMARY_NIM_MODEL = "nvidia/llama-3.1-nemotron-70b-instruct";
 export const BACKUP_NIM_MODELS = [
+  "nvidia/nemotron-3-ultra-550b-a55b",
+  "nvidia/nemotron-3-super-120b-a12b",
   "nvidia/llama-3.1-nemotron-70b-instruct",
   "meta/llama-3.3-70b-instruct",
   "mistralai/mixtral-8x22b-instruct-v0.1",
   "deepseek-ai/deepseek-r1"
 ];
+export const WEBSITE_AI_MODELS = [
+  {
+    id: "nvidia/nemotron-3-ultra-550b-a55b",
+    label: "NVIDIA Nemotron-3 Ultra 550B (New Flagship)",
+    provider: "nvidia",
+    badge: "New · 550B Ultra",
+    description: "Flagship 550B-parameter NVIDIA reasoning & chat model (build.nvidia.com/nvidia/nemotron-3-ultra-550b-a55b)."
+  },
+  {
+    id: "nvidia/nemotron-3-super-120b-a12b",
+    label: "NVIDIA Nemotron-3 Super 120B",
+    provider: "nvidia",
+    badge: "120B Super",
+    description: "High-precision 120B NVIDIA model for Vedic astrology, catalog analysis & structured Hindi/English."
+  },
+  {
+    id: "nvidia/llama-3.1-nemotron-70b-instruct",
+    label: "NVIDIA Llama-3.1-Nemotron-70B-Instruct",
+    provider: "nvidia",
+    badge: "Balanced Primary",
+    description: "Fast instruction-following model tuned by NVIDIA for helpful shopping & customer support."
+  },
+  {
+    id: "meta/llama-3.3-70b-instruct",
+    label: "Meta Llama-3.3-70B-Instruct (NIM)",
+    provider: "nvidia",
+    badge: "Multilingual",
+    description: "Reliable 70B general assistant hosted on NVIDIA NIM."
+  },
+  {
+    id: "mistralai/mixtral-8x22b-instruct-v0.1",
+    label: "Mixtral 8x22B Instruct (NIM)",
+    provider: "nvidia",
+    badge: "Fast MoE",
+    description: "Mixture-of-Experts model for low-latency store chat."
+  },
+  {
+    id: "deepseek-ai/deepseek-r1",
+    label: "DeepSeek-R1 Reasoning (NIM)",
+    provider: "nvidia",
+    badge: "Deep Reasoning",
+    description: "Step-by-step reasoning model via NVIDIA NIM."
+  },
+  {
+    id: "gemini-4-hydrogen",
+    label: "Google Gemini 4 Hydrogen",
+    provider: "gemini",
+    badge: "Google Tool + Search",
+    description: "Latest Gemini model with native function calling, Google Search grounding & Hinglish support."
+  },
+  {
+    id: "gemini-3.8-flash",
+    label: "Google Gemini 3.8 Flash",
+    provider: "gemini",
+    badge: "Fast Multimodal",
+    description: "High-speed Gemini Flash model for conversational storefront & admin tasks."
+  },
+  {
+    id: "gemini-3.1-flash-lite",
+    label: "Google Gemini 3.1 Flash Lite",
+    provider: "gemini",
+    badge: "Ultra Low Latency",
+    description: "Lightweight Gemini Flash variant optimized for quick responses."
+  },
+  {
+    id: "gemini-2.5-flash",
+    label: "Google Gemini 2.5 Flash",
+    provider: "gemini",
+    badge: "Stable Flash",
+    description: "Proven Gemini 2.5 Flash model for reliable fallback & general Q&A."
+  }
+];
 export const NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1";
+
+export function isGeminiModelName(modelName = "") {
+  return /^gemini-/i.test(String(modelName || "").trim());
+}
+
+export async function resolveActiveWebsiteAiModel() {
+  if (isDbConnected()) {
+    try {
+      const setting = await AuraAISetting.findOne()
+        .select("activeAiModel selectedNimModel nemotronModel nvidiaModel")
+        .lean();
+      const dbChosen = (
+        setting?.activeAiModel ||
+        setting?.selectedNimModel ||
+        setting?.nemotronModel ||
+        setting?.nvidiaModel ||
+        ""
+      ).trim();
+      if (dbChosen) return dbChosen;
+    } catch (_) {}
+  }
+  const memChosen = (
+    inMemoryStore.aiSettings?.activeAiModel ||
+    inMemoryStore.aiSettings?.selectedNimModel ||
+    inMemoryStore.aiSettings?.nemotronModel ||
+    inMemoryStore.aiSettings?.nvidiaModel ||
+    ""
+  ).trim();
+  return memChosen || PRIMARY_NIM_MODEL;
+}
 
 let cachedNvidiaKey = "";
 let cachedGeminiKey = "";
@@ -1334,10 +1438,19 @@ MANDATORY PANDIT JI RESPONSE FORMAT (संपूर्ण विस्तृत
 SAFETY:
 मृत्यु की तारीख, गंभीर बीमारी का diagnosis, दुर्घटना की निश्चित भविष्यवाणी या डराकर उपाय बेचने का कार्य कदापि न करें।`;
 
-    // 1. Try NVIDIA NIM (nemotron-3-super-120b-a12b) first
-    if (nvidiaClient && !aiInterpretation) {
+    const savedModel = await resolveActiveWebsiteAiModel();
+    const preferGeminiKundali = isGeminiModelName(savedModel);
+
+    const runKundaliNim = async () => {
+      if (!nvidiaClient || aiInterpretation) return;
       const isNvidia = (nvidiaClient.baseURL || "").includes("nvidia") || (nvidiaClient.baseURL || "").includes("integrate.api");
-      for (const modelCandidate of [PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS]) {
+      const kundaliNimCandidates = [...new Set([
+        !preferGeminiKundali ? savedModel : "",
+        PRIMARY_NIM_MODEL,
+        ...BACKUP_NIM_MODELS
+      ].filter(m => m && !isGeminiModelName(m)))];
+
+      for (const modelCandidate of kundaliNimCandidates) {
         if (aiInterpretation) break;
         try {
           const completion = await nvidiaClient.chat.completions.create({
@@ -1356,6 +1469,37 @@ SAFETY:
           console.warn(`[Kundali Endpoint] NVIDIA NIM notice (${modelCandidate}):`, nimErr?.message || nimErr);
         }
       }
+    };
+
+    const runKundaliGemini = async () => {
+      if (aiInterpretation) return;
+      await resolveGeminiKey();
+      const gClient = getGeminiClient();
+      if (!gClient) return;
+      const gModels = [...new Set([preferGeminiKundali ? savedModel : "", ...GEMINI_TEXT_MODELS].filter(Boolean))];
+      for (const gModel of gModels) {
+        if (aiInterpretation) break;
+        try {
+          const gResp = await gClient.models.generateContent({
+            model: gModel,
+            contents: astroPrompt,
+            config: {
+              systemInstruction: "You are AI Pandit Ji (Vedic Astrology Acharya) for Aura Rudraksha. Always provide an exhaustive, deeply detailed, complete 11-section Vedic Kundali reading in warm Hindi explaining all 9 planets, all 12 houses, what problems are happening, why, since when, how, and when they will resolve."
+            }
+          });
+          aiInterpretation = gResp?.text || "";
+        } catch (gErr) {
+          console.warn(`[Kundali Endpoint] Gemini notice (${gModel}):`, gErr?.message || gErr);
+        }
+      }
+    };
+
+    if (preferGeminiKundali) {
+      await runKundaliGemini();
+      if (!aiInterpretation) await runKundaliNim();
+    } else {
+      await runKundaliNim();
+      if (!aiInterpretation) await runKundaliGemini();
     }
 
     const fullPrecomputedReport = kundaliData.astronomicalKundali.panditJiDiagnosis?.fullPanditJiReportMarkdown || "";
@@ -2994,6 +3138,7 @@ ${memoryContextText || "Guest shopper."}`;
 
       let fullStreamedText = "";
       let streamSucceeded = false;
+      let streamedModelUsed = "";
       await resolveNvidiaKey();
       const nvidiaClient = getNvidiaClient();
 
@@ -3003,22 +3148,27 @@ ${memoryContextText || "Guest shopper."}`;
       // Reliable streaming timeout (12 seconds wait for first token from NVIDIA NIM)
       const STREAM_INIT_TIMEOUT_MS = 12000;
 
-      // Build deduplicated NIM candidate list honoring admin's configured model first
-      let adminConfiguredNimModel = "";
-      if (isDbConnected()) {
-        try {
-          const nimSetting = await AuraAISetting.findOne().select("selectedNimModel nemotronModel nvidiaModel").lean();
-          adminConfiguredNimModel = (nimSetting?.selectedNimModel || nimSetting?.nemotronModel || nimSetting?.nvidiaModel || "").trim();
-        } catch (_) {}
-      }
-      const nimCandidates = [...new Set([adminConfiguredNimModel, PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS].filter(Boolean))];
+      // Resolve website-wide active model (honors Admin's saved choice across both NVIDIA NIM & Gemini)
+      const activeWebsiteModel = await resolveActiveWebsiteAiModel();
+      const preferGeminiStream = isGeminiModelName(activeWebsiteModel);
 
-      // 1. Primary Streaming Execution: NVIDIA NIM with multi-model failover
+      const nimCandidates = [...new Set([
+        !preferGeminiStream ? activeWebsiteModel : "",
+        PRIMARY_NIM_MODEL,
+        ...BACKUP_NIM_MODELS
+      ].filter(m => m && !isGeminiModelName(m)))];
+
+      const geminiCandidates = [...new Set([
+        preferGeminiStream ? activeWebsiteModel : "",
+        ...GEMINI_TEXT_MODELS
+      ].filter(Boolean))];
+
       const shouldUseDeterministicStandard = effectiveMode !== "panditji" && (Boolean(precomputedCalc?.handled) || Boolean(mukhiRange));
-      if (nvidiaClient && !clientDisconnected && !shouldUseDeterministicStandard) {
+
+      const tryNvidiaStream = async () => {
+        if (!nvidiaClient || streamSucceeded || clientDisconnected || shouldUseDeterministicStandard) return;
         for (const modelCandidate of nimCandidates) {
           if (streamSucceeded || clientDisconnected) break;
-          
           try {
             const streamPromise = nvidiaClient.chat.completions.create(
               {
@@ -3031,20 +3181,16 @@ ${memoryContextText || "Guest shopper."}`;
               { signal: abortController.signal }
             );
 
-            // Timeout race for first response connection
             const streamCompletion = await Promise.race([
               streamPromise,
               new Promise((_, reject) => setTimeout(() => reject(new Error("NIM_STREAM_TIMEOUT")), STREAM_INIT_TIMEOUT_MS))
             ]);
 
-            let lastFinishReason = "";
             let receivedAnyChunk = false;
 
             for await (const chunk of streamCompletion) {
               if (clientDisconnected) break;
               const deltaContent = chunk.choices?.[0]?.delta?.content || "";
-              const fReason = chunk.choices?.[0]?.finish_reason;
-              if (fReason) lastFinishReason = fReason;
               if (deltaContent) {
                 receivedAnyChunk = true;
                 fullStreamedText += deltaContent;
@@ -3055,6 +3201,7 @@ ${memoryContextText || "Guest shopper."}`;
 
             if (receivedAnyChunk && fullStreamedText.trim()) {
               streamSucceeded = true;
+              streamedModelUsed = modelCandidate;
               break;
             }
           } catch (streamErr) {
@@ -3066,45 +3213,57 @@ ${memoryContextText || "Guest shopper."}`;
             continue;
           }
         }
-      }
+      };
 
-      // 1.5 Gemini Streaming Fallback if NIM failed or had no key
-      if (!streamSucceeded && !clientDisconnected && !shouldUseDeterministicStandard) {
+      const tryGeminiStream = async () => {
+        if (streamSucceeded || clientDisconnected || shouldUseDeterministicStandard) return;
         await resolveGeminiKey();
         const geminiClient = getGeminiClient();
-        if (geminiClient) {
-          const gContents = convertNimMessagesToGemini(prunedNimMessages);
-          for (const gModel of GEMINI_TEXT_MODELS) {
-            if (streamSucceeded || clientDisconnected) break;
-            try {
-              const gResp = await Promise.race([
-                geminiClient.models.generateContent({
-                  model: gModel,
-                  contents: gContents,
-                  config: { systemInstruction: effectiveSystemPrompt, temperature: 0.35 }
-                }),
-                new Promise((_, reject) => setTimeout(() => reject(new Error("GEMINI_STREAM_TIMEOUT")), 12000))
-              ]);
-              const gText = gResp?.text || gResp?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
-              if (gText.trim()) {
-                fullStreamedText = gText.trim();
-                const gTokens = fullStreamedText.split(/(\s+)/);
-                for (let i = 0; i < gTokens.length; i += 4) {
-                  if (clientDisconnected) break;
-                  const chunkStr = gTokens.slice(i, i + 4).join("");
-                  if (chunkStr) {
-                    res.write(`data: ${JSON.stringify({ type: "chunk", delta: chunkStr })}\n\n`);
-                    res.flush?.();
-                  }
+        if (!geminiClient) return;
+        const gContents = convertNimMessagesToGemini(prunedNimMessages);
+        for (const gModel of geminiCandidates) {
+          if (streamSucceeded || clientDisconnected) break;
+          try {
+            const gResp = await Promise.race([
+              geminiClient.models.generateContent({
+                model: gModel,
+                contents: gContents,
+                config: { systemInstruction: effectiveSystemPrompt }
+              }),
+              new Promise((_, reject) => setTimeout(() => reject(new Error("GEMINI_STREAM_TIMEOUT")), 12000))
+            ]);
+            const gText = gResp?.text || gResp?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+            if (gText.trim()) {
+              fullStreamedText = gText.trim();
+              const gTokens = fullStreamedText.split(/(\s+)/);
+              for (let i = 0; i < gTokens.length; i += 4) {
+                if (clientDisconnected) break;
+                const chunkStr = gTokens.slice(i, i + 4).join("");
+                if (chunkStr) {
+                  res.write(`data: ${JSON.stringify({ type: "chunk", delta: chunkStr })}\n\n`);
+                  res.flush?.();
                 }
-                streamSucceeded = true;
-                break;
               }
-            } catch (gErr) {
-              console.warn(`[Aura AI Streaming] Gemini fallback notice (${gModel}):`, gErr?.message || gErr);
-              continue;
+              streamSucceeded = true;
+              streamedModelUsed = gModel;
+              break;
             }
+          } catch (gErr) {
+            console.warn(`[Aura AI Streaming] Gemini notice (${gModel}):`, gErr?.message || gErr);
+            continue;
           }
+        }
+      };
+
+      if (preferGeminiStream) {
+        await tryGeminiStream();
+        if (!streamSucceeded && !clientDisconnected) {
+          await tryNvidiaStream();
+        }
+      } else {
+        await tryNvidiaStream();
+        if (!streamSucceeded && !clientDisconnected) {
+          await tryGeminiStream();
         }
       }
 
@@ -3235,7 +3394,8 @@ ${memoryContextText || "Guest shopper."}`;
             showBirthForm: shouldPromptBirthForm,
             quickReplies: dynamicQuickReplies,
             conversationId: targetConversationId,
-            guestSessionId: effectiveGuestSessionId
+            guestSessionId: effectiveGuestSessionId,
+            modelUsed: streamedModelUsed || activeWebsiteModel
           }
         })}\n\n`);
         res.write("data: [DONE]\n\n");
@@ -3247,26 +3407,32 @@ ${memoryContextText || "Guest shopper."}`;
     // 8. Non-Streaming Execution
     let aiResponseText = "";
     let generatedSuccessfully = false;
+    let nonStreamModelUsed = "";
     await resolveNvidiaKey();
 
     // Prune initial messages if near token budget limit (~8000 words)
     const nonStreamPrunedMsgs = pruneMessagesForTokenLimit(nimMessages, 8000);
 
-    // 1. Prioritize configured/primary NVIDIA NIM models with true multi-model failover
     const nonStreamNvidiaClient = getNvidiaClient();
     const NON_STREAM_TIMEOUT_MS = 6000;
     const shouldUseDeterministicNonStream = effectiveMode !== "panditji" && (Boolean(precomputedCalc?.handled) || Boolean(mukhiRange));
 
-    let nonStreamConfiguredModel = "";
-    if (isDbConnected()) {
-      try {
-        const nsSetting = await AuraAISetting.findOne().select("selectedNimModel nemotronModel nvidiaModel").lean();
-        nonStreamConfiguredModel = (nsSetting?.selectedNimModel || nsSetting?.nemotronModel || nsSetting?.nvidiaModel || "").trim();
-      } catch (_) {}
-    }
-    const nonStreamNimCandidates = [...new Set([nonStreamConfiguredModel, PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS].filter(Boolean))];
+    const nonStreamActiveModel = await resolveActiveWebsiteAiModel();
+    const preferGeminiNonStream = isGeminiModelName(nonStreamActiveModel);
 
-    if (nonStreamNvidiaClient && !shouldUseDeterministicNonStream) {
+    const nonStreamNimCandidates = [...new Set([
+      !preferGeminiNonStream ? nonStreamActiveModel : "",
+      PRIMARY_NIM_MODEL,
+      ...BACKUP_NIM_MODELS
+    ].filter(m => m && !isGeminiModelName(m)))];
+
+    const nonStreamGeminiCandidates = [...new Set([
+      preferGeminiNonStream ? nonStreamActiveModel : "",
+      ...GEMINI_TEXT_MODELS
+    ].filter(Boolean))];
+
+    const tryNonStreamNim = async () => {
+      if (!nonStreamNvidiaClient || generatedSuccessfully || shouldUseDeterministicNonStream) return;
       for (const modelCandidate of nonStreamNimCandidates) {
         if (generatedSuccessfully) break;
         try {
@@ -3282,10 +3448,11 @@ ${memoryContextText || "Guest shopper."}`;
             new Promise((_, reject) => setTimeout(() => reject(new Error("NIM_NONSTREAM_TIMEOUT")), NON_STREAM_TIMEOUT_MS))
           ]);
 
-          let outContent = completion.choices?.[0]?.message?.content || "";
+          const outContent = completion.choices?.[0]?.message?.content || "";
           if (outContent.trim()) {
             aiResponseText = outContent;
             generatedSuccessfully = true;
+            nonStreamModelUsed = modelCandidate;
             break;
           }
         } catch (nimErr) {
@@ -3293,37 +3460,45 @@ ${memoryContextText || "Guest shopper."}`;
           continue;
         }
       }
-    }
+    };
 
-    // 1.5 Gemini Non-Stream Fallback if NIM failed or is unconfigured
-    if (!generatedSuccessfully && !shouldUseDeterministicNonStream) {
+    const tryNonStreamGemini = async () => {
+      if (generatedSuccessfully || shouldUseDeterministicNonStream) return;
       await resolveGeminiKey();
       const nonStreamGemini = getGeminiClient();
-      if (nonStreamGemini) {
-        const gContents = convertNimMessagesToGemini(nonStreamPrunedMsgs);
-        for (const gModel of GEMINI_TEXT_MODELS) {
-          if (generatedSuccessfully) break;
-          try {
-            const gResp = await Promise.race([
-              nonStreamGemini.models.generateContent({
-                model: gModel,
-                contents: gContents,
-                config: { systemInstruction: effectiveSystemPrompt, temperature: 0.35 }
-              }),
-              new Promise((_, reject) => setTimeout(() => reject(new Error("GEMINI_NONSTREAM_TIMEOUT")), 8000))
-            ]);
-            const outContent = gResp?.text || gResp?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
-            if (outContent.trim()) {
-              aiResponseText = outContent;
-              generatedSuccessfully = true;
-              break;
-            }
-          } catch (gErr) {
-            console.warn(`[Aura AI Non-Stream] Gemini fallback notice (${gModel}):`, gErr?.message || gErr);
-            continue;
+      if (!nonStreamGemini) return;
+      const gContents = convertNimMessagesToGemini(nonStreamPrunedMsgs);
+      for (const gModel of nonStreamGeminiCandidates) {
+        if (generatedSuccessfully) break;
+        try {
+          const gResp = await Promise.race([
+            nonStreamGemini.models.generateContent({
+              model: gModel,
+              contents: gContents,
+              config: { systemInstruction: effectiveSystemPrompt }
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("GEMINI_NONSTREAM_TIMEOUT")), 8000))
+          ]);
+          const outContent = gResp?.text || gResp?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+          if (outContent.trim()) {
+            aiResponseText = outContent;
+            generatedSuccessfully = true;
+            nonStreamModelUsed = gModel;
+            break;
           }
+        } catch (gErr) {
+          console.warn(`[Aura AI Non-Stream] Gemini notice (${gModel}):`, gErr?.message || gErr);
+          continue;
         }
       }
+    };
+
+    if (preferGeminiNonStream) {
+      await tryNonStreamGemini();
+      if (!generatedSuccessfully) await tryNonStreamNim();
+    } else {
+      await tryNonStreamNim();
+      if (!generatedSuccessfully) await tryNonStreamGemini();
     }
 
     // Guarantee comprehensive detail in Non-Streaming Pandit Ji mode
@@ -3429,7 +3604,8 @@ ${memoryContextText || "Guest shopper."}`;
         showBirthForm: shouldPromptBirthForm,
         quickReplies: dynamicQuickReplies,
         conversationId: targetConversationId,
-        guestSessionId: effectiveGuestSessionId
+        guestSessionId: effectiveGuestSessionId,
+        modelUsed: nonStreamModelUsed || nonStreamActiveModel
       }
     });
 
@@ -3552,10 +3728,14 @@ export async function getAdminAiIntelligence(req, res, next) {
     const totalConvos = conversations.length;
     const escalatedConvos = conversations.filter(c => c.requiresHumanSupport || c.status === "Escalated").length;
 
-    // 2. Generate Real Executive Insights with Gemini or NVIDIA NIM
+    // 2. Generate Real Executive Insights using website-wide active model (NVIDIA NIM or Gemini)
     let aiExecutiveReport = null;
+    await resolveNvidiaKey();
+    await resolveGeminiKey();
     const geminiClient = getGeminiClient();
     const nvidiaClient = getNvidiaClient();
+    const activeIntelModel = await resolveActiveWebsiteAiModel();
+    let intelModelUsed = activeIntelModel;
 
     const adminPrompt = `You are the Lead Executive E-Commerce AI Strategist for Aura Rudraksha.
 Analyze the following REAL verified store database metrics:
@@ -3581,28 +3761,71 @@ OUTPUT FORMAT: Return a valid JSON object ONLY:
   ]
 }`;
 
-    if (nvidiaClient && !aiExecutiveReport) {
-      try {
-        const aiPromise = nvidiaClient.chat.completions.create({
-          model: PRIMARY_NIM_MODEL,
-          messages: [
-            { role: "system", content: "You are an executive e-commerce AI analytics engine. Output clean JSON only." },
-            { role: "user", content: adminPrompt }
-          ],
-          temperature: 0.25,
-          max_tokens: 1500
-        });
-
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("AI intelligence generation timed out")), 7000)
-        );
-
-        const completion = await Promise.race([aiPromise, timeoutPromise]);
-        const rawText = completion.choices?.[0]?.message?.content || "";
-        aiExecutiveReport = extractStructuredAiJson(rawText);
-      } catch (nimErr) {
-        console.warn("[Admin AI Intelligence] NVIDIA NIM analysis notice:", nimErr?.message || nimErr);
+    const runIntelNim = async () => {
+      if (!nvidiaClient || aiExecutiveReport) return;
+      const nimList = [...new Set([!isGeminiModelName(activeIntelModel) ? activeIntelModel : "", PRIMARY_NIM_MODEL, ...BACKUP_NIM_MODELS].filter(m => m && !isGeminiModelName(m)))];
+      for (const mName of nimList) {
+        if (aiExecutiveReport) break;
+        try {
+          const aiPromise = nvidiaClient.chat.completions.create({
+            model: mName,
+            messages: [
+              { role: "system", content: "You are an executive e-commerce AI analytics engine. Output clean JSON only." },
+              { role: "user", content: adminPrompt }
+            ],
+            temperature: 0.25,
+            max_tokens: 1500
+          });
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("AI intelligence generation timed out")), 7000)
+          );
+          const completion = await Promise.race([aiPromise, timeoutPromise]);
+          const rawText = completion.choices?.[0]?.message?.content || "";
+          const parsed = extractStructuredAiJson(rawText);
+          if (parsed) {
+            aiExecutiveReport = parsed;
+            intelModelUsed = mName;
+          }
+        } catch (nimErr) {
+          console.warn(`[Admin AI Intelligence] NVIDIA NIM notice (${mName}):`, nimErr?.message || nimErr);
+        }
       }
+    };
+
+    const runIntelGemini = async () => {
+      if (!geminiClient || aiExecutiveReport) return;
+      const gList = [...new Set([isGeminiModelName(activeIntelModel) ? activeIntelModel : "", ...GEMINI_TEXT_MODELS].filter(Boolean))];
+      for (const gModel of gList) {
+        if (aiExecutiveReport) break;
+        try {
+          const gResp = await Promise.race([
+            geminiClient.models.generateContent({
+              model: gModel,
+              contents: adminPrompt,
+              config: {
+                systemInstruction: "You are an executive e-commerce AI analytics engine. Output clean JSON only.",
+                responseMimeType: "application/json"
+              }
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Gemini intelligence timed out")), 7000))
+          ]);
+          const parsed = extractStructuredAiJson(gResp?.text || "");
+          if (parsed) {
+            aiExecutiveReport = parsed;
+            intelModelUsed = gModel;
+          }
+        } catch (gErr) {
+          console.warn(`[Admin AI Intelligence] Gemini notice (${gModel}):`, gErr?.message || gErr);
+        }
+      }
+    };
+
+    if (isGeminiModelName(activeIntelModel)) {
+      await runIntelGemini();
+      if (!aiExecutiveReport) await runIntelNim();
+    } else {
+      await runIntelNim();
+      if (!aiExecutiveReport) await runIntelGemini();
     }
 
     if (!aiExecutiveReport) {
@@ -3658,7 +3881,8 @@ OUTPUT FORMAT: Return a valid JSON object ONLY:
         totalConvos,
         escalatedConvos
       },
-      executiveIntelligence: aiExecutiveReport
+      executiveIntelligence: aiExecutiveReport,
+      modelUsed: intelModelUsed
     };
 
     cachedIntelligenceData = payload;
@@ -3771,8 +3995,12 @@ export async function getAuraAISettings(req, res, next) {
       cartActions: true,
       orderSupport: true,
       humanSupport: true,
+      personalization: true,
+      activeAiModel: PRIMARY_NIM_MODEL,
       nemotronModel: PRIMARY_NIM_MODEL,
-      selectedNimModel: PRIMARY_NIM_MODEL
+      selectedNimModel: PRIMARY_NIM_MODEL,
+      nvidiaModel: PRIMARY_NIM_MODEL,
+      ...(inMemoryStore.aiSettings || {})
     };
 
     if (isDbConnected()) {
@@ -3781,6 +4009,20 @@ export async function getAuraAISettings(req, res, next) {
         if (dbSettings) settings = { ...settings, ...dbSettings };
       } catch (_) {}
     }
+
+    const resolvedModel = (
+      settings.activeAiModel ||
+      settings.selectedNimModel ||
+      settings.nemotronModel ||
+      settings.nvidiaModel ||
+      PRIMARY_NIM_MODEL
+    ).trim();
+
+    settings.activeAiModel = resolvedModel;
+    settings.selectedNimModel = resolvedModel;
+    settings.nemotronModel = resolvedModel;
+    settings.nvidiaModel = resolvedModel;
+    settings.availableModels = WEBSITE_AI_MODELS;
 
     return res.json({ success: true, data: settings });
   } catch (err) {
@@ -3798,16 +4040,49 @@ export async function updateAuraAISettings(req, res, next) {
       setCachedNvidiaKey(cleanUpdates.nvidiaApiKey || cleanUpdates.nemotronApiKey);
     }
 
+    const chosenModel = (
+      cleanUpdates.activeAiModel ||
+      cleanUpdates.selectedNimModel ||
+      cleanUpdates.nemotronModel ||
+      cleanUpdates.nvidiaModel ||
+      ""
+    ).trim();
+
+    if (chosenModel) {
+      cleanUpdates.activeAiModel = chosenModel;
+      cleanUpdates.selectedNimModel = chosenModel;
+      cleanUpdates.nemotronModel = chosenModel;
+      cleanUpdates.nvidiaModel = chosenModel;
+    }
+
+    inMemoryStore.aiSettings = {
+      ...(inMemoryStore.aiSettings || {}),
+      ...cleanUpdates
+    };
+
+    // Reset intelligence cache when settings/model change
+    cachedIntelligenceData = null;
+    lastIntelligenceTimestamp = 0;
+
     if (isDbConnected()) {
       const updated = await AuraAISetting.findOneAndUpdate(
         {},
         { $set: cleanUpdates },
         { upsert: true, returnDocument: "after" }
       ).lean();
-      return res.json({ success: true, data: updated });
+      if (updated) {
+        inMemoryStore.aiSettings = { ...inMemoryStore.aiSettings, ...updated };
+      }
+      return res.json({
+        success: true,
+        data: { ...(updated || inMemoryStore.aiSettings), availableModels: WEBSITE_AI_MODELS }
+      });
     }
 
-    return res.json({ success: true, data: cleanUpdates });
+    return res.json({
+      success: true,
+      data: { ...inMemoryStore.aiSettings, availableModels: WEBSITE_AI_MODELS }
+    });
   } catch (err) {
     next(err);
   }

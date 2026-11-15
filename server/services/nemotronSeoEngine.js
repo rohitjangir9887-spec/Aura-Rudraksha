@@ -1018,13 +1018,27 @@ Generate complete, authentic Vedic SEO & Product Data JSON with 15-30 clean natu
   let aiOutputParsed = null;
   let aiGenerationSuccess = false;
 
-  // 1. Try strictly NVIDIA NIM (model: nemotron-3-super-120b-a12b) with fast 5s timeout
+  // 1. Try active saved website model (or default NEMOTRON_NIM_MODEL) via NVIDIA NIM with fast 5s timeout
   try {
+    let seoModel = NEMOTRON_NIM_MODEL;
+    try {
+      const { inMemoryStore } = await import("../data/inMemoryStore.js");
+      const memChosen = (
+        inMemoryStore.aiSettings?.activeAiModel ||
+        inMemoryStore.aiSettings?.selectedNimModel ||
+        inMemoryStore.aiSettings?.nemotronModel ||
+        ""
+      ).trim();
+      if (memChosen && !/^gemini-/i.test(memChosen)) {
+        seoModel = memChosen;
+      }
+    } catch (_) {}
+
     const activeApiKey = await getActiveNemotronApiKey();
     const nvidiaClient = activeApiKey ? getNvidiaNemotronClient(activeApiKey) : null;
     if (nvidiaClient) {
       const nimPromise = nvidiaClient.chat.completions.create({
-        model: NEMOTRON_NIM_MODEL,
+        model: seoModel,
         messages: [
           { role: "system", content: promptSystem },
           { role: "user", content: userPrompt }

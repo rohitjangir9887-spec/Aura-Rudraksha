@@ -24,9 +24,12 @@ export function AdminNavLinks({ counts, onLogout, onNavigate }) {
       </div>
       <div className="nav-links">
         {menuItems.map(item => {
-          const isActive =
-            location.pathname === item.path ||
-            (item.path !== ADMIN_BASE_PATH && location.pathname.startsWith(item.path + "/"));
+          const [itemPathname, itemSearch = ""] = String(item.path || "").split("?");
+          const currentTab = new URLSearchParams(location.search).get("tab");
+          const isActive = itemSearch
+            ? location.pathname === itemPathname && location.search === `?${itemSearch}`
+            : (location.pathname === itemPathname && !(itemPathname === `${ADMIN_BASE_PATH}/ai` && currentTab && currentTab !== "agent")) ||
+              (itemPathname !== ADMIN_BASE_PATH && location.pathname.startsWith(itemPathname + "/"));
 
           return (
             <Link
