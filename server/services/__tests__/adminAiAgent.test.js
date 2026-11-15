@@ -8,7 +8,9 @@ import {
   executeAdminAgentAction,
   undoAdminAgentAction,
   runWebsiteBugDiagnostic,
-  runStoreGrowthAndHealthAudit
+  runStoreGrowthAndHealthAudit,
+  searchGitHubPublicTools,
+  normalizeAdminPrompt
 } from "../adminAiAgentService.js";
 import { handleAdminAgentChat } from "../../controllers/adminAiAgentController.js";
 
@@ -511,5 +513,148 @@ describe("Admin AI Auto-Fix, Background Tasks CRUD & Customer Bot (/api/aura-ai/
     }
   });
 });
+
+describe("Admin AI Agent: Hinglish/Typo Product CRUD, Auto SEO & Public Google/GitHub Tools", () => {
+  let prevProducts;
+  let prevSynced;
+
+  beforeEach(() => {
+    prevProducts = inMemoryStore.products;
+    prevSynced = inMemoryStore.isProductsSyncedFromDb;
+    inMemoryStore.products = TEST_CATALOG.map(p => ({ ...p }));
+    inMemoryStore.isProductsSyncedFromDb = true;
+  });
+
+  afterEach(() => {
+    inMemoryStore.products = prevProducts;
+    inMemoryStore.isProductsSyncedFromDb = prevSynced;
+  });
+
+  test("normalizeAdminPrompt converts common Hinglish & spelling typos cleanly", () => {
+    expect(normalizeAdminPrompt("7 mukhi produced htana h")).toMatch(/7 mukhi product delete h/i);
+    expect(normalizeAdminPrompt("Naya produced ad karo")).toMatch(/Naya product add karo/i);
+  });
+
+  test("handleAdminAgentChat creates custom product from Hinglish/typo prompt and reflects in catalog immediately", async () => {
+    let bodyOut = null;
+    let statusOut = 200;
+    const req = {
+      body: {
+        prompt: "Naya produced 8 Mukhi Indonesian Rudraksha price 1899 stock 12 ad karo",
+        sessionId: "test_hinglish_create_sess",
+        pageContext: "/admin/products"
+      }
+    };
+    const res = {
+      status(code) { statusOut = code; return this; },
+      json(payload) { bodyOut = payload; return this; }
+    };
+
+    await handleAdminAgentChat(req, res);
+
+    expect(statusOut).toBe(200);
+    expect(bodyOut.success).toBe(true);
+    expect(bodyOut.actionsExecuted.some(a => a.actionType === "CREATE_PRODUCT")).toBe(true);
+
+    const createdAct = bodyOut.actionsExecuted.find(a => a.actionType === "CREATE_PRODUCT");
+    expect(createdAct.product).toBeTruthy();
+    expect(createdAct.product.name).toMatch(/8 Mukhi/i);
+    expect(createdAct.product.price).toBe(1899);
+    expect(createdAct.product.stock).toBe(12);
+    expect(createdAct.product.origin).toMatch(/Indonesia/i);
+    expect(inMemoryStore.products.some(p => p.id === createdAct.product.id)).toBe(true);
+
+    const qRes = await queryStoreData({ entity: "products", search: "8 Mukhi" });
+    expect(qRes.totalMatched).toBe(1);
+    expect(qRes.items[0].price).toBe(1899);
+
+    await undoAdminAgentAction(createdAct.actionId);
+    expect(inMemoryStore.products.some(p => p.id === createdAct.product.id)).toBe(false);
+  });
+
+  test("handleAdminAgentChat deletes product from Hinglish/typo prompt ('produced htana') and restores via Undo", async () => {
+    let bodyOut = null;
+    let statusOut = 200;
+    const req = {
+      body: {
+        prompt: "7 Mukhi produced htana h",
+        sessionId: "test_hinglish_delete_sess",
+        pageContext: "/admin/products"
+      }
+    };
+    const res = {
+      status(code) { statusOut = code; return this; },
+      json(payload) { bodyOut = payload; return this; }
+    };
+
+    await handleAdminAgentChat(req, res);
+
+    expect(statusOut).toBe(200);
+    expect(bodyOut.success).toBe(true);
+    const delAct = bodyOut.actionsExecuted.find(a => a.actionType === "DELETE_PRODUCT");
+    expect(delAct).toBeTruthy();
+    expect(delAct.deletedProductId).toBe("prod_2");
+    expect(inMemoryStore.products.some(p => p.id === "prod_2")).toBe(false);
+
+    // Undo restores prod_2 cleanly
+    const undoRes = await undoAdminAgentAction(delAct.actionId);
+    expect(undoRes.success).toBe(true);
+    expect(inMemoryStore.products.some(p => p.id === "prod_2")).toBe(true);
+  });
+
+  test("GENERATE_PRODUCT_SEO enriches English+Hindi keywords & descriptions with 1-click Undo", async () => {
+    const res = await executeAdminAgentAction({
+      type: "GENERATE_PRODUCT_SEO",
+      data: { idOrName: "prod_2" }
+    }, { sessionId: "test_seo_sess", source: "vitest" });
+
+    expect(res.actionType).toBe("GENERATE_PRODUCT_SEO");
+    expect(res.updatedCount).toBe(1);
+
+    const p2 = inMemoryStore.products.find(p => p.id === "prod_2");
+    expect(Array.isArray(p2.keywords)).toBe(true);
+    expect(p2.keywords.length).toBeGreaterThanOrEqual(6);
+    expect(p2.description.length).toBeGreaterThan(50);
+
+    const undoRes = await undoAdminAgentAction(res.actionId);
+    expect(undoRes.success).toBe(true);
+    const p2Restored = inMemoryStore.products.find(p => p.id === "prod_2");
+    expect(p2Restored.description).toBe("Thin desc");
+  });
+
+  test("searchGitHubPublicTools fetches and formats public GitHub repositories cleanly", async () => {
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({
+        total_count: 1,
+        items: [
+          {
+            name: "schema-dts",
+            full_name: "google/schema-dts",
+            description: "TypeScript definitions for Schema.org vocabulary JSON-LD",
+            stargazers_count: 1850,
+            language: "TypeScript",
+            topics: ["seo", "json-ld", "schema"],
+            html_url: "https://github.com/google/schema-dts",
+            homepage: "https://schema.org",
+            license: { spdx_id: "Apache-2.0" }
+          }
+        ]
+      })
+    });
+
+    try {
+      const res = await searchGitHubPublicTools({ query: "ecommerce schema json-ld", limit: 3 });
+      expect(res.success).toBe(true);
+      expect(res.items.length).toBe(1);
+      expect(res.items[0].fullName).toBe("google/schema-dts");
+      expect(res.items[0].stars).toBe(1850);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+});
+
 
 

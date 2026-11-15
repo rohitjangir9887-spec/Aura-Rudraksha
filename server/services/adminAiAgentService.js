@@ -204,6 +204,266 @@ function getAllInMemoryProducts() {
 }
 
 /**
+ * Normalize common Hinglish & typing mistakes so Admin commands execute reliably
+ */
+export function normalizeAdminPrompt(raw = "") {
+  let s = String(raw || "").trim();
+  if (!s) return "";
+  const replacements = [
+    [/\b(produced|prduced|prodc|prduct|produc|prouct|prodct|produts|producs|produ)\b/gi, "product"],
+    [/\b(htana|hatana|htao|hatao|hatado|htado|dlt|delet)\b/gi, "delete"],
+    [/\b(nikalo|nikal\s*do|nikalna)\b/gi, "delete"],
+    [/\b(bnao|bnado|banado|bnaao)\b/gi, "banao"],
+    [/\b(ad)\b(?=\s*(karo|kr|krna|karna|product|new|naya|item|mala|rudraksha|mukhi|to|me|mein))/gi, "add"],
+    [/\b(karo|kr|krdo|kar\s*do)\s+ad\b/gi, "$1 add"],
+    [/\b(jodo|jod\s*do|daaldo|daldo|dalo|daalo|rakho|lga|lgao|lagao)\b/gi, "add"],
+    [/\b(fichar|fechar|featur|fichers|features)\b/gi, "feature"],
+    [/\b(websait|webside|wbsite)\b/gi, "website"],
+    [/\b(desbord|dashbord|deshbord|deshboard)\b/gi, "dashboard"],
+    [/\b(dikho|dkho|dekho|btado|btao)\b/gi, "dikhao"],
+    [/\b(aigent|agnt|egent)\b/gi, "agent"],
+    [/\b(gugal|gugle|googal)\b/gi, "google"],
+    [/\b(gitub|githb|git\s*hub)\b/gi, "github"],
+    [/\b(pablic|pablik|publc)\b/gi, "public"]
+  ];
+  for (const [rx, rep] of replacements) {
+    s = s.replace(rx, rep);
+  }
+  return s.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Search GitHub public repositories & open-source tools safely (with timeout)
+ */
+export async function searchGitHubPublicTools({ query = "ecommerce seo schema javascript", language = "", limit = 6 } = {}) {
+  const cleanQuery = String(query || "").trim() || "ecommerce seo schema";
+  const fullQuery = language ? `${cleanQuery} language:${String(language).trim()}` : cleanQuery;
+  const maxResults = Math.min(10, Math.max(1, Number(limit) || 6));
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 7000);
+
+  try {
+    const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(fullQuery)}&sort=stars&order=desc&per_page=${maxResults}`;
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        Accept: "application/vnd.github+json",
+        "User-Agent": "Aura-Rudraksha-Admin-Agent"
+      }
+    });
+    clearTimeout(timer);
+
+    if (!res.ok) {
+      return {
+        success: false,
+        query: cleanQuery,
+        error: `GitHub API returned HTTP ${res.status}`,
+        items: []
+      };
+    }
+
+    const json = await res.json();
+    const items = Array.isArray(json.items)
+      ? json.items.slice(0, maxResults).map(repo => ({
+          name: repo.name,
+          fullName: repo.full_name,
+          description: String(repo.description || "Open-source repository").slice(0, 180),
+          stars: Number(repo.stargazers_count || 0),
+          language: repo.language || "JavaScript",
+          topics: Array.isArray(repo.topics) ? repo.topics.slice(0, 5) : [],
+          url: repo.html_url,
+          homepage: repo.homepage || "",
+          license: repo.license?.spdx_id || ""
+        }))
+      : [];
+
+    return {
+      success: true,
+      query: cleanQuery,
+      totalCount: Number(json.total_count || items.length),
+      items
+    };
+  } catch (err) {
+    clearTimeout(timer);
+    return {
+      success: false,
+      query: cleanQuery,
+      error: err?.message || "GitHub request failed",
+      items: []
+    };
+  }
+}
+
+/**
+ * Public Google Web / News Trends & Research helper (uses Gemini Google Search grounding when available + live public feeds fallback)
+ */
+export async function searchGooglePublicResearch({ query = "rudraksha benefits price market trends india" } = {}) {
+  const cleanQuery = String(query || "").trim();
+  const sources = [];
+  let summary = "";
+
+  // 1. Try Gemini Google Search Grounding if key configured
+  try {
+    await resolveGeminiKey();
+    const gemini = getGeminiClient();
+    if (gemini) {
+      const resp = await withTimeout(
+        gemini.models.generateContent({
+          model: "gemini-4-hydrogen",
+          contents: `Research accurately using live Google Search and summarize key actionable points for an Indian Rudraksha & spiritual e-commerce store admin:\n\nQuery: ${cleanQuery}`,
+          config: {
+            tools: [{ googleSearch: {} }]
+          }
+        }),
+        14000
+      );
+      summary = String(resp?.text || "").trim();
+      const chunks = resp?.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+      for (const ch of chunks) {
+        if (ch?.web?.uri) {
+          sources.push({ title: ch.web.title || ch.web.uri, url: ch.web.uri });
+        }
+      }
+      if (summary) {
+        return { success: true, provider: "Google Search Grounding", query: cleanQuery, summary, sources: sources.slice(0, 8) };
+      }
+    }
+  } catch (err) {
+    console.warn("[AdminAgent:GoogleSearch] Grounding fallback notice:", err?.message || err);
+  }
+
+  // 2. Fallback: Fetch live Google News RSS public search results (no key required)
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(cleanQuery)}&hl=en-IN&gl=IN&ceid=IN:en`;
+    const res = await fetch(rssUrl, {
+      signal: controller.signal,
+      headers: { "User-Agent": "Aura-Rudraksha-Admin-Agent" }
+    });
+    clearTimeout(timer);
+    if (res.ok) {
+      const xml = await res.text();
+      const itemMatches = [...xml.matchAll(/<item>[\s\S]*?<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>[\s\S]*?<link>([\s\S]*?)<\/link>[\s\S]*?<\/item>/gi)];
+      for (const m of itemMatches.slice(0, 5)) {
+        const t = String(m[1] || "").replace(/<[^>]+>/g, "").trim();
+        const u = String(m[2] || "").trim();
+        if (t && u) sources.push({ title: t, url: u });
+      }
+    }
+  } catch (_) {
+    clearTimeout(timer);
+  }
+
+  const storeTrends = await getPublicStoreTrendsPayload(false).catch(() => null);
+  return {
+    success: true,
+    provider: sources.length > 0 ? "Google News Public RSS + Live Store Trends" : "Live Store Trends Engine",
+    query: cleanQuery,
+    summary: sources.length > 0
+      ? `Live public web results fetched for "${cleanQuery}".`
+      : `Live internal store & catalog trends analyzed for "${cleanQuery}".`,
+    sources: sources.slice(0, 6),
+    storeTrends
+  };
+}
+
+/**
+ * Curated safe open-source storefront widgets & utility modules inspired by GitHub community tools
+ */
+const CURATED_PUBLIC_TOOLS_CATALOG = [
+  {
+    key: "schema_jsonld_booster",
+    title: "Schema.org Product & FAQ Rich Snippet Booster",
+    subtitle: "Boosts Google Shopping & organic CTR with verified Rudraksha certification & review schema",
+    featureType: "seo_schema_booster",
+    badge: "SEO TOOL",
+    ctaText: "Explore Certified Beads",
+    ctaLink: "/shop",
+    githubRef: "https://github.com/google/schema-dts"
+  },
+  {
+    key: "whatsapp_concierge_banner",
+    title: "Instant WhatsApp Vedic Consultation & Order Support",
+    subtitle: "Direct Rudraksha Mukhi guidance & instant COD/PayU order assistance",
+    featureType: "whatsapp_concierge",
+    badge: "CONVERSION TOOL",
+    ctaText: "Ask Pandit Ji",
+    ctaLink: "/rudraksha-calculator",
+    githubRef: "https://github.com/pedroslopez/whatsapp-web.js"
+  },
+  {
+    key: "trust_certificate_bar",
+    title: "100% X-Ray & ISO Lab Certified Himalayan Rudraksha Guarantee",
+    subtitle: "Live Certificate Verification • Prana-Pratishtha Energized in Kashi • Insured Shipping",
+    featureType: "trust_certificate_bar",
+    badge: "TRUST BADGE",
+    ctaText: "Verify Certificate",
+    ctaLink: "/verify-certificate",
+    githubRef: "https://github.com/vercel/commerce"
+  },
+  {
+    key: "flash_sale_banner",
+    title: "Sacred Energized Rudraksha Mahotsav — Limited Stock Live!",
+    subtitle: "Authentic Nepal & Java Beads • Free Express Shipping Across India",
+    featureType: "flash_sale_banner",
+    badge: "LIVE OFFER",
+    ctaText: "Shop Collection",
+    ctaLink: "/shop",
+    githubRef: "https://github.com/medusajs/medusa"
+  }
+];
+
+function buildProductSeoMetadata(p = {}) {
+  const name = String(p.name || "Authentic Rudraksha").trim();
+  const mukhiMatch = `${name} ${p.mukhi || ""}`.match(/(\d{1,2})\s*mukhi/i);
+  const mukhiNum = mukhiMatch ? mukhiMatch[1] : "";
+  const origin = p.origin || "Nepal (Himalayan)";
+  const category = p.category || "Rudraksha Beads";
+
+  const baseKw = [
+    name.toLowerCase(),
+    `buy ${name.toLowerCase()} online`,
+    `original ${name.toLowerCase()}`,
+    `${name.toLowerCase()} price india`,
+    `lab certified ${name.toLowerCase()}`,
+    `aura rudraksha ${name.toLowerCase()}`,
+    `${category.toLowerCase()}`,
+    origin.toLowerCase()
+  ];
+  if (mukhiNum) {
+    baseKw.push(
+      `${mukhiNum} mukhi rudraksha`,
+      `${mukhiNum} mukhi rudraksha benefits`,
+      `${mukhiNum} mukhi nepali rudraksha`,
+      `${mukhiNum} mukhi rudraksha price`,
+      `${mukhiNum} mukhi rudraksha hindi`,
+      `${mukhiNum} मुखी रुद्राक्ष`
+    );
+  }
+  const existingKw = Array.isArray(p.keywords) ? p.keywords.map(k => (typeof k === "string" ? k : k?.keyword || "")).filter(Boolean) : [];
+  const mergedKeywords = [...new Set([...existingKw, ...baseKw])].slice(0, 18);
+  const tags = [...new Set([...(Array.isArray(p.tags) ? p.tags : []), "Lab Certified", "Energized", origin.includes("Nepal") ? "Nepali" : "Original", category])].slice(0, 8);
+  const metaTitle = p.metaTitle || `${name} | 100% Lab Certified & Energized — Aura Rudraksha`;
+  const metaDescription = p.metaDescription || `Buy authentic ISO Lab-Certified ${name} (${origin}) with Prana-Pratishtha energization certificate & insured shipping at Aura Rudraksha.`;
+  const richDesc = (!p.description || String(p.description).trim().length < 50)
+    ? `${name} — 100% Authentic ISO Lab-Certified spiritual product from ${origin}. Consecrated with Vedic Shiva Purana Prana-Pratishtha & Gangajal Abhishekam rituals for positivity, clarity, protection, and harmony.`
+    : p.description;
+
+  return {
+    keywords: mergedKeywords,
+    searchKeywords: mergedKeywords,
+    tags,
+    metaTitle,
+    metaDescription,
+    seoTitle: metaTitle,
+    seoDescription: metaDescription,
+    description: richDesc
+  };
+}
+
+/**
  * Gemini Native Function Declarations for True Autonomous Multi-Tool Execution
  */
 export const ADMIN_AGENT_FUNCTION_DECLARATIONS = [
@@ -485,6 +745,53 @@ export const ADMIN_AGENT_FUNCTION_DECLARATIONS = [
       type: Type.OBJECT,
       properties: {
         actionId: { type: Type.STRING, description: "Optional actionId (defaults to latest action if omitted)" }
+      }
+    }
+  },
+  {
+    name: "search_github_tools",
+    description: "Search public GitHub repositories and open-source tools/libraries (e.g., ecommerce SEO schema, WhatsApp notifications, UI widgets, analytics) to recommend or integrate.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        query: { type: Type.STRING, description: "Search topic or tool keywords (e.g. 'ecommerce schema json-ld', 'rudraksha', 'react analytics dashboard')" },
+        language: { type: Type.STRING, description: "Optional programming language filter e.g. JavaScript, TypeScript" },
+        limit: { type: Type.NUMBER, description: "Number of repositories to return (1-10)" }
+      },
+      required: ["query"]
+    }
+  },
+  {
+    name: "google_public_search",
+    description: "Run a live Google public web & market trends search for Rudraksha pricing, festival dates, SEO keywords, or competitor insights.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        query: { type: Type.STRING, description: "Search query for Google public web & trends" }
+      },
+      required: ["query"]
+    }
+  },
+  {
+    name: "generate_product_seo",
+    description: "Generate and save rich English & Hindi SEO keywords, tags, metaTitle, metaDescription, and Vedic description for a specific product or ALL products missing SEO.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        idOrName: { type: Type.STRING, description: "Optional product id, slug, or name. Leave empty to optimize all products missing/thin SEO." }
+      }
+    }
+  },
+  {
+    name: "install_public_tool_feature",
+    description: "Install and activate a curated, verified storefront feature or public tool widget (e.g. schema_jsonld_booster, whatsapp_concierge_banner, trust_certificate_bar, flash_sale_banner) with 1-click Undo.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        toolKey: { type: Type.STRING, description: "One of: schema_jsonld_booster, whatsapp_concierge_banner, trust_certificate_bar, flash_sale_banner" },
+        title: { type: Type.STRING, description: "Optional custom title" },
+        subtitle: { type: Type.STRING, description: "Optional custom subtitle" },
+        githubRepoUrl: { type: Type.STRING, description: "Optional GitHub repository URL referenced" }
       }
     }
   }
@@ -865,9 +1172,25 @@ async function executeGeminiFunctionTool(fnName, args = {}, context = {}) {
         const latest = await AdminAIActionLog.findOne({ reverted: false }).sort({ createdAt: -1 }).lean();
         targetId = latest?.actionId;
       }
+      if (!targetId) {
+        const memLatest = Array.from(memActionLogs.values()).reverse().find(a => !a.reverted);
+        targetId = memLatest?.actionId;
+      }
       if (!targetId) return { error: "No recent un-reverted AI action found to undo." };
       return await undoAdminAgentAction(targetId);
     }
+
+    case "search_github_tools":
+      return await searchGitHubPublicTools(args);
+
+    case "google_public_search":
+      return await searchGooglePublicResearch(args);
+
+    case "generate_product_seo":
+      return await executeAdminAgentAction({ type: "GENERATE_PRODUCT_SEO", data: args }, context);
+
+    case "install_public_tool_feature":
+      return await executeAdminAgentAction({ type: "INSTALL_PUBLIC_TOOL", data: args }, context);
 
     default:
       return { error: `Unknown tool: ${fnName}` };
@@ -900,29 +1223,67 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
   let previewTitleFromTools = "";
 
   if (gemini) {
-    let contents = convertNimMessagesToGemini(nimMessages);
-    const tools = [{ functionDeclarations: ADMIN_AGENT_FUNCTION_DECLARATIONS }];
+    const contents = convertNimMessagesToGemini(nimMessages);
+    const hybridTools = [
+      { googleSearch: {} },
+      { urlContext: {} },
+      { functionDeclarations: ADMIN_AGENT_FUNCTION_DECLARATIONS }
+    ];
+    const functionOnlyTools = [{ functionDeclarations: ADMIN_AGENT_FUNCTION_DECLARATIONS }];
     const modelsToTry = [...new Set(["gemini-4-hydrogen", ...GEMINI_TEXT_MODELS])].filter(Boolean);
 
     for (const gModel of modelsToTry) {
+      let useHybrid = gModel.startsWith("gemini-4") || gModel.startsWith("gemini-3");
       try {
         let currentContents = [...contents];
         let finalText = "";
+        const groundingSources = [];
 
         // Multi-round tool calling loop (max 5 turns)
         for (let round = 0; round < 5; round++) {
-          const response = await withTimeout(
-            gemini.models.generateContent({
-              model: gModel,
-              contents: currentContents,
-              config: {
-                systemInstruction: systemPrompt + "\n\nIMPORTANT: You have native function calling tools attached! ALWAYS call the appropriate tool(s) to inspect data or mutate MongoDB instead of guessing or emitting raw JSON. Summarize the exact results after the tool executes.",
-                temperature: 0.4,
-                tools
-              }
-            }),
-            15000
-          );
+          const requestConfig = {
+            systemInstruction: systemPrompt + "\n\nIMPORTANT: You have native function calling tools AND live Google Search + URL Context attached! ALWAYS call the appropriate tool(s) to inspect data, research public trends/GitHub tools, or mutate MongoDB instead of guessing. When Admin writes in Hindi/Hinglish or has typos like 'produced' (product), 'htana' (delete), 'ad' (add), understand the true intent and execute immediately. Summarize exact results cleanly.",
+            temperature: 0.4,
+            tools: useHybrid ? hybridTools : functionOnlyTools,
+            ...(useHybrid ? { toolConfig: { includeServerSideToolInvocations: true } } : {})
+          };
+
+          let response;
+          try {
+            response = await withTimeout(
+              gemini.models.generateContent({
+                model: gModel,
+                contents: currentContents,
+                config: requestConfig
+              }),
+              16000
+            );
+          } catch (hybridErr) {
+            if (useHybrid) {
+              useHybrid = false;
+              response = await withTimeout(
+                gemini.models.generateContent({
+                  model: gModel,
+                  contents: currentContents,
+                  config: {
+                    systemInstruction: requestConfig.systemInstruction,
+                    temperature: 0.4,
+                    tools: functionOnlyTools
+                  }
+                }),
+                16000
+              );
+            } else {
+              throw hybridErr;
+            }
+          }
+
+          const gChunks = response?.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+          for (const ch of gChunks) {
+            if (ch?.web?.uri && !groundingSources.some(s => s.url === ch.web.uri)) {
+              groundingSources.push({ title: ch.web.title || ch.web.uri, url: ch.web.uri });
+            }
+          }
 
           const candidateContent = response?.candidates?.[0]?.content;
           const calls = response?.functionCalls || candidateContent?.parts?.filter(p => p.functionCall)?.map(p => p.functionCall) || [];
@@ -990,13 +1351,18 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
         }
 
         if (finalText) {
+          if (groundingSources.length > 0 && !finalText.includes(groundingSources[0].url)) {
+            finalText += "\n\n**Verified Google Web Sources:**\n" +
+              groundingSources.slice(0, 5).map((s, idx) => `${idx + 1}. [${s.title}](${s.url})`).join("\n");
+          }
           return {
             text: finalText,
-            modelUsed: `${gModel} (Autonomous Tool Agent)`,
+            modelUsed: `${gModel} (Google + Store Tool Agent)`,
             provider: "Gemini Tool Agent",
             executedViaTools,
             previewRoute: previewRouteFromTools,
-            previewTitle: previewTitleFromTools
+            previewTitle: previewTitleFromTools,
+            groundingSources
           };
         }
       } catch (gErr) {
@@ -1046,7 +1412,8 @@ export async function invokeAdminLLM(systemPrompt, rawMessages = [], maxTokens =
 export async function synthesizeAutonomousAdminResponse(systemPrompt, rawMessages = []) {
   const lastUserMsg = [...rawMessages].reverse().find(m => m && (m.role === "user" || m.sender === "user")) || {};
   const prompt = String(lastUserMsg.content || lastUserMsg.text || "").trim();
-  const lower = prompt.toLowerCase();
+  const normalizedPrompt = normalizeAdminPrompt(prompt);
+  const lower = normalizedPrompt.toLowerCase();
   const snapshot = await getCompleteWebsiteSnapshot().catch(() => ({
     productsCount: 0,
     products: [],
@@ -1215,47 +1582,232 @@ export async function synthesizeAutonomousAdminResponse(systemPrompt, rawMessage
     return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
   }
 
-  // 5. Update single product (price/stock/status)
-  const isUpdateProduct = /(\d{1,2}\s*mukhi|mala|product)/i.test(lower) && /(price|stock|update|change|kar do|badlo|set)/i.test(lower) && !/(create|add|upload|bnao|nya|new|kya|kitna|dikhao|batao|list)/i.test(lower);
-  if (isUpdateProduct) {
-    const mukhiMatch = lower.match(/(\d{1,2}\s*mukhi)/i);
-    const nameHint = mukhiMatch ? mukhiMatch[1] : (lower.includes("mala") ? "Mala" : "5 Mukhi");
-    const priceMatch = lower.match(/(?:price|rate|₹|rs)\s*(?:ko|to|=|:)?\s*(\d{2,7})/i);
-    const stockMatch = lower.match(/stock\s*(?:ko|to|=|:)?\s*(\d{1,5})/i);
-    const updateData = { name: nameHint };
-    if (priceMatch) updateData.price = parseInt(priceMatch[1], 10);
-    if (stockMatch) updateData.stock = parseInt(stockMatch[1], 10);
+  // 5. Delete single product (Hinglish/typos: "7 mukhi produced htana h", "delete product X", "remove X")
+  const hasDeleteVerb = /\b(delete|remove|drop|erase)\b/i.test(lower);
+  const mentionsProductNoun = /(product|bead|rudraksha|mala|bracelet|yantra|shivling|kavach|item|\d{1,2}\s*[-]?\s*mukhi)/i.test(lower);
+  const notCouponOrOrderOrUndo = !/\b(coupon|promo|order|banner|message|chat|task|undo|revert|wapas|rollback)\b/i.test(lower);
 
-    if (updateData.price !== undefined || updateData.stock !== undefined) {
-      actionTag = `[ADMIN_ACTION: {"type": "UPDATE_PRODUCT", "data": ${JSON.stringify(updateData)}}]`;
-      text = `Product **"${nameHint}"** update command execute kar diya hai:\n${updateData.price !== undefined ? `• New Price: ₹${updateData.price.toLocaleString("en-IN")}\n` : ""}${updateData.stock !== undefined ? `• New Stock: ${updateData.stock}\n` : ""}\n${actionTag}`;
+  if (hasDeleteVerb && notCouponOrOrderOrUndo) {
+    const cleanedHint = normalizedPrompt
+      .replace(/\b(please|pls|plz|bhai|sir|ye|yeh|iss|is|ka|ki|ke|ko|se|me|mein|h|hai|hain|ho|karo|kar|do|karna|kardo|delete|remove|drop|erase|product|products|item|items|dashboard|admin|se|bhi|mujh|mujhe)\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const mukhiMatch = lower.match(/(\d{1,2})\s*[-]?\s*mukhi/i);
+    const matchedTarget = await findTargetProduct({
+      idOrName: cleanedHint || (mukhiMatch ? `${mukhiMatch[1]} mukhi` : ""),
+      name: cleanedHint || (mukhiMatch ? `${mukhiMatch[1]} mukhi` : "")
+    });
+
+    if (matchedTarget) {
+      actionTag = `[ADMIN_ACTION: ${JSON.stringify({ type: "DELETE_PRODUCT", data: { id: matchedTarget.id, name: matchedTarget.name } })}]`;
+      navTag = `[NAVIGATE_PREVIEW: "/admin/products"]`;
+      text = `Done! Maine product **"${matchedTarget.name}"** (₹${Number(matchedTarget.price || 0).toLocaleString("en-IN")}) ko catalog se delete kar diya hai aur Admin Dashboard Products update ho gaya hai.\n\nGalti se delete hua ho to niche **Undo** button dabakar turant wapas la sakte hain.\n\n${actionTag}\n${navTag}`;
+      return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
+    }
+
+    if (mentionsProductNoun || cleanedHint.length > 0) {
+      const sampleList = (snapshot.products || []).slice(0, 8).map((p, idx) => `${idx + 1}. **${p.name}** (₹${Number(p.price || 0).toLocaleString("en-IN")})`).join("\n");
+      text = cleanedHint
+        ? `Catalog mein **"${cleanedHint}"** naam ka product nahi mila. Kripya sahi naam ya Mukhi likhein (jaise *"7 Mukhi delete karo"*).\n\n**Abhi Store Catalog ke Products (${snapshot.productsCount}):**\n${sampleList || "Catalog abhi khali hai."}`
+        : `Kaun sa product delete karna hai? Kripya product ka naam likhein — jaise *"7 Mukhi product delete karo"*.\n\n**Abhi Store Catalog ke Products (${snapshot.productsCount}):**\n${sampleList || "Catalog abhi khali hai."}`;
       return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
     }
   }
 
-  // 6. Product creation intent
-  const isCreateProduct = /product|bead|rudraksha/i.test(lower) && /(create|add|upload|bnao|bana|daalo|nya|new)/i.test(lower);
+  // 6. Update single product (price / MRP / stock / publish / draft / home visibility / rename)
+  const hasUpdateVerb = /(price|rate|mrp|stock|update|change|badlo|set|draft|publish|published|hide|unpublish|show\s*on\s*home|home\s*par|naam|rename)/i.test(lower);
+  const isUpdateProduct = (mentionsProductNoun || snapshot.products.some(p => p.name && lower.includes(p.name.toLowerCase()))) &&
+    hasUpdateVerb &&
+    !/(create|add|upload|banao|bana|nya|new|kitna|kya\s+hai|dikhao|list|delete|remove)/i.test(lower);
+
+  if (isUpdateProduct) {
+    const mukhiMatch = lower.match(/(\d{1,2}\s*[-]?\s*mukhi)/i);
+    const cleanedName = normalizedPrompt
+      .replace(/(?:price|rate|mrp|stock)\s*(?:ko|to|=|:)?\s*(?:₹|rs)?\s*\d+/gi, " ")
+      .replace(/\b(update|change|badlo|set|karo|kar|do|ko|ka|ki|ke|product|products|draft|publish|published|hide|show|on|home|par|hai|me|mein)\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const searchHint = mukhiMatch ? mukhiMatch[1] : (cleanedName || (lower.includes("mala") ? "Mala" : ""));
+    const matchedTarget = searchHint ? await findTargetProduct({ idOrName: searchHint, name: searchHint }) : null;
+
+    const priceMatch = lower.match(/(?:price|rate|₹|rs)\s*(?:ko|to|=|:)?\s*(\d{2,7})/i);
+    const mrpMatch = lower.match(/(?:mrp|compare\s*price)\s*(?:ko|to|=|:)?\s*(\d{2,7})/i);
+    const stockMatch = lower.match(/stock\s*(?:ko|to|=|:)?\s*(\d{1,5})/i);
+
+    const updateData = {
+      id: matchedTarget?.id || undefined,
+      name: matchedTarget?.name || searchHint || "5 Mukhi"
+    };
+    if (priceMatch) updateData.price = parseInt(priceMatch[1], 10);
+    if (mrpMatch) updateData.comparePrice = parseInt(mrpMatch[1], 10);
+    if (stockMatch) updateData.stock = parseInt(stockMatch[1], 10);
+    if (/\b(draft|hide|unpublish)\b/i.test(lower)) updateData.status = "Draft";
+    if (/\b(publish|published|live)\b/i.test(lower)) updateData.status = "Published";
+    if (/home\s*(?:se\s*)?hat/i.test(lower) || /hide\s*from\s*home/i.test(lower)) updateData.showOnHome = false;
+    if (/home\s*par\s*(?:dikhao|show|lagao)/i.test(lower)) updateData.showOnHome = true;
+
+    if (
+      updateData.price !== undefined ||
+      updateData.comparePrice !== undefined ||
+      updateData.stock !== undefined ||
+      updateData.status !== undefined ||
+      updateData.showOnHome !== undefined
+    ) {
+      if (!matchedTarget) {
+        const sampleList = (snapshot.products || []).slice(0, 6).map(p => `• **${p.name}**`).join("\n");
+        text = `Product **"${searchHint || "target"}"** catalog mein nahi mila. Sahi product naam batayein:\n${sampleList}`;
+        return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
+      }
+      actionTag = `[ADMIN_ACTION: ${JSON.stringify({ type: "UPDATE_PRODUCT", data: updateData })}]`;
+      navTag = `[NAVIGATE_PREVIEW: "/admin/products"]`;
+      text = `Product **"${matchedTarget.name}"** update kar diya hai:\n` +
+        `${updateData.price !== undefined ? `• New Price: ₹${updateData.price.toLocaleString("en-IN")}\n` : ""}` +
+        `${updateData.comparePrice !== undefined ? `• New MRP: ₹${updateData.comparePrice.toLocaleString("en-IN")}\n` : ""}` +
+        `${updateData.stock !== undefined ? `• New Stock: ${updateData.stock}\n` : ""}` +
+        `${updateData.status !== undefined ? `• Status: **${updateData.status}**\n` : ""}` +
+        `${updateData.showOnHome !== undefined ? `• Show on Home: **${updateData.showOnHome ? "Yes" : "Hidden"}**\n` : ""}` +
+        `\n${actionTag}\n${navTag}`;
+      return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
+    }
+  }
+
+  // 7. Product creation intent (supports Hinglish, typos like "produced ad karo", custom product names, prices, stock, origin)
+  const hasCreateVerb = /\b(create|add|upload|banao|bana|nya|new|naya|publish|insert|launch)\b/i.test(lower);
+  const isCreateProduct = (mentionsProductNoun || /"[^"]{2,60}"/.test(prompt)) &&
+    hasCreateVerb &&
+    !/\b(banner|coupon|feature|task|website)\b/i.test(lower);
+
   if (isCreateProduct) {
-    const mukhiMatch = lower.match(/(\d{1,2})\s*mukhi/i);
-    const mukhiNum = mukhiMatch ? mukhiMatch[1] : "11";
+    const quotedMatch = prompt.match(/["']([^"']{2,90})["']/);
+    const namedFieldMatch = normalizedPrompt.match(/(?:name|naam|title)\s*[:=\-]?\s*([A-Za-z0-9\s\-&()]{3,70}?)(?=\s+(?:price|rate|mrp|stock|qty|rs|₹|add|banao|category|origin|$))/i);
+    const mukhiMatch = lower.match(/(\d{1,2})\s*[-]?\s*mukhi/i);
+    const mukhiNum = mukhiMatch ? mukhiMatch[1] : "";
+
+    const priceMatch = lower.match(/(?:price|rate|rs\.?|inr|₹|ke)\s*[:=\-]?\s*(\d{2,6})/i) || prompt.match(/(\d{3,6})\s*(?:rs|₹|rupees?|inr|\/-)/i);
+    const mrpMatch = lower.match(/(?:mrp|compare\s*price)\s*[:=\-]?\s*(\d{2,6})/i);
+    const stockMatch = lower.match(/(?:stock|qty|quantity|pieces?|pcs)\s*[:=\-]?\s*(\d{1,5})/i) || lower.match(/(\d{1,4})\s*(?:stock|pieces?|pcs)/i);
+
+    const price = priceMatch ? parseInt(priceMatch[1], 10) : (mukhiNum ? parseInt(mukhiNum, 10) * 850 + 2499 : 1499);
+    const comparePrice = mrpMatch ? parseInt(mrpMatch[1], 10) : Math.round(price * 1.35);
+    const stock = stockMatch ? parseInt(stockMatch[1], 10) : 25;
+
+    const isIndonesia = /indonesi|java/i.test(lower);
+    const origin = isIndonesia ? "Indonesia (Java)" : "Nepal (Himalayan)";
+    let category = "Rudraksha Beads";
+    if (/mala/i.test(lower)) category = "Jaap Mala";
+    else if (/bracelet|kada|wrist/i.test(lower)) category = "Bracelets";
+    else if (/yantra/i.test(lower)) category = "Yantra";
+    else if (/combo|combination|set/i.test(lower)) category = "Combinations";
+    else if (/samagri|shivling|idol|incense|dhoop|diya/i.test(lower)) category = "Puja Samagri";
+
+    let extractedTitle = quotedMatch?.[1]?.trim() || namedFieldMatch?.[1]?.trim() || "";
+    if (!extractedTitle) {
+      let stripped = normalizedPrompt
+        .replace(/^(?:ek|ek\s+naya|naya|new|please|pls|sir|bhai)\s+/i, "")
+        .replace(/(?:price|rate|mrp|compare\s*price|stock|qty|quantity)\s*[:=\-]?\s*(?:₹|rs\.?|inr)?\s*\d{1,6}/gi, " ")
+        .replace(/(?:₹|rs\.?|inr)\s*\d{1,6}|\d{1,6}\s*(?:rs|₹|rupees?|inr|\/-|pieces?|pcs|stock)/gi, " ")
+        .replace(/\b(create|add|upload|banao|bana|nya|new|naya|publish|insert|launch|product|products|item|karo|kar|do|karna|hai|h|me|mein|dashboard|admin|store|catalog|ke|ka|ki|ko|se|aur|with|naam|name)\b/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      if (stripped.length >= 3) {
+        if (mukhiNum && !/rudraksha|mala|bracelet|yantra|shivling/i.test(stripped)) {
+          stripped = `${stripped} ${isIndonesia ? "Indonesian" : "Nepali"} Rudraksha`;
+        }
+        extractedTitle = stripped.replace(/\b\w/g, c => c.toUpperCase());
+      }
+    }
+
     const deityMap = {
       "1": "Lord Shiva", "5": "Kalagni Rudra", "7": "Goddess Mahalakshmi",
-      "11": "Lord Hanuman (Ekadasha Rudra)", "14": "Deva Mani"
+      "8": "Lord Ganesha", "9": "Goddess Durga", "11": "Lord Hanuman (Ekadasha Rudra)", "14": "Deva Mani"
     };
-    const deity = deityMap[mukhiNum] || "Lord Shiva";
-    const priceMatch = lower.match(/(?:price|rs|inr|₹|ke)\s*[:=]?\s*(\d{3,6})/i);
-    const price = priceMatch ? parseInt(priceMatch[1], 10) : (parseInt(mukhiNum, 10) * 850 + 2499);
-    const comparePrice = Math.round(price * 1.4);
-    const prodName = `Original ${mukhiNum} Mukhi Nepali Rudraksha (Lab Certified)`;
+    const deity = (mukhiNum && deityMap[mukhiNum]) || "Lord Shiva";
+    const prodName = extractedTitle || `Original ${mukhiNum || "11"} Mukhi ${isIndonesia ? "Indonesian" : "Nepali"} Rudraksha (Lab Certified)`;
 
-    actionTag = `[ADMIN_ACTION: {"type": "CREATE_PRODUCT", "data": {"name": "${prodName}", "mukhi": "${mukhiNum}", "price": ${price}, "comparePrice": ${comparePrice}, "stock": 25, "category": "Rudraksha Beads", "origin": "Nepal (Himalayan)", "deity": "${deity}"}}]`;
-    navTag = `[NAVIGATE_PREVIEW: "/shop"]`;
+    const createPayload = {
+      name: prodName,
+      ...(mukhiNum ? { mukhi: `${mukhiNum} Mukhi` } : {}),
+      price,
+      comparePrice,
+      stock,
+      category,
+      origin,
+      deity,
+      showOnHome: true,
+      status: "Published"
+    };
 
-    text = `Naya Rudraksha product **${prodName}** (₹${price.toLocaleString("en-IN")}, Stock: 25) catalog mein live publish ho gaya hai!\n\n${actionTag}\n${navTag}`;
+    actionTag = `[ADMIN_ACTION: ${JSON.stringify({ type: "CREATE_PRODUCT", data: createPayload })}]`;
+    navTag = `[NAVIGATE_PREVIEW: "/admin/products"]`;
+
+    text = `Naya product **${prodName}** (₹${price.toLocaleString("en-IN")} · MRP ₹${comparePrice.toLocaleString("en-IN")} · Stock: ${stock} · ${category}) publish ho gaya hai aur aapke **Admin Dashboard -> Products** mein turant show hoga!\n\n${actionTag}\n${navTag}`;
     return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
   }
 
-  // 7. Live Product Catalog / Stock / Price Query
+  // 8. Auto SEO & Hindi/English Keywords Generator for Products
+  if (/\b(seo|keyword|keywords|meta\s*title|meta\s*desc|ranking)\b/i.test(lower) && /\b(generate|update|add|banao|optimize|fix|karo|improve|all|sabhi|\d+\s*mukhi)\b/i.test(lower)) {
+    const mukhiMatch = lower.match(/(\d{1,2}\s*[-]?\s*mukhi)/i);
+    const idOrName = mukhiMatch ? mukhiMatch[1] : "";
+    actionTag = `[ADMIN_ACTION: ${JSON.stringify({ type: "GENERATE_PRODUCT_SEO", data: { idOrName } })}]`;
+    navTag = `[NAVIGATE_PREVIEW: "/admin/products"]`;
+    text = `Storefront products ke liye **English + Hindi Vedic SEO Keywords, Meta Title aur Rich Description** auto-generate karke save kar diye gaye hain!\n\n${actionTag}\n${navTag}`;
+    return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
+  }
+
+  // 9. GitHub Public Repositories & Open-Source Tools Search / Install
+  if (/github|open\s*source|repository|\brepo\b|public\s*tool|plugin/i.test(lower)) {
+    const searchSubject = normalizedPrompt
+      .replace(/\b(github|par|pe|se|me|mein|public|tool|tools|repo|repository|repositories|search|find|dikhao|batao|btao|dalo|add|install|karo|kar|ke|ki|ka|help|mdd|madad|iss|is|open|source|publish|published)\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim() || "ecommerce seo schema javascript";
+
+    const ghRes = await searchGitHubPublicTools({ query: searchSubject, limit: 5 });
+    const repoListText = (ghRes.items || []).length
+      ? ghRes.items.map((r, i) => `${i + 1}. **[${r.fullName}](${r.url})** (★ ${r.stars.toLocaleString("en-IN")} · ${r.language}) — ${r.description}`).join("\n")
+      : `GitHub public search abhi rate-limited ya offline ho sakta hai (${ghRes.error || "check network"}). Curated storefront tools ready hain.`;
+
+    const shouldInstallFeature = /\b(add|install|dalo|lagao|integrate|enable|use)\b/i.test(lower);
+    if (shouldInstallFeature) {
+      const topRepo = ghRes.items?.[0];
+      const toolKey = /whatsapp/i.test(lower)
+        ? "whatsapp_concierge_banner"
+        : /trust|cert/i.test(lower)
+        ? "trust_certificate_bar"
+        : "schema_jsonld_booster";
+      actionTag = `[ADMIN_ACTION: ${JSON.stringify({ type: "INSTALL_PUBLIC_TOOL", data: { toolKey, githubRepoUrl: topRepo?.url || "" } })}]`;
+      navTag = `[NAVIGATE_PREVIEW: "/"]`;
+    }
+
+    text = `**GitHub Public Open-Source Tools & Repositories (${searchSubject}):**\n\n${repoListText}${actionTag ? `\n\nIs research par based curated storefront enhancement feature live activate kar diya hai!\n\n${actionTag}\n${navTag}` : `\n\nKisi tool widget ko store par activate karne ke liye likhein: *"Schema SEO booster public tool website mein add karo"* ya *"WhatsApp concierge tool dalo"*.`}`;
+    return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
+  }
+
+  // 10. Google Search / Live Web Research & Market Trends
+  if (/\b(google|web\s*search|market\s*trend|competitor|research|online\s*trend)\b/i.test(lower)) {
+    const researchQuery = normalizedPrompt
+      .replace(/\b(google|par|pe|se|search|research|trend|karo|iss|ko|batao|btao|dikhao|public|tool|ke|mdd|madad)\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim() || "Authentic Nepali Rudraksha India market trends";
+
+    const webRes = await searchGooglePublicResearch({ query: researchQuery });
+    const srcLines = (webRes.sources || []).length
+      ? "\n\n**Live Public Web Sources:**\n" + webRes.sources.map((s, i) => `${i + 1}. [${s.title}](${s.url})`).join("\n")
+      : "";
+
+    const shouldTrainToo = /train|rag|knowledge|seekho|update/i.test(lower);
+    if (shouldTrainToo) {
+      actionTag = `[ADMIN_ACTION: {"type": "RETRAIN_AI_KNOWLEDGE", "data": {"forceRefresh": true}}]`;
+      navTag = `[NAVIGATE_PREVIEW: "/shop"]`;
+    }
+
+    text = `**Google & Public Web Research (${webRes.provider}):**\nQuery: *${researchQuery}*\n\n${webRes.summary}${srcLines}${actionTag ? `\n\n${actionTag}\n${navTag}` : ""}`;
+    return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
+  }
+
+  // 11. Live Product Catalog / Stock / Price Query
   if (/(product|products|catalog|item|items|rudraksha|mala|stock|price|rate|sasta|mehnga|cheapest|expensive)/i.test(lower)) {
     const mukhiMatch = lower.match(/(\d{1,2})\s*[-]?\s*mukhi/i);
     const filter = /out\s*of\s*stock|khatam|zero\s*stock/i.test(lower)
@@ -1281,7 +1833,7 @@ export async function synthesizeAutonomousAdminResponse(systemPrompt, rawMessage
     return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
   }
 
-  // 8. Customers & VIP Buyers Query
+  // 12. Customers & VIP Buyers Query
   if (/customer|customers|buyer|buyers|user|users|devotee|clients/i.test(lower)) {
     const isVip = /vip|repeat|top|best/i.test(lower);
     const cRes = await queryStoreData({ entity: "customers", filter: isVip ? "vip" : "", limit: 15 });
@@ -1292,7 +1844,7 @@ export async function synthesizeAutonomousAdminResponse(systemPrompt, rawMessage
     return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
   }
 
-  // 9. Reviews & Support Tickets Query
+  // 13. Reviews & Support Tickets Query
   if (/review|reviews|rating|feedback|ticket|tickets|complaint|support/i.test(lower)) {
     const isTicket = /ticket|tickets|complaint|support/i.test(lower);
     if (isTicket) {
@@ -1312,7 +1864,7 @@ export async function synthesizeAutonomousAdminResponse(systemPrompt, rawMessage
     return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
   }
 
-  // 10. Train / Retrain AI Knowledge & Live Public Trends
+  // 14. Train / Retrain AI Knowledge & Live Public Trends
   if (/(train|retrain|\brag\b|public data|public trend|trending|knowledge update|ai ko train|seekho)/i.test(lower)) {
     const trends = await getPublicStoreTrendsPayload(true);
     const topTrendText = (trends.trendingProducts || []).slice(0, 5).map((t, i) => `${i + 1}. **${t.name}** — ₹${Number(t.price || 0).toLocaleString("en-IN")} (${t.unitsSold} ordered)`).join("\n") || "Storefront trending products ready";
@@ -1325,8 +1877,8 @@ export async function synthesizeAutonomousAdminResponse(systemPrompt, rawMessage
     return { text, modelUsed: "Aura Autonomous Agent", provider: "Aura Autonomous Agent" };
   }
 
-  // 11. Add Feature / Banner intent
-  const isFeature = /feature|banner|announcement|offer banner|sale banner/i.test(lower) && /(add|create|lagao|dikhao|bnao|publish)/i.test(lower);
+  // 15. Add Feature / Banner intent
+  const isFeature = /feature|banner|announcement|offer banner|sale banner/i.test(lower) && /(add|create|lagao|dikhao|banao|publish)/i.test(lower);
   if (isFeature) {
     const liveCoupon = (snapshot.coupons || []).find(c => c.status === "Active" || c.isActive !== false);
     const couponSuffix = liveCoupon ? ` — Use Code ${liveCoupon.code}` : "";
@@ -1631,13 +2183,15 @@ export async function runWebsiteBugDiagnostic() {
 }
 
 /**
- * Helper to resolve a product by id, _id, slug, or partial name/mukhi
+ * Helper to resolve a product by id, _id, slug, mukhi, or fuzzy partial name
  */
 async function findTargetProduct(data = {}) {
+  const rawIdOrName = String(data.id || data.slug || data.idOrName || data.name || "").trim();
   const idOrSlug = String(data.id || data.slug || data.idOrName || "").trim();
   const nameHint = String(data.name || data.idOrName || "").trim();
   let existing = null;
 
+  let candidates = [];
   if (isDbConnected()) {
     if (idOrSlug) {
       existing = await Product.findOne({ $or: [{ id: idOrSlug }, { slug: idOrSlug }] }).lean().catch(() => null);
@@ -1645,15 +2199,64 @@ async function findTargetProduct(data = {}) {
     if (!existing && nameHint) {
       existing = await Product.findOne({ name: new RegExp(escapeRegex(nameHint), "i") }).lean().catch(() => null);
     }
+    if (!existing) {
+      candidates = await Product.find().limit(250).lean().catch(() => []);
+    }
   }
-  if (!existing && Array.isArray(inMemoryStore.products)) {
+  if (!candidates.length && Array.isArray(inMemoryStore.products)) {
+    candidates = inMemoryStore.products;
+  }
+
+  if (!existing && candidates.length > 0) {
     const low = (idOrSlug || nameHint).toLowerCase();
-    existing = inMemoryStore.products.find(p =>
+    existing = candidates.find(p =>
       String(p.id || "").toLowerCase() === low ||
+      String(p._id || "").toLowerCase() === low ||
       String(p.slug || "").toLowerCase() === low ||
       (nameHint && String(p.name || "").toLowerCase().includes(nameHint.toLowerCase()))
     ) || null;
   }
+
+  // Fuzzy Mukhi + Token Overlap match (handles partial or Hinglish phrases like "7 mukhi" or "bracelets")
+  if (!existing && rawIdOrName && candidates.length > 0) {
+    const mukhiMatch = rawIdOrName.toLowerCase().match(/(\d{1,2})\s*[-]?\s*mukhi/);
+    if (mukhiMatch) {
+      const mRegex = new RegExp(`\\b${mukhiMatch[1]}\\s*[-]?\\s*mukhi\\b`, "i");
+      existing = candidates.find(p =>
+        mRegex.test(String(p.name || "")) ||
+        mRegex.test(String(p.mukhi || "")) ||
+        String(p.mukhi || "").trim() === mukhiMatch[1]
+      ) || null;
+    }
+
+    if (!existing) {
+      const tokens = rawIdOrName
+        .toLowerCase()
+        .replace(/[^\w\s]/g, " ")
+        .split(/\s+/)
+        .filter(t => t.length >= 2 && !["product", "produced", "item", "delete", "remove", "karo"].includes(t));
+
+      if (tokens.length > 0) {
+        let bestScore = 0;
+        let bestProd = null;
+        for (const p of candidates) {
+          const hay = `${p.name || ""} ${p.slug || ""} ${p.category || ""} ${p.mukhi || ""}`.toLowerCase();
+          let score = 0;
+          for (const t of tokens) {
+            if (hay.includes(t)) score += t.length >= 4 ? 2 : 1;
+          }
+          if (score > bestScore) {
+            bestScore = score;
+            bestProd = p;
+          }
+        }
+        if (bestScore >= 2 || (tokens.length === 1 && bestScore >= 1)) {
+          existing = bestProd;
+        }
+      }
+    }
+  }
+
   return existing;
 }
 
@@ -1668,42 +2271,56 @@ export async function executeAdminAgentAction(actionPayload, context = {}) {
 
   switch (type.toUpperCase()) {
     case "CREATE_PRODUCT": {
-      const mukhiMatch = String(data.name || data.mukhi || "5").match(/(\d+)/);
-      const mukhiNum = mukhiMatch ? parseInt(mukhiMatch[1], 10) : 5;
-      const name = data.name || `${mukhiNum} Mukhi Authentic Nepali Rudraksha`;
+      const hasExplicitMukhi = /\d+\s*[-]?\s*mukhi/i.test(String(data.name || "")) || Boolean(data.mukhi);
+      const mukhiMatch = hasExplicitMukhi ? String(data.name || data.mukhi || "").match(/(\d+)/) : null;
+      const mukhiNum = mukhiMatch ? parseInt(mukhiMatch[1], 10) : null;
+
+      const name = String(data.name || (mukhiNum ? `${mukhiNum} Mukhi Authentic Nepali Rudraksha` : "Authentic Himalayan Rudraksha Product")).trim();
       const slug = (data.slug || name)
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "") + "-" + Math.random().toString(36).substring(2, 5);
       const id = "prod_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
-      const price = Number(data.price) || (mukhiNum === 1 ? 14999 : mukhiNum >= 11 ? 5499 : 1499);
+      const price = Number(data.price) || (mukhiNum ? (mukhiNum === 1 ? 14999 : mukhiNum >= 11 ? 5499 : 1499) : 1499);
       const comparePrice = Number(data.comparePrice) || Math.round(price * 1.35);
       const stock = Number(data.stock ?? 25);
       const defaultImg = data.image || data.img || "/images/placeholder.svg";
+      const category = data.category || "Rudraksha Beads";
+      const origin = data.origin || "Nepal (Himalayan)";
+      const nowIso = new Date().toISOString();
+
+      const seoMeta = buildProductSeoMetadata({ name, mukhi: mukhiNum ? `${mukhiNum} Mukhi` : "", origin, category, description: data.description });
 
       const newProductDoc = {
         id,
         name,
         slug,
-        category: data.category || "Rudraksha Beads",
-        subCategory: data.subCategory || `${mukhiNum} Mukhi`,
-        mukhi: `${mukhiNum} Mukhi`,
+        category,
+        subCategory: data.subCategory || (mukhiNum ? `${mukhiNum} Mukhi` : category),
+        ...(mukhiNum ? { mukhi: `${mukhiNum} Mukhi` } : {}),
+        isRudraksha: /rudraksha|mukhi/i.test(`${name} ${category}`),
+        hasCertificate: true,
         price,
         comparePrice,
         mrp: comparePrice,
         discount: comparePrice > price ? Math.round(((comparePrice - price) / comparePrice) * 100) : 0,
         stock,
-        ...(data.indonesiaPrice !== undefined ? { indonesiaPrice: Number(data.indonesiaPrice) } : {}),
-        ...(data.indonesiaStock !== undefined ? { indonesiaStock: Number(data.indonesiaStock) } : {}),
-        origin: data.origin || "Nepal (Himalayan)",
+        ...(data.indonesiaPrice !== undefined ? { indonesiaPrice: Number(data.indonesiaPrice), hasIndonesianVariant: true, indonesianPrice: Number(data.indonesiaPrice) } : {}),
+        ...(data.indonesiaStock !== undefined ? { indonesiaStock: Number(data.indonesiaStock), indonesianStock: Number(data.indonesiaStock) } : {}),
+        origin,
         rulingPlanet: data.rulingPlanet || "Jupiter / Shiva",
         deity: data.deity || "Lord Shiva (Kalagni Rudra)",
         mantra: data.mantra || "Om Hreem Namah",
-        description: data.description || `Authentic Lab-Certified ${name} sourced directly from the sacred Arun Valley of Nepal. Energized with Vedic Shiva Purana rituals and Gangajal Abhishekam for spiritual protection, clarity, and prosperity.`,
+        description: data.description || seoMeta.description,
+        keywords: Array.isArray(data.keywords) && data.keywords.length ? data.keywords : seoMeta.keywords,
+        searchKeywords: Array.isArray(data.keywords) && data.keywords.length ? data.keywords : seoMeta.searchKeywords,
+        tags: Array.isArray(data.tags) && data.tags.length ? data.tags : seoMeta.tags,
+        metaTitle: data.metaTitle || seoMeta.metaTitle,
+        metaDescription: data.metaDescription || seoMeta.metaDescription,
         benefits: Array.isArray(data.benefits) && data.benefits.length > 0
           ? data.benefits
           : [
-              "100% Natural X-Ray & Lab Certified Himalayan Bead",
+              "100% Natural X-Ray & Lab Certified Spiritual Bead",
               "Prana-Pratishtha energized by Kashi Vedic Acharyas",
               "Balances planetary energies and enhances spiritual aura"
             ],
@@ -1716,8 +2333,10 @@ export async function executeAdminAgentAction(actionPayload, context = {}) {
         badge: data.badge || "New Arrival",
         homeBadge: data.badge || "New Arrival",
         rating: 4.9,
-        reviews: 18,
-        certification: "ISO 9001:2015 Lab Certified"
+        reviews: 0,
+        certification: "ISO 9001:2015 Lab Certified",
+        createdAt: nowIso,
+        updatedAt: nowIso
       };
 
       let savedProd = newProductDoc;
@@ -1743,9 +2362,11 @@ export async function executeAdminAgentAction(actionPayload, context = {}) {
           } catch (_) {}
         }
       }
-      if (Array.isArray(inMemoryStore.products)) {
-        inMemoryStore.products.unshift(savedProd);
+      if (!Array.isArray(inMemoryStore.products)) {
+        inMemoryStore.products = [];
       }
+      inMemoryStore.products.unshift(savedProd);
+      inMemoryStore.isProductsSyncedFromDb = true;
       invalidateProductCache();
       invalidateRagCache();
 
@@ -1768,6 +2389,7 @@ export async function executeAdminAgentAction(actionPayload, context = {}) {
         actionType: "CREATE_PRODUCT",
         title: log.title,
         previewRoute: `/product/${slug}`,
+        adminProductsRoute: "/admin/products",
         previewTitle: `New Product Live Preview: ${name}`,
         product: savedProd
       };
@@ -1937,16 +2559,33 @@ export async function executeAdminAgentAction(actionPayload, context = {}) {
     }
 
     case "DELETE_PRODUCT": {
-      let existing = await findTargetProduct(data);
+      const existing = await findTargetProduct(data);
       if (!existing) {
-        return { error: `Product not found to delete.` };
+        return { error: `Product "${data.name || data.idOrName || data.id || ""}" not found to delete.` };
       }
       if (isDbConnected()) {
-        await Product.deleteOne({ id: existing.id });
+        await Product.deleteOne({
+          $or: [
+            { id: existing.id },
+            ...(existing.slug ? [{ slug: existing.slug }] : [])
+          ]
+        });
+        try {
+          await Setting.updateOne(
+            { id: "STORE_SETTINGS" },
+            {
+              $pull: {
+                "homeProductLayout.live": existing.id,
+                "homeProductLayout.draft": existing.id
+              }
+            }
+          );
+        } catch (_) {}
       }
       if (Array.isArray(inMemoryStore.products)) {
-        const idx = inMemoryStore.products.findIndex(p => p.id === existing.id);
+        const idx = inMemoryStore.products.findIndex(p => String(p.id) === String(existing.id) || (existing.slug && p.slug === existing.slug));
         if (idx !== -1) inMemoryStore.products.splice(idx, 1);
+        inMemoryStore.isProductsSyncedFromDb = true;
       }
       invalidateProductCache();
       invalidateRagCache();
@@ -1959,7 +2598,7 @@ export async function executeAdminAgentAction(actionPayload, context = {}) {
         targetId: existing.id,
         previousData: existing,
         newData: null,
-        previewRoute: "/shop",
+        previewRoute: "/admin/products",
         source,
         sessionId,
         taskId
@@ -1969,8 +2608,9 @@ export async function executeAdminAgentAction(actionPayload, context = {}) {
         actionId: log.actionId,
         actionType: "DELETE_PRODUCT",
         title: log.title,
-        previewRoute: "/shop",
-        previewTitle: "Store Shop Catalog (After Deletion)"
+        deletedProductId: existing.id,
+        previewRoute: "/admin/products",
+        previewTitle: "Admin Products Catalog (After Deletion)"
       };
     }
 
@@ -2610,6 +3250,131 @@ export async function executeAdminAgentAction(actionPayload, context = {}) {
       };
     }
 
+    case "GENERATE_PRODUCT_SEO": {
+      const targetHint = String(data.idOrName || data.name || data.id || "").trim();
+      let targets = [];
+      if (targetHint) {
+        const one = await findTargetProduct({ idOrName: targetHint, name: targetHint });
+        if (!one) return { error: `Product "${targetHint}" not found for SEO generation.` };
+        targets = [one];
+      } else {
+        targets = isDbConnected()
+          ? await Product.find().lean().catch(() => [])
+          : [...getAllInMemoryProducts()];
+        if (!targets.length) targets = [...getAllInMemoryProducts()];
+      }
+
+      if (!targets.length) return { error: "No products found to optimize SEO." };
+
+      const prevSnapshots = [];
+      let updatedCount = 0;
+
+      for (const p of targets) {
+        const seo = buildProductSeoMetadata(p);
+        prevSnapshots.push({
+          id: p.id,
+          keywords: p.keywords,
+          searchKeywords: p.searchKeywords,
+          tags: p.tags,
+          metaTitle: p.metaTitle,
+          metaDescription: p.metaDescription,
+          description: p.description
+        });
+        if (isDbConnected()) {
+          await Product.updateOne({ id: p.id }, { $set: seo });
+        }
+        if (Array.isArray(inMemoryStore.products)) {
+          const idx = inMemoryStore.products.findIndex(mp => String(mp.id) === String(p.id));
+          if (idx !== -1) inMemoryStore.products[idx] = { ...inMemoryStore.products[idx], ...seo };
+        }
+        updatedCount++;
+      }
+
+      invalidateProductCache();
+      invalidateRagCache();
+
+      const log = await recordAdminActionLog({
+        actionType: "GENERATE_PRODUCT_SEO",
+        title: `Generated Vedic SEO & Keywords for ${updatedCount} Product(s)`,
+        description: `Updated English + Hindi keywords, meta titles, and descriptions across ${updatedCount} catalog item(s).`,
+        targetCollection: "Product",
+        targetId: targets.length === 1 ? targets[0].id : `seo_${updatedCount}`,
+        previousData: prevSnapshots,
+        newData: { updatedCount },
+        previewRoute: "/admin/products",
+        source, sessionId, taskId
+      });
+
+      return {
+        actionId: log.actionId,
+        actionType: "GENERATE_PRODUCT_SEO",
+        title: log.title,
+        updatedCount,
+        previewRoute: "/admin/products",
+        previewTitle: "Admin Products SEO Optimized"
+      };
+    }
+
+    case "INSTALL_PUBLIC_TOOL": {
+      const toolKey = String(data.toolKey || "schema_jsonld_booster").trim();
+      const preset = CURATED_PUBLIC_TOOLS_CATALOG.find(t => t.key === toolKey) || CURATED_PUBLIC_TOOLS_CATALOG[0];
+      const featureId = "tool_" + Date.now();
+      const newFeature = {
+        id: featureId,
+        type: preset.featureType,
+        toolKey: preset.key,
+        title: String(data.title || preset.title),
+        subtitle: String(data.subtitle || preset.subtitle),
+        badge: preset.badge,
+        ctaText: preset.ctaText,
+        ctaLink: preset.ctaLink,
+        githubRef: String(data.githubRepoUrl || preset.githubRef),
+        bgColor: "linear-gradient(90deg, #431407 0%, #7c2d12 50%, #431407 100%)",
+        textColor: "#fde68a",
+        enabled: true,
+        createdAt: new Date().toISOString()
+      };
+
+      let prevFeatures = Array.isArray(inMemoryStore.settings?.aiCustomFeatures) ? inMemoryStore.settings.aiCustomFeatures : [];
+      let updatedFeatures = [newFeature, ...prevFeatures];
+
+      if (isDbConnected()) {
+        const prevSettings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
+        const existingList = Array.isArray(prevSettings?.aiCustomFeatures) ? prevSettings.aiCustomFeatures : [];
+        prevFeatures = existingList;
+        updatedFeatures = [newFeature, ...existingList];
+        await Setting.findOneAndUpdate(
+          { id: "STORE_SETTINGS" },
+          { $set: { aiCustomFeatures: updatedFeatures } },
+          { upsert: true, new: true }
+        );
+      }
+      if (inMemoryStore.settings) {
+        inMemoryStore.settings.aiCustomFeatures = updatedFeatures;
+      }
+
+      const log = await recordAdminActionLog({
+        actionType: "ADD_WEBSITE_FEATURE",
+        title: `Activated Public Tool Widget: ${newFeature.title.slice(0, 52)}`,
+        description: `Installed storefront feature (${newFeature.toolKey}) referencing ${newFeature.githubRef}`,
+        targetCollection: "Setting",
+        targetId: featureId,
+        previousData: prevFeatures,
+        newData: updatedFeatures,
+        previewRoute: "/",
+        source, sessionId, taskId
+      });
+
+      return {
+        actionId: log.actionId,
+        actionType: "ADD_WEBSITE_FEATURE",
+        title: log.title,
+        previewRoute: "/",
+        previewTitle: `Live Storefront (${newFeature.badge})`,
+        feature: newFeature
+      };
+    }
+
     default:
       return null;
   }
@@ -2670,7 +3435,28 @@ export async function undoAdminAgentAction(actionId) {
     const cleanPrev = { ...previousData };
     delete cleanPrev._id;
     if (isDbConnected()) await Product.findOneAndUpdate({ id: targetId }, { $set: cleanPrev }, { upsert: true });
-    if (Array.isArray(inMemoryStore.products)) inMemoryStore.products.unshift(cleanPrev);
+    if (Array.isArray(inMemoryStore.products)) {
+      const existsIdx = inMemoryStore.products.findIndex(p => String(p.id) === String(cleanPrev.id));
+      if (existsIdx === -1) inMemoryStore.products.unshift(cleanPrev);
+      inMemoryStore.isProductsSyncedFromDb = true;
+    }
+  } else if (actionType === "GENERATE_PRODUCT_SEO" && Array.isArray(previousData)) {
+    for (const snap of previousData) {
+      if (!snap?.id) continue;
+      const restore = {
+        keywords: snap.keywords || [],
+        searchKeywords: snap.searchKeywords || [],
+        tags: snap.tags || [],
+        metaTitle: snap.metaTitle || "",
+        metaDescription: snap.metaDescription || "",
+        description: snap.description || ""
+      };
+      if (isDbConnected()) await Product.updateOne({ id: snap.id }, { $set: restore });
+      if (Array.isArray(inMemoryStore.products)) {
+        const idx = inMemoryStore.products.findIndex(mp => String(mp.id) === String(snap.id));
+        if (idx !== -1) inMemoryStore.products[idx] = { ...inMemoryStore.products[idx], ...restore };
+      }
+    }
   } else if (actionType === "CREATE_COUPON") {
     if (isDbConnected()) {
       if (previousData) {

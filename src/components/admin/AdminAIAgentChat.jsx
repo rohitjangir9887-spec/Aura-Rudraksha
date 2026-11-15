@@ -29,6 +29,7 @@ import {
   PanelRightClose
 } from "lucide-react";
 import { auraAiClient } from "../../lib/auraAiClient";
+import { db, emitStoreUpdate } from "../../lib/db";
 import { AuraAIMessageContent } from "../AuraAIMessageContent";
 import { emitToast } from "../../context/ToastContext";
 
@@ -42,6 +43,22 @@ export const NIM_MODEL_OPTIONS = [
 
 const QUICK_COMMANDS = [
   {
+    label: "+ Add Product",
+    prompt: "Naya product \"8 Mukhi Nepali Rudraksha\" price 2499 stock 15 add karo"
+  },
+  {
+    label: "Auto SEO Keywords",
+    prompt: "Sabhi products ke liye Hindi aur English SEO keywords generate karke save karo"
+  },
+  {
+    label: "GitHub Public Tools",
+    prompt: "GitHub par ecommerce SEO schema aur WhatsApp store tools search karke dikhao"
+  },
+  {
+    label: "Google Market Trends",
+    prompt: "Google par India Rudraksha online market trends research karke dikhao"
+  },
+  {
     label: "Growth & Health Audit",
     prompt: "Poora store revenue, COD vs Online, unpaid orders, low stock aur VIP buyers ka Growth Audit dikhao"
   },
@@ -50,23 +67,7 @@ const QUICK_COMMANDS = [
     prompt: "Storefront, products aur SEO ke bugs scan karo aur auto-fix kar do"
   },
   {
-    label: "10% Bulk Discount",
-    prompt: "Sabhi products par 10% bulk discount apply karo (preview ke saath)"
-  },
-  {
-    label: "Create Coupon SHIVA15",
-    prompt: "15% off coupon code SHIVA15 create karo minimum order 999 par"
-  },
-  {
-    label: "Pending Orders & Tracking",
-    prompt: "Recent pending ya unpaid orders dikhao jinko update karna hai"
-  },
-  {
-    label: "Payment Toggles Check",
-    prompt: "Abhi COD aur Online PayU settings kya hain dikhao"
-  },
-  {
-    label: "Train AI & Public Trends",
+    label: "Train AI & Trends",
     prompt: "Aura AI aur Admin AI ko live store data aur public trends par retrain karo aur trending products dikhao"
   }
 ];
@@ -270,6 +271,42 @@ export function AdminAIAgentChat({
     return () => clearInterval(timer);
   }, [showInternalTabs, subTab, hasRunningTask, fetchTasks]);
 
+  const syncFrontendStoreAfterAgentActions = useCallback(async (executedList = []) => {
+    try {
+      // Remove any newly created/restored IDs from local deleted-product blocklist
+      if (typeof window !== "undefined" && Array.isArray(executedList)) {
+        try {
+          const rawDel = localStorage.getItem("aura_deleted_product_ids");
+          if (rawDel) {
+            const delSet = new Set(JSON.parse(rawDel));
+            let changed = false;
+            for (const act of executedList) {
+              if (act?.product?.id && delSet.delete(String(act.product.id))) changed = true;
+              if (act?.product?.slug && delSet.delete(String(act.product.slug))) changed = true;
+            }
+            if (changed) {
+              localStorage.setItem("aura_deleted_product_ids", JSON.stringify(Array.from(delSet)));
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (typeof db.invalidateLocalProductCache === "function") {
+        db.invalidateLocalProductCache();
+      }
+      await Promise.all([
+        db.revalidateProducts ? db.revalidateProducts(true).catch(() => {}) : Promise.resolve(),
+        db.fetchHomeData ? db.fetchHomeData(true).catch(() => {}) : Promise.resolve()
+      ]);
+      const freshProducts = db.getProducts ? db.getProducts() : [];
+      if (typeof emitStoreUpdate === "function") {
+        emitStoreUpdate("products:synced", freshProducts);
+      }
+    } catch (err) {
+      console.warn("[AdminAIAgentChat] Store cache sync notice:", err?.message || err);
+    }
+  }, []);
+
   const openLivePreview = (route) => {
     const cleanRoute = route && String(route).startsWith("/") ? route : "/";
     setPreviewRoute(cleanRoute);
@@ -319,7 +356,8 @@ export function AdminAIAgentChat({
         }
         if (Array.isArray(res.actionsExecuted) && res.actionsExecuted.length > 0) {
           actionsLoadedRef.current = false;
-          emitToast(`${res.actionsExecuted.length} store action(s) executed.`, "success");
+          await syncFrontendStoreAfterAgentActions(res.actionsExecuted);
+          emitToast(`${res.actionsExecuted.length} store action(s) executed & synced.`, "success");
           if (typeof onActionExecuted === "function") onActionExecuted(res.actionsExecuted);
         }
       } else {
@@ -335,6 +373,7 @@ export function AdminAIAgentChat({
         ]);
         if (Array.isArray(res?.actionsExecuted) && res.actionsExecuted.length > 0) {
           actionsLoadedRef.current = false;
+          await syncFrontendStoreAfterAgentActions(res.actionsExecuted);
           if (typeof onActionExecuted === "function") onActionExecuted(res.actionsExecuted);
         }
       }
@@ -397,6 +436,7 @@ export function AdminAIAgentChat({
           }))
         );
         setPreviewNonce(n => n + 1);
+        await syncFrontendStoreAfterAgentActions([]);
         if (typeof onActionExecuted === "function") onActionExecuted([]);
       } else {
         emitToast(res?.message || "Could not undo action.", "error");
@@ -461,6 +501,7 @@ export function AdminAIAgentChat({
       const res = await auraAiClient.executeAdminAgentAction("AUTO_FIX_BUGS", {}, sessionId);
       if (res?.success) {
         emitToast(res.result?.title || "Storefront issues repaired.", "success");
+        await syncFrontendStoreAfterAgentActions(res.result ? [res.result] : []);
         await fetchDiagnosticsAndAudit();
         actionsLoadedRef.current = false;
       } else {
@@ -477,6 +518,7 @@ export function AdminAIAgentChat({
       const res = await auraAiClient.executeAdminAgentAction("RETRAIN_AI_KNOWLEDGE", { forceRefresh: true }, sessionId);
       if (res?.success) {
         emitToast("Public trends & RAG knowledge index updated.", "success");
+        await syncFrontendStoreAfterAgentActions([]);
         actionsLoadedRef.current = false;
       } else {
         emitToast(res?.message || "Retrain failed.", "error");
@@ -883,7 +925,7 @@ export function AdminAIAgentChat({
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
                     disabled={isExecuting}
-                    placeholder="Command Admin AI (e.g., '15% discount coupon FEST15 bnao', 'Scan and fix store bugs', 'Unpaid orders dikhao')..."
+                    placeholder="Command Admin AI in Hindi/Hinglish/English (e.g., '8 Mukhi product price 1899 add karo', '7 Mukhi delete karo', 'GitHub public SEO tools dikhao')..."
                     className="min-h-[46px] max-h-32 flex-1 resize-none rounded-lg border border-slate-300 bg-[#F8FAFC] px-3 py-2 text-[13px] text-slate-900 placeholder-slate-400 focus:border-[#8C2B10] focus:bg-white focus:outline-none"
                   />
                   <button

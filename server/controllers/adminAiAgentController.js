@@ -37,7 +37,7 @@ const DEFAULT_SESSION_ID = "admin_master_session";
 const WELCOME_MSG = {
   id: "amsg_welcome",
   sender: "ai",
-  text: "**Aura Autonomous Admin Agent** active.\n\nMain aapke poore Aura Rudraksha Store aur MongoDB Database par direct Read/Write actions execute kar sakta hoon:\n- **Catalog & Pricing**: Naye products (Nepali/Indonesian) upload karo, price/stock badlo, ya sabhi items par **bulk % discount** lagao\n- **Orders & Tracking**: Pending/unpaid orders inspect karo, status update karo, tracking AWB & courier set karo\n- **Coupons, Active Offer & Banners**: Coupons create/pause/delete karo, Central Active Offer & Hero Banners control karo\n- **Payment & Store Settings**: Cash on Delivery (COD), Online PayU, shipping fee, ya announcement bar ON/OFF karo\n- **Bug Auto-Fix & Growth Copilot**: Store bugs scan/repair karo, VIP repeat buyers list, aur conversion insights dekho\n- **Live Public Trends Training**: Customer Aura AI ke RAG knowledge index ko turant live catalog & trends par train karo\n- **1-Click Undo & Live Preview**: Har change ke sath 1-click Undo backup aur live split-view preview",
+  text: "**Aura Autonomous Admin Copilot** active (Google Search + GitHub Public Tools + Live Store DB).\n\nMain aapke poore Aura Rudraksha Store par Hindi, Hinglish ya English mein har Read/Write action execute kar sakta hoon:\n- **Products Add / Edit / Delete**: Naye products upload karo (e.g. *'8 Mukhi Indonesian Rudraksha price 1899 stock 12 add karo'*), price/stock/status badlo, ya kisi product ko delete karo (1-click Undo ke saath)\n- **Google Search & Live Trends**: Live Google public web search, Rudraksha market trends, keyword ideas, aur Customer AI RAG retraining\n- **GitHub Public Tools Finder**: GitHub ke top open-source e-commerce/SEO/WhatsApp tools & repos search karo aur storefront widgets install karo\n- **Auto Hindi + English SEO**: Sabhi products ke search keywords, meta tags aur Vedic descriptions 1 command mein generate karo\n- **Orders, Coupons, Offers & Settings**: Orders/tracking update karo, coupons/banners banao, COD/PayU/shipping toggle karo\n- **Bug Auto-Fix & Growth Audit**: Storefront bugs scan/fix karo aur revenue/VIP insights dekho",
   status: "completed",
   modelUsed: PRIMARY_NIM_MODEL,
   actionsExecuted: [],
@@ -78,7 +78,7 @@ async function getOrCreateSessionDoc(sessionId = DEFAULT_SESSION_ID) {
 
 /**
  * Main Autonomous Admin AI Chat Handler
- * Saves user message to MongoDB immediately, executes NVIDIA NIM + Autonomous Tools in background/foreground,
+ * Saves user message to MongoDB immediately, executes Gemini/NIM + Autonomous Tools in background/foreground,
  * and persists the full reply, executed actions, and live preview route in MongoDB.
  */
 export async function handleAdminAgentChat(req, res) {
@@ -151,8 +151,8 @@ export async function handleAdminAgentChat(req, res) {
       `- Code: ${c.code} | Discount: ${c.discountValue}${c.discountType === "percentage" ? "%" : "₹"} | Active: ${c.isActive !== false}`
     ).join("\n") || "No coupons.";
 
-    const systemPrompt = `You are Aura AI Autonomous Admin Agent with FULL Read/Write control over the entire Aura Rudraksha Store & MongoDB Database.
-Communicate clearly in Hindi, Hinglish, or English matching the Admin. Always execute real tool actions instead of making up fake confirmations.
+    const systemPrompt = `You are Aura AI Autonomous Admin Copilot with FULL Read/Write control over the Aura Rudraksha Store & MongoDB Database, plus live Google Search Grounding and GitHub Public Open-Source Tools Search.
+Communicate clearly in Hindi, Hinglish, or English matching the Admin. Understand natural Hinglish & typing errors effortlessly (e.g. "produced" = product, "htana"/"nikalo" = delete, "ad"/"dalo"/"bnao" = add/create, "fichar" = feature). Always execute real tool actions instead of making up fake confirmations.
 ${pageContext ? `CURRENT ADMIN PAGE CONTEXT: Admin currently has "${pageContext}" open.` : ""}
 
 LIVE STORE & DATABASE SNAPSHOT:
@@ -175,8 +175,8 @@ ACTIVE COUPONS:
 ${couponsLines}
 
 EXECUTION RULES:
-- Use your attached function tools whenever available!
-- If falling back to text-only mode, emit [ADMIN_ACTION: {"type": "...", "data": {...}}] tags (CREATE_PRODUCT, UPDATE_PRODUCT, BULK_UPDATE_PRODUCTS, DELETE_PRODUCT, CREATE_COUPON, UPDATE_COUPON, DELETE_COUPON, UPDATE_ACTIVE_OFFER, MANAGE_BANNER, ADD_WEBSITE_FEATURE, UPDATE_STORE_SETTINGS, UPDATE_ORDER, MANAGE_REVIEW, RESOLVE_TICKET, AUTO_FIX_BUGS, SHOW_PAGE, CREATE_TASK) and/or [NAVIGATE_PREVIEW: "/route"].
+- Use your attached function tools (create_product, update_product, delete_product, generate_product_seo, search_github_tools, google_public_search, install_public_tool_feature, etc.) whenever available!
+- If falling back to text-only mode, emit [ADMIN_ACTION: {"type": "...", "data": {...}}] tags (CREATE_PRODUCT, UPDATE_PRODUCT, BULK_UPDATE_PRODUCTS, DELETE_PRODUCT, GENERATE_PRODUCT_SEO, INSTALL_PUBLIC_TOOL, CREATE_COUPON, UPDATE_COUPON, DELETE_COUPON, UPDATE_ACTIVE_OFFER, MANAGE_BANNER, ADD_WEBSITE_FEATURE, UPDATE_STORE_SETTINGS, UPDATE_ORDER, MANAGE_REVIEW, RESOLVE_TICKET, AUTO_FIX_BUGS, RETRAIN_AI_KNOWLEDGE, SHOW_PAGE, CREATE_TASK) and/or [NAVIGATE_PREVIEW: "/route"].
 - Every mutation creates an Undo snapshot in AdminAIActionLog so Admin can roll back in 1 click.`;
 
     const conversationHistoryForLLM = (updatedMessagesWithUser || []).slice(-12);

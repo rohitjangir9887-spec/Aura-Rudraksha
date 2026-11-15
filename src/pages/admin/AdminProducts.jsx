@@ -122,18 +122,27 @@ export function AdminProducts() {
 
   useEffect(() => {
     load(true);
-    const unsub = onStoreUpdate((e) => {
-      const action = e?.detail?.action || "";
+    const unsub = onStoreUpdate((detail, _payload, evType) => {
+      const action = String(evType || detail?.type || detail?.action || "");
       if (
         !action ||
+        action === "batch:synced" ||
         action.startsWith("product") ||
         action.startsWith("settings") ||
-        action.startsWith("reviews")
+        action.startsWith("reviews") ||
+        action.startsWith("home")
       ) {
         setProducts(db.getProducts() || []);
       }
     });
-    return () => unsub();
+    const handleFocus = () => {
+      load(true);
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      unsub();
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
 
   useEffect(() => {
