@@ -52,6 +52,7 @@ import { VoiceReader } from "./VoiceReader";
 import { AuraAIChatHistoryModal } from "./AuraAIChatHistoryModal";
 import { AuraAISavedKundaliModal } from "./AuraAISavedKundaliModal";
 import { PanditJiVedicTools } from "./PanditJiVedicTools";
+import { AuraCommandDock } from "./AuraCommandDock";
 
 
 export function AuraAIFloating() {
@@ -65,6 +66,7 @@ export function AuraAIFloating() {
   const [panditPrefs, setPanditPrefs] = useState(() => auraChatStore.getPanditPreferences());
   const [savedPanditSessions, setSavedPanditSessions] = useState(() => auraChatStore.getSavedSessions("panditji"));
   const [showVedicToolsModal, setShowVedicToolsModal] = useState(false);
+  const [vedicToolsTab, setVedicToolsTab] = useState("milan");
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [timeTheme, setTimeTheme] = useState("theme-classic");
   const [pillState, setPillState] = useState("default");
@@ -1917,437 +1919,90 @@ export function AuraAIFloating() {
                 </button>
               </div>
 
-              {/* Quick AI & Vedic Suggestion Strip with dynamic keywords & option transition animations */}
-              <div className="aura-ai-nav-strip">
-                <AnimatePresence mode="wait">
-                  {mode === "panditji" ? (
-                    <motion.div 
-                      key="strip-panditji"
-                      initial={{ opacity: 0, x: -6 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 6 }}
-                      transition={{ duration: 0.2 }}
-                      style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
-                    >
-                      <motion.button 
-                        type="button"
-                        whileHover={{ scale: 1.05, y: -1 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={handleNewChat} 
-                        className="aura-ai-strip-btn"
-                        title="New Chat / Nayi Baat-cheet"
-                        style={{ background: "#fef3c7", color: "#78350f", border: "1px solid #f59e0b", fontWeight: 700 }}
-                      >
-                        <RotateCcw size={10.5} />
-                        <span>🔄 New Chat</span>
-                      </motion.button>
-
-                      <motion.button 
-                        whileHover={{ scale: 1.05, y: -1 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setShowBirthForm((prev) => !prev)} 
-                        className={`aura-ai-strip-btn ${showBirthForm ? "active" : ""}`}
-                        style={{ background: "#fef3c7", color: "#78350f", border: "1.5px solid #f59e0b", fontWeight: 700 }}
-                      >
-                        📋 {showBirthForm ? "✕ बंद करें" : "📋 Kundli Form"}
-                      </motion.button>
-
-                      <motion.button 
-                        type="button"
-                        whileHover={{ scale: 1.05, y: -1 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setShowSavedKundaliModal(true);
-                        }} 
-                        onPointerDown={(e) => e.stopPropagation()}
-                        className="aura-ai-strip-btn"
-                        title="Saved Kundali Profiles"
-                        style={{ background: "#fef3c7", color: "#78350f", border: "1px solid #f59e0b" }}
-                      >
-                        <Bookmark size={11} />
-                        <span>💾 Saved Kundalis</span>
-                      </motion.button>
-                      <motion.button 
-                        type="button"
-                        whileHover={{ scale: 1.05, y: -1 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setShowChatHistoryModal(true);
-                        }} 
-                        onPointerDown={(e) => e.stopPropagation()}
-                        className="aura-ai-strip-btn"
-                        title="View Past Consultations"
-                      >
-                        <History size={11} />
-                        <span>📜 History</span>
-                      </motion.button>
-                      <motion.button 
-                        type="button"
-                        whileHover={{ scale: 1.05, y: -1 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => {
-                          fetchNotes();
-                          setShowNotepad(true);
-                        }}
-                        className="aura-ai-strip-btn"
-                        title="Spiritual Notes"
-                      >
-                        <Notebook size={11} />
-                        <span>📝 Notes {notesList.length > 0 ? `(${notesList.length})` : ""}</span>
-                      </motion.button>
-                      {dynamicSuggestions.map((sug, idx) => (
-                        <motion.button 
-                          key={idx}
-                          whileHover={{ scale: 1.05, y: -1 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => handleSend(sug.query)} 
-                          className="aura-ai-strip-btn"
-                        >
-                          {sug.label}
-                        </motion.button>
-                      ))}
-                    </motion.div>
-                  ) : (
-                    <motion.div 
-                      key="strip-standard"
-                      initial={{ opacity: 0, x: -6 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 6 }}
-                      transition={{ duration: 0.2 }}
-                      style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
-                    >
-                      <motion.button 
-                        type="button"
-                        whileHover={{ scale: 1.05, y: -1 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={handleNewChat} 
-                        className="aura-ai-strip-btn"
-                        title="New Chat / Nayi Baat-cheet"
-                        style={{ background: "#fdf3e3", color: "#8c2b10", border: "1px solid #d4af37", fontWeight: 700 }}
-                      >
-                        <RotateCcw size={10.5} />
-                        <span>🔄 New Chat</span>
-                      </motion.button>
-
-                      <motion.button 
-                        whileHover={{ scale: 1.05, y: -1 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => handleSend("📦 Track my recent order status")} 
-                        className="aura-ai-strip-btn"
-                      >
-                        📦 Track Order
-                      </motion.button>
-                      <motion.button 
-                        whileHover={{ scale: 1.05, y: -1 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => handleSend("🎁 Aaj ke active discount coupon codes batao")} 
-                        className="aura-ai-strip-btn"
-                      >
-                        🎁 Today's Offers
-                      </motion.button>
-                      <motion.button 
-                        type="button"
-                        whileHover={{ scale: 1.05, y: -1 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setShowChatHistoryModal(true)} 
-                        className="aura-ai-strip-btn"
-                        title="View Past Consultations"
-                      >
-                        <History size={11} />
-                        <span>📜 History</span>
-                      </motion.button>
-                      <motion.button 
-                        type="button"
-                        whileHover={{ scale: 1.05, y: -1 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => {
-                          fetchNotes();
-                          setShowNotepad(true);
-                        }}
-                        className="aura-ai-strip-btn"
-                        title="Saved Notes"
-                      >
-                        <Notebook size={11} />
-                        <span>📝 Notes {notesList.length > 0 ? `(${notesList.length})` : ""}</span>
-                      </motion.button>
-                      {dynamicSuggestions.map((sug, idx) => (
-                        <motion.button 
-                          key={idx}
-                          whileHover={{ scale: 1.05, y: -1 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => handleSend(sug.query)} 
-                          className="aura-ai-strip-btn"
-                        >
-                          {sug.label}
-                        </motion.button>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                <button 
-                  type="button" 
-                  onClick={() => setIsFullWindow((prev) => !prev)} 
-                  className="aura-ai-strip-btn aura-ai-strip-btn-link"
-                >
-                  {isFullWindow ? "Compact" : "Full Window"} <ChevronRight size={11} />
-                </button>
-              </div>
-
-              {/* AI Pandit Ji Multi-Chat Sessions & Custom Style/Graph Bar */}
-              {mode === "panditji" && (
-                <div
-                  style={{
-                    padding: "6px 10px",
-                    background: "linear-gradient(135deg, #fffaf2 0%, #fef5e7 100%)",
-                    borderBottom: "1px solid #ecd9bd",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "5px"
-                  }}
-                >
-                  {/* Multi-Chat Session Switcher + Create New Chat */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "5px", overflowX: "auto", paddingBottom: "1px" }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        auraAiClient.abortActiveStream();
-                        turnSeqRef.current++;
-                        setLoading(false);
-                        const { newConvId, messages: fresh } = auraChatStore.startNewSession("panditji");
-                        setConversationId(newConvId);
-                        setMessages(fresh);
-                        setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
-                        emitToast("नया पंडित जी चैट बन गया ✨", "success");
-                      }}
-                      style={{
-                        flexShrink: 0,
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "3px",
-                        padding: "3px 8px",
-                        borderRadius: "12px",
-                        background: "#8c2b10",
-                        color: "#ffffff",
-                        border: "none",
-                        fontSize: "10.5px",
-                        fontWeight: 700,
-                        cursor: "pointer"
-                      }}
-                      title="नया चैट बनाएं (Create New Pandit Ji Chat)"
-                    >
-                      <Plus size={11} /> <span>नया चैट</span>
-                    </button>
-
-                    <span
-                      style={{
-                        flexShrink: 0,
-                        padding: "2px 8px",
-                        borderRadius: "12px",
-                        background: "#fef3c7",
-                        border: "1px solid #d97706",
-                        color: "#78350f",
-                        fontSize: "10.5px",
-                        fontWeight: 700
-                      }}
-                    >
-                      💬 सक्रिय चैट
-                    </span>
-
-                    {savedPanditSessions.filter((s) => s.id !== conversationId).slice(0, 5).map((sess) => (
-                      <button
-                        key={sess.id}
-                        type="button"
-                        onClick={() => {
-                          auraAiClient.abortActiveStream();
-                          turnSeqRef.current++;
-                          setLoading(false);
-                          const switched = auraChatStore.switchToSession(sess.id, "panditji");
-                          if (switched) {
-                            setConversationId(switched.conversationId);
-                            setMessages(switched.messages);
-                            setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
-                          }
-                        }}
-                        style={{
-                          flexShrink: 0,
-                          maxWidth: "135px",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          padding: "2px 8px",
-                          borderRadius: "12px",
-                          background: "#ffffff",
-                          border: "1px solid #e2cbb0",
-                          color: "#5c2a0c",
-                          fontSize: "10.5px",
-                          fontWeight: 600,
-                          cursor: "pointer"
-                        }}
-                        title={`चैट खोलें: ${sess.title}`}
-                      >
-                        {sess.title}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Custom Response Style & Chart/Graph View Preference */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "4px", fontSize: "10px" }}>
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
-                      <span style={{ fontWeight: 700, color: "#78350f" }}>अंदाज़:</span>
-                      {[
-                        { id: "detailed", label: "📜 विस्तृत" },
-                        { id: "balanced", label: "💬 अपनी मर्ज़ी की बात" }
-                      ].map((opt) => (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => {
-                            const next = auraChatStore.savePanditPreferences({ responseStyle: opt.id });
-                            setPanditPrefs(next);
-                          }}
-                          style={{
-                            padding: "2px 6px",
-                            borderRadius: "10px",
-                            border: panditPrefs.responseStyle === opt.id ? "1px solid #8c2b10" : "1px solid #e5d2ba",
-                            background: panditPrefs.responseStyle === opt.id ? "#8c2b10" : "#ffffff",
-                            color: panditPrefs.responseStyle === opt.id ? "#ffffff" : "#6b2a0c",
-                            fontWeight: 700,
-                            fontSize: "10px",
-                            cursor: "pointer"
-                          }}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
-                      <span style={{ fontWeight: 700, color: "#78350f" }}>ग्राफ:</span>
-                      {[
-                        { id: "auto", label: "Auto" },
-                        { id: "chart", label: "चक्र+ग्राफ" },
-                        { id: "cards", label: "कार्ड" },
-                        { id: "table", label: "तालिका" }
-                      ].map((opt) => (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => {
-                            const next = auraChatStore.savePanditPreferences({ chartStyle: opt.id });
-                            setPanditPrefs(next);
-                          }}
-                          style={{
-                            padding: "2px 6px",
-                            borderRadius: "10px",
-                            border: panditPrefs.chartStyle === opt.id ? "1px solid #b45309" : "1px solid #e5d2ba",
-                            background: panditPrefs.chartStyle === opt.id ? "#fef3c7" : "#ffffff",
-                            color: "#78350f",
-                            fontWeight: 700,
-                            fontSize: "10px",
-                            cursor: "pointer"
-                          }}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => setShowVedicToolsModal(true)}
-                        style={{
-                          padding: "2px 7px",
-                          borderRadius: "10px",
-                          border: "1px solid #8c2b10",
-                          background: "#8c2b10",
-                          color: "#ffffff",
-                          fontWeight: 700,
-                          fontSize: "10px",
-                          cursor: "pointer"
-                        }}
-                        title="कुंडली मिलान, अंक ज्योतिष, पंचांग व 1-21 मुखी ज्ञानकोश"
-                      >
-                        🔮 टूल्स
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Persistent Active Kundali Profile Banner */}
-              {mode === "panditji" && activeBirthDetails && activeBirthDetails.dob && (
-                <div 
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "6px 12px",
-                    background: "linear-gradient(135deg, #FFFDF8 0%, #FEF3C7 100%)",
-                    borderBottom: "1.5px solid #F59E0B",
-                    fontSize: "11px",
-                    color: "#78350F",
-                    gap: "8px"
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "5px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    <span style={{ fontSize: "12px" }}>🕉️</span>
-                    <span style={{ fontWeight: 700, color: "#8c2b10" }}>सक्रिय कुंडली:</span>
-                    <span style={{ fontWeight: 600 }}>{activeBirthDetails.name || "Devotee"}</span>
-                    <span style={{ opacity: 0.8, fontSize: "10.5px" }}>({activeBirthDetails.dob}{activeBirthDetails.birthTime ? ` ${activeBirthDetails.birthTime}` : ""}{activeBirthDetails.birthPlace ? ` • ${activeBirthDetails.birthPlace}` : ""})</span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "5px", flexShrink: 0 }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setBirthForm({
-                          name: activeBirthDetails.name || "",
-                          dob: activeBirthDetails.dob || "",
-                          time: activeBirthDetails.birthTime || "",
-                          place: activeBirthDetails.birthPlace || "",
-                          concern: activeBirthDetails.concern || "career"
-                        });
-                        setShowBirthForm(true);
-                      }}
-                      style={{
-                        background: "#FFFFFF",
-                        border: "1px solid #D97706",
-                        color: "#78350F",
-                        borderRadius: "8px",
-                        padding: "2px 6px",
-                        fontSize: "10px",
-                        fontWeight: 700,
-                        cursor: "pointer"
-                      }}
-                      title="जन्म विवरण बदलें (Change Details)"
-                    >
-                      🔄 बदलें
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        auraChatStore.clearActiveBirthDetails();
-                        setActiveBirthDetails(null);
-                        emitToast("सक्रिय कुंडली हटा दी गई", "info");
-                      }}
-                      style={{
-                        background: "#FEE2E2",
-                        border: "1px solid #EF4444",
-                        color: "#991B1B",
-                        borderRadius: "8px",
-                        padding: "2px 6px",
-                        fontSize: "10px",
-                        fontWeight: 700,
-                        cursor: "pointer"
-                      }}
-                      title="कुंडली हटाएं (Delete Kundali)"
-                    >
-                      🗑️ हटाएं
-                    </button>
-                  </div>
-                </div>
-              )}
+              {/* Single-Line 4-Option Animated Command Dock */}
+              <AuraCommandDock
+                scope="floating"
+                mode={mode}
+                onSwitchMode={(nextMode) => {
+                  triggerHaptic("light");
+                  auraAiClient.abortActiveStream();
+                  if (timerRef.current) {
+                    clearInterval(timerRef.current);
+                    timerRef.current = null;
+                  }
+                  setLoading(false);
+                  setErrorOccurred(false);
+                  setMode(nextMode);
+                  setMessages(auraChatStore.getMessages(nextMode));
+                }}
+                conversationId={conversationId}
+                savedSessions={savedPanditSessions}
+                onNewChat={() => {
+                  if (mode === "panditji") {
+                    auraAiClient.abortActiveStream();
+                    turnSeqRef.current++;
+                    setLoading(false);
+                    const { newConvId, messages: fresh } = auraChatStore.startNewSession("panditji");
+                    setConversationId(newConvId);
+                    setMessages(fresh);
+                    setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
+                    emitToast("नया पंडित जी चैट बन गया ✨", "success");
+                  } else {
+                    handleNewChat();
+                  }
+                }}
+                onSelectSession={(sessId) => {
+                  auraAiClient.abortActiveStream();
+                  turnSeqRef.current++;
+                  setLoading(false);
+                  const switched = auraChatStore.switchToSession(sessId, "panditji");
+                  if (switched) {
+                    setConversationId(switched.conversationId);
+                    setMessages(switched.messages);
+                    setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
+                  }
+                }}
+                onOpenHistory={() => setShowChatHistoryModal(true)}
+                activeBirthDetails={activeBirthDetails}
+                showBirthForm={showBirthForm}
+                onToggleBirthForm={() => setShowBirthForm((prev) => !prev)}
+                onEditBirthDetails={() => {
+                  if (activeBirthDetails) {
+                    setBirthForm({
+                      name: activeBirthDetails.name || "",
+                      dob: activeBirthDetails.dob || "",
+                      time: activeBirthDetails.birthTime || "",
+                      place: activeBirthDetails.birthPlace || "",
+                      concern: activeBirthDetails.concern || "career"
+                    });
+                  }
+                  setShowBirthForm(true);
+                }}
+                onClearBirthDetails={() => {
+                  auraChatStore.clearActiveBirthDetails();
+                  setActiveBirthDetails(null);
+                  emitToast("सक्रिय कुंडली हटा दी गई", "info");
+                }}
+                onOpenSavedKundalis={() => setShowSavedKundaliModal(true)}
+                panditPrefs={panditPrefs}
+                onChangePanditPref={(patch) => {
+                  const next = auraChatStore.savePanditPreferences(patch);
+                  setPanditPrefs(next);
+                }}
+                onOpenVedicTool={(tabId) => {
+                  setVedicToolsTab(tabId || "milan");
+                  setShowVedicToolsModal(true);
+                }}
+                onSendQuickPrompt={(q) => handleSend(q)}
+                dynamicSuggestions={dynamicSuggestions}
+                onOpenNotes={() => {
+                  fetchNotes();
+                  setShowNotepad(true);
+                }}
+                notesCount={notesList.length}
+                isFullWindow={isFullWindow}
+                onToggleFullWindow={() => setIsFullWindow((prev) => !prev)}
+              />
 
               {/* Interactive Kundli Birth Details Form Card for AI Panditji */}
               <AnimatePresence>
@@ -3445,6 +3100,7 @@ export function AuraAIFloating() {
       <PanditJiVedicTools
         isOpen={showVedicToolsModal}
         onClose={() => setShowVedicToolsModal(false)}
+        initialTab={vedicToolsTab}
         defaultBirthDetails={activeBirthDetails}
         onAskPanditJi={(promptText) => {
           skipNextModeResetRef.current = true;

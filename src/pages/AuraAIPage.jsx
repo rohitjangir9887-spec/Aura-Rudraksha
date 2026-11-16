@@ -47,6 +47,7 @@ import { VoiceReader } from "../components/VoiceReader";
 import { AuraAIChatHistoryModal } from "../components/AuraAIChatHistoryModal";
 import { AuraAISavedKundaliModal } from "../components/AuraAISavedKundaliModal";
 import { PanditJiVedicTools } from "../components/PanditJiVedicTools";
+import { AuraCommandDock } from "../components/AuraCommandDock";
 import { useSeo } from "../hooks/useSeo";
 
 export function AuraAIPage() {
@@ -84,6 +85,14 @@ export function AuraAIPage() {
   const [showSavedKundaliModal, setShowSavedKundaliModal] = useState(false);
   const [showVedicToolsModal, setShowVedicToolsModal] = useState(false);
   const [vedicToolsTab, setVedicToolsTab] = useState("milan");
+  const [showBirthForm, setShowBirthForm] = useState(false);
+  const [birthForm, setBirthForm] = useState({
+    name: "",
+    dob: "",
+    time: "",
+    place: "",
+    concern: "career"
+  });
   const [activeBirthDetails, setActiveBirthDetails] = useState(() => auraChatStore.getVerifiedBirthDetails());
   const [panditPrefs, setPanditPrefs] = useState(() => auraChatStore.getPanditPreferences());
   const [savedPanditSessions, setSavedPanditSessions] = useState(() => auraChatStore.getSavedSessions("panditji"));
@@ -149,6 +158,53 @@ export function AuraAIPage() {
   const handlePanditPrefChange = (patch) => {
     const updated = auraChatStore.savePanditPreferences(patch);
     setPanditPrefs(updated);
+  };
+
+  const handleBirthFormSubmit = (e) => {
+    e.preventDefault();
+    if (!birthForm.name.trim()) {
+      emitToast("कृपया अपना नाम दर्ज करें (Please enter your name)", "warning");
+      return;
+    }
+    if (!birthForm.dob) {
+      emitToast("कृपया जन्म तिथि (Date of Birth) चुनें", "warning");
+      return;
+    }
+    if (!birthForm.time || !birthForm.time.trim()) {
+      emitToast("कृपया जन्म समय (Birth Time) दर्ज करें", "warning");
+      return;
+    }
+    if (!birthForm.place.trim()) {
+      emitToast("कृपया जन्म स्थान (Birth Place) दर्ज करें", "warning");
+      return;
+    }
+
+    const concernLabels = {
+      career: "⚡ व्यापार, नौकरी व धन वृद्धि (Career & Wealth)",
+      peace: "🧘 मानसिक शांति व तनाव मुक्ति (Peace & Focus)",
+      shani_dosha: "🛡️ शनि साढ़े साती व ग्रह दोष (Dosha Shanti)",
+      marriage: "❤️ विवाह, प्रेम व पारिवारिक समृद्धि (Relationships)",
+      health: "🩺 स्वास्थ्य व आरोग्य (Health & Vitality)",
+      spiritual: "🕉️ आध्यात्मिक उन्नति व शिव कृपा (Moksha & Sadhana)"
+    };
+
+    const promptText = `नमस्ते पंडित जी 🙏 मेरा नाम ${birthForm.name.trim()} है।\n• जन्म तिथि: ${birthForm.dob}\n• जन्म समय: ${birthForm.time.trim()}\n• जन्म स्थान: ${birthForm.place.trim()}\n• मुख्य संकल्प / समस्या: ${concernLabels[birthForm.concern] || birthForm.concern}\n\nकृपया एक अनुभवी वैदिक पंडित जी की तरह मेरी संपूर्ण विस्तृत जन्म कुंडली (Full Detailed Kundali) देखकर बताइए:\n1. अभी मेरे जीवन में क्या-क्या परेशानी चल रही है?\n2. यह परेशानी क्यों, कब से और कैसे चल रही है?\n3. यह परेशानी कब ठीक होगी और मेरा भाग्योदय कब होगा?\n4. सभी 9 ग्रहों, 12 भावों व महादशा का पूरा फल तथा सर्वोत्तम सिद्ध नेपाली रुद्राक्ष व लाल किताब उपाय बताइए।`;
+
+    const verifiedDetails = {
+      name: birthForm.name.trim(),
+      dob: birthForm.dob,
+      birthTime: birthForm.time.trim(),
+      birthPlace: birthForm.place.trim(),
+      concern: birthForm.concern
+    };
+    auraChatStore.saveVerifiedBirthDetails(verifiedDetails);
+    setActiveBirthDetails(verifiedDetails);
+    setShowBirthForm(false);
+    if (mode !== "panditji") {
+      skipNextModeResetRef.current = true;
+      setMode("panditji");
+    }
+    handleSend(promptText, verifiedDetails);
   };
 
   // Check for pending prompts and birth details (e.g. from RudrakshaCalculator)
@@ -1089,7 +1145,7 @@ export function AuraAIPage() {
           </div>
 
           {/* Center Column: Interactive Conversational Stream */}
-          <div className={`aura-ai-main-chat ${mobileTab !== "chat" ? "hidden-mobile" : ""}`}>
+          <div className={`aura-ai-main-chat ${mobileTab !== "chat" ? "hidden-mobile" : ""}`} style={{ position: "relative" }}>
             {/* Chat Top Banner */}
             <div className="aura-ai-chat-topbar">
               <div className="aura-ai-chat-status">
@@ -1164,224 +1220,173 @@ export function AuraAIPage() {
               </div>
             </div>
 
-            {/* AI Pandit Ji Multi-Chat Sessions & Custom Style/Graph Bar */}
-            {mode === "panditji" && (
-              <div
-                style={{
-                  padding: "8px 14px",
-                  background: "linear-gradient(135deg, #fffaf2 0%, #fef5e7 100%)",
-                  borderBottom: "1px solid #ecd9bd",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "6px"
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", overflowX: "auto", paddingBottom: "2px" }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      auraAiClient.abortActiveStream();
-                      turnSeqRef.current++;
-                      setLoading(false);
-                      const { newConvId, messages: fresh } = auraChatStore.startNewSession("panditji");
-                      setConversationId(newConvId);
-                      setMessages(fresh);
-                      setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
-                      emitToast("नया पंडित जी चैट बन गया ✨", "success");
-                    }}
-                    style={{
-                      flexShrink: 0,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "4px",
-                      padding: "4px 10px",
-                      borderRadius: "14px",
-                      background: "#8c2b10",
-                      color: "#ffffff",
-                      border: "none",
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      cursor: "pointer"
-                    }}
-                    title="नया चैट बनाएं (Create New Pandit Ji Chat)"
-                  >
-                    <Plus size={12} /> <span>नया चैट</span>
-                  </button>
+            {/* Single-Line 4-Option Animated Command Dock */}
+            <AuraCommandDock
+              scope="page"
+              mode={mode}
+              onSwitchMode={(nextMode) => setMode(nextMode)}
+              conversationId={conversationId}
+              savedSessions={savedPanditSessions}
+              onNewChat={() => {
+                if (mode === "panditji") {
+                  auraAiClient.abortActiveStream();
+                  turnSeqRef.current++;
+                  setLoading(false);
+                  const { newConvId, messages: fresh } = auraChatStore.startNewSession("panditji");
+                  setConversationId(newConvId);
+                  setMessages(fresh);
+                  setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
+                  emitToast("नया पंडित जी चैट बन गया ✨", "success");
+                } else {
+                  handleNewChat();
+                }
+              }}
+              onSelectSession={(sessId) => {
+                auraAiClient.abortActiveStream();
+                turnSeqRef.current++;
+                setLoading(false);
+                const switched = auraChatStore.switchToSession(sessId, "panditji");
+                if (switched) {
+                  setConversationId(switched.conversationId);
+                  setMessages(switched.messages);
+                  setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
+                }
+              }}
+              onOpenHistory={() => setShowChatHistoryModal(true)}
+              activeBirthDetails={activeBirthDetails}
+              showBirthForm={showBirthForm}
+              onToggleBirthForm={() => setShowBirthForm((prev) => !prev)}
+              onEditBirthDetails={() => {
+                if (activeBirthDetails) {
+                  setBirthForm({
+                    name: activeBirthDetails.name || "",
+                    dob: activeBirthDetails.dob || "",
+                    time: activeBirthDetails.birthTime || "",
+                    place: activeBirthDetails.birthPlace || "",
+                    concern: activeBirthDetails.concern || "career"
+                  });
+                }
+                setShowBirthForm(true);
+              }}
+              onClearBirthDetails={() => {
+                auraChatStore.clearActiveBirthDetails();
+                setActiveBirthDetails(null);
+                emitToast("सक्रिय कुंडली हटा दी गई", "info");
+              }}
+              onOpenSavedKundalis={() => setShowSavedKundaliModal(true)}
+              panditPrefs={panditPrefs}
+              onChangePanditPref={handlePanditPrefChange}
+              onOpenVedicTool={(tabId) => {
+                setVedicToolsTab(tabId || "milan");
+                setShowVedicToolsModal(true);
+              }}
+              onSendQuickPrompt={(q) => handleSend(q)}
+              dynamicSuggestions={suggestedTopics.slice(0, 4).map((t) => ({ label: t.title, query: t.prompt }))}
+            />
 
-                  <span
-                    style={{
-                      flexShrink: 0,
-                      padding: "3px 9px",
-                      borderRadius: "14px",
-                      background: "#fef3c7",
-                      border: "1px solid #d97706",
-                      color: "#78350f",
-                      fontSize: "11px",
-                      fontWeight: 700
-                    }}
-                  >
-                    💬 सक्रिय चैट
-                  </span>
-
-                  {savedPanditSessions.filter((s) => s.id !== conversationId).slice(0, 6).map((sess) => (
-                    <button
-                      key={sess.id}
-                      type="button"
-                      onClick={() => {
-                        auraAiClient.abortActiveStream();
-                        turnSeqRef.current++;
-                        setLoading(false);
-                        const switched = auraChatStore.switchToSession(sess.id, "panditji");
-                        if (switched) {
-                          setConversationId(switched.conversationId);
-                          setMessages(switched.messages);
-                          setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
-                        }
-                      }}
-                      style={{
-                        flexShrink: 0,
-                        maxWidth: "160px",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        padding: "3px 9px",
-                        borderRadius: "14px",
-                        background: "#ffffff",
-                        border: "1px solid #e2cbb0",
-                        color: "#5c2a0c",
-                        fontSize: "11px",
-                        fontWeight: 600,
-                        cursor: "pointer"
-                      }}
-                      title={`चैट खोलें: ${sess.title}`}
-                    >
-                      {sess.title}
-                    </button>
-                  ))}
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "6px", fontSize: "10.5px" }}>
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
-                    <span style={{ color: "#78350f", fontWeight: 700 }}>अंदाज़:</span>
-                    {[
-                      { id: "detailed", label: "📜 विस्तृत" },
-                      { id: "balanced", label: "💬 अपनी मर्ज़ी की बात" }
-                    ].map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => handlePanditPrefChange({ responseStyle: opt.id })}
-                        style={{
-                          padding: "2px 8px",
-                          borderRadius: "10px",
-                          border: panditPrefs.responseStyle === opt.id ? "1px solid #d97706" : "1px solid #e7d7c2",
-                          background: panditPrefs.responseStyle === opt.id ? "#fef3c7" : "#ffffff",
-                          color: panditPrefs.responseStyle === opt.id ? "#78350f" : "#6b4f3a",
-                          fontWeight: panditPrefs.responseStyle === opt.id ? 700 : 500,
-                          cursor: "pointer"
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
-                    <span style={{ color: "#78350f", fontWeight: 700 }}>ग्राफ:</span>
-                    {[
-                      { id: "auto", label: "Auto" },
-                      { id: "chart", label: "चक्र+ग्राफ" },
-                      { id: "cards", label: "कार्ड" },
-                      { id: "table", label: "तालिका" }
-                    ].map((gOpt) => (
-                      <button
-                        key={gOpt.id}
-                        type="button"
-                        onClick={() => handlePanditPrefChange({ chartStyle: gOpt.id })}
-                        style={{
-                          padding: "2px 7px",
-                          borderRadius: "10px",
-                          border: panditPrefs.chartStyle === gOpt.id ? "1px solid #d97706" : "1px solid #e7d7c2",
-                          background: panditPrefs.chartStyle === gOpt.id ? "#fef3c7" : "#ffffff",
-                          color: panditPrefs.chartStyle === gOpt.id ? "#78350f" : "#6b4f3a",
-                          fontWeight: panditPrefs.chartStyle === gOpt.id ? 700 : 500,
-                          cursor: "pointer"
-                        }}
-                      >
-                        {gOpt.label}
-                      </button>
-                    ))}
+            {/* Interactive Kundli Birth Details Form Card */}
+            <AnimatePresence>
+              {showBirthForm && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                  className="bg-[#fffdf8] border-b-2 border-[#d4af37] px-4 py-3 shadow-md relative z-15"
+                >
+                  <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-dashed border-[#e8d0b5]">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#4A0E17]">
+                      <span>पंडित जी हेतु जन्म विवरण (Vedic Birth Details)</span>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => {
-                        setVedicToolsTab("milan");
-                        setShowVedicToolsModal(true);
-                      }}
-                      style={{
-                        padding: "2px 8px",
-                        borderRadius: "10px",
-                        border: "1px solid #8c2b10",
-                        background: "#8c2b10",
-                        color: "#ffffff",
-                        fontWeight: 700,
-                        cursor: "pointer"
-                      }}
-                      title="कुंडली मिलान, अंक ज्योतिष, पंचांग व 1-21 मुखी ज्ञानकोश खोलें"
+                      onClick={() => setShowBirthForm(false)}
+                      className="text-xs font-semibold text-[#8a6014] hover:text-[#5c2a0c] cursor-pointer"
                     >
-                      🔮 वैदिक टूल्स
+                      ✕ बंद करें
                     </button>
                   </div>
-                </div>
-              </div>
-            )}
 
-            {/* Persistent Active Kundali Profile Banner */}
-            {mode === "panditji" && activeBirthDetails && activeBirthDetails.dob && (
-              <div 
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "8px 16px",
-                  background: "linear-gradient(135deg, #FFFDF8 0%, #FEF3C7 100%)",
-                  borderBottom: "1.5px solid #F59E0B",
-                  fontSize: "12px",
-                  color: "#78350F",
-                  gap: "10px",
-                  boxShadow: "0 2px 6px rgba(0,0,0,0.04)"
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  <span style={{ fontSize: "14px" }}>🕉️</span>
-                  <span style={{ fontWeight: 700, color: "#8c2b10" }}>सक्रिय कुंडली:</span>
-                  <span style={{ fontWeight: 600 }}>{activeBirthDetails.name || "Devotee"}</span>
-                  <span style={{ opacity: 0.8, fontSize: "11px" }}>({activeBirthDetails.dob}{activeBirthDetails.birthTime ? ` ${activeBirthDetails.birthTime}` : ""}{activeBirthDetails.birthPlace ? ` • ${activeBirthDetails.birthPlace}` : ""})</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      auraChatStore.clearActiveBirthDetails();
-                      setActiveBirthDetails(null);
-                      emitToast("सक्रिय कुंडली हटा दी गई", "info");
-                    }}
-                    style={{
-                      background: "#FEE2E2",
-                      border: "1px solid #EF4444",
-                      color: "#991B1B",
-                      borderRadius: "10px",
-                      padding: "3px 8px",
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      cursor: "pointer"
-                    }}
-                    title="कुंडली हटाएं (Delete Kundali)"
-                  >
-                    🗑️ हटाएं
-                  </button>
-                </div>
-              </div>
-            )}
+                  <form onSubmit={handleBirthFormSubmit} className="space-y-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div>
+                        <label className="block text-[10.5px] font-bold text-[#4A0E17] mb-0.5">
+                          आपका नाम *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="उदा. राहुल शर्मा"
+                          value={birthForm.name}
+                          onChange={(e) => setBirthForm({ ...birthForm, name: e.target.value })}
+                          className="w-full px-2 py-1.5 border border-[#d4af37] rounded-md text-xs bg-white text-[#333] outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10.5px] font-bold text-[#4A0E17] mb-0.5">
+                          जन्म तिथि (DOB) *
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={birthForm.dob}
+                          onChange={(e) => setBirthForm({ ...birthForm, dob: e.target.value })}
+                          className="w-full px-2 py-1.5 border border-[#d4af37] rounded-md text-xs bg-white text-[#333] outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10.5px] font-bold text-[#4A0E17] mb-0.5">
+                          जन्म समय *
+                        </label>
+                        <input
+                          type="time"
+                          required
+                          value={birthForm.time}
+                          onChange={(e) => setBirthForm({ ...birthForm, time: e.target.value })}
+                          className="w-full px-2 py-1.5 border border-[#d4af37] rounded-md text-xs bg-white text-[#333] outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10.5px] font-bold text-[#4A0E17] mb-0.5">
+                          जन्म स्थान (City) *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="उदा. जयपुर"
+                          value={birthForm.place}
+                          onChange={(e) => setBirthForm({ ...birthForm, place: e.target.value })}
+                          className="w-full px-2 py-1.5 border border-[#d4af37] rounded-md text-xs bg-white text-[#333] outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                      <select
+                        value={birthForm.concern}
+                        onChange={(e) => setBirthForm({ ...birthForm, concern: e.target.value })}
+                        className="flex-1 px-2.5 py-1.5 border border-[#d4af37] rounded-md text-xs bg-white text-[#333] outline-none"
+                      >
+                        <option value="all">🌟 संपूर्ण जीवन मार्गदर्शन (All Concerns)</option>
+                        <option value="career">⚡ नौकरी, पदोन्नति व व्यवसाय (Career)</option>
+                        <option value="finance">💰 धन समृद्धि व ऋण मुक्ति (Wealth)</option>
+                        <option value="marriage">❤️ विवाह व दांपत्य सुख (Marriage)</option>
+                        <option value="health">🩺 स्वास्थ्य व दीर्घायु (Health)</option>
+                        <option value="peace">🧘 मानसिक शांति व एकाग्रता (Peace)</option>
+                        <option value="shani_dosha">🛡️ शनि साढ़े साती व ग्रह दोष (Dosha Shanti)</option>
+                        <option value="spiritual">🕉️ आध्यात्मिक उन्नति (Spiritual)</option>
+                      </select>
+                      <button
+                        type="submit"
+                        className="px-4 py-1.5 bg-gradient-to-br from-[#a54d2b] to-[#7d3318] text-white border border-[#ffd700] rounded-md text-xs font-bold cursor-pointer shadow-sm whitespace-nowrap"
+                      >
+                        🙏 पंडित जी को कुंडली भेजें
+                      </button>
+                    </div>
+                  </form>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Refresh Toast Banner */}
             <AnimatePresence>
@@ -2072,13 +2077,19 @@ export function AuraAIPage() {
       <AuraAIChatHistoryModal
         isOpen={showChatHistoryModal}
         onClose={() => setShowChatHistoryModal(false)}
-        mode={mode}
-        onSelectSession={(convId) => {
-          setConversationId(convId);
-          setMessages(auraChatStore.getMessages(mode));
-        }}
-        onNewChat={() => {
-          handleNewChat();
+        currentMode={mode}
+        onSelectSession={(session) => {
+          const convId = typeof session === "string" ? session : session?.id;
+          if (convId) {
+            auraChatStore.setConversationId(convId);
+            setConversationId(convId);
+          }
+          if (session?.messages && Array.isArray(session.messages)) {
+            setMessages(session.messages);
+            auraChatStore.saveMessages(session.messages, mode);
+          } else {
+            setMessages(auraChatStore.getMessages(mode));
+          }
         }}
       />
 
