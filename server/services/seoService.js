@@ -718,32 +718,12 @@ export function hasRealProductMedia(prod) {
   return false;
 }
 
-export function pickBestProductCandidate(candidates = [], targetRaw = "", strippedRaw = "") {
-  const valid = (Array.isArray(candidates) ? candidates : []).filter(Boolean);
-  if (valid.length === 0) return null;
-  if (valid.length === 1) return valid[0];
-
-  const t = String(targetRaw || "").toLowerCase().trim();
-  const s = String(strippedRaw || "").toLowerCase().trim();
-
-  return [...valid].sort((a, b) => {
-    const score = (p) => {
-      let pts = 0;
-      if (hasRealProductMedia(p)) pts += 1000;
-      const pId = String(p.id || "").toLowerCase();
-      const pSlug = String(p.slug || "").toLowerCase();
-      if (t && (pSlug === t || pId === t)) pts += 250;
-      else if (s && (pSlug === s || pId === s)) pts += 180;
-      if (Number(p.stock ?? 1) > 0) pts += 50;
-      if (Number(p.price) > 0) pts += 20;
-      return pts;
-    };
-    const diff = score(b) - score(a);
-    if (diff !== 0) return diff;
-    const timeA = a?.updatedAt ? new Date(a.updatedAt).getTime() : (a?.createdAt ? new Date(a.createdAt).getTime() : 0);
-    const timeB = b?.updatedAt ? new Date(b.updatedAt).getTime() : (b?.createdAt ? new Date(b.createdAt).getTime() : 0);
-    return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
-  })[0];
+export function slugifyProductName(str) {
+  return String(str || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 export function stripSeoSlugMarketingModifiers(slugStr) {
@@ -762,6 +742,451 @@ export function stripSeoSlugMarketingModifiers(slugStr) {
       .replace(/(?:-authentic-lab-certified-aura-rudraksha|-lab-certified-aura-rudraksha|-aura-rudraksha|-nepali-online-lab-certified|-online-lab-certified|-lab-certified|-authentic|-supreme-bead|-deva-mani|-online)+$/gi, "");
   }
   return current.replace(/^-+|-+$/g, "");
+}
+
+export function extractMukhiNumbers(textOrProd) {
+  const extractFromText = (rawText) => {
+    const str = String(rawText || "").toLowerCase();
+    if (!str) return [];
+    const rangeMatch = str.match(/(?:^|[^0-9])([1-9]|1[0-9]|20|21)(?:[\s-]+to[\s-]+|\s*-\s*)([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i);
+    if (rangeMatch && rangeMatch[1] && rangeMatch[2]) {
+      return [parseInt(rangeMatch[1], 10), parseInt(rangeMatch[2], 10)];
+    }
+    const nums = [];
+    const regex = /(?:^|[^0-9])([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/gi;
+    let m;
+    while ((m = regex.exec(str)) !== null) {
+      const n = parseInt(m[1], 10);
+      if (!isNaN(n) && !nums.includes(n)) nums.push(n);
+    }
+    return nums;
+  };
+
+  if (typeof textOrProd === "string" || typeof textOrProd === "number") {
+    const s = String(textOrProd).trim().toLowerCase();
+    const fromText = extractFromText(s);
+    if (fromText.length > 0) return fromText;
+    const pureNum = s.match(/^p?([1-9]|1[0-9]|20|21)$/i);
+    if (pureNum && pureNum[1]) return [parseInt(pureNum[1], 10)];
+    return [];
+  }
+
+  if (textOrProd && typeof textOrProd === "object") {
+    const fromName = extractFromText(textOrProd.name);
+    if (fromName.length > 0) return fromName;
+    const fromMukhiField = extractFromText(textOrProd.mukhi);
+    if (fromMukhiField.length > 0) return fromMukhiField;
+    const rawMukhiExact = String(textOrProd.mukhi || "").trim().match(/^([1-9]|1[0-9]|20|21)$/);
+    if (rawMukhiExact && rawMukhiExact[1]) return [parseInt(rawMukhiExact[1], 10)];
+    const fromSlug = extractFromText(textOrProd.slug);
+    if (fromSlug.length > 0) return fromSlug;
+    const idExact = String(textOrProd.id || "").trim().match(/^p?([1-9]|1[0-9]|20|21)$/i);
+    if (idExact && idExact[1]) return [parseInt(idExact[1], 10)];
+  }
+  return [];
+}
+
+export function detectProductKind(textOrProd) {
+  let combined = "";
+  if (typeof textOrProd === "string" || typeof textOrProd === "number") {
+    combined = String(textOrProd).toLowerCase().replace(/[-_]+/g, " ");
+  } else if (textOrProd && typeof textOrProd === "object") {
+    // Prioritize authoritative name/category/subCategory/productType over potentially stale slug
+    const primaryParts = [
+      textOrProd.name,
+      textOrProd.category,
+      textOrProd.subCategory,
+      textOrProd.productType
+    ].filter(Boolean);
+    combined = (primaryParts.length > 0 ? primaryParts.join(" ") : String(textOrProd.slug || textOrProd.id || ""))
+      .toLowerCase()
+      .replace(/[-_]+/g, " ");
+  }
+
+  if (!combined.trim()) return "general";
+
+  if (/\b(mala|malas|kantha|rosary|japa|jaap)\b/i.test(combined) || /\b108\b/.test(combined)) {
+    return "mala";
+  }
+  if (/\b(bracelet|bracelets|wristlet|wrist|kada|bangle)\b/i.test(combined)) {
+    return "bracelet";
+  }
+  if (/\b(pendant|pendants|kavach|locket|amulet)\b/i.test(combined)) {
+    return "pendant";
+  }
+  if (/\b(yantra|yantram|shri\s*yantra)\b/i.test(combined)) {
+    return "yantra";
+  }
+  if (/\b(idol|idols|murti|statue|shivling|lingam|shaligram)\b/i.test(combined)) {
+    return "idol";
+  }
+  if (/\b(camphor|kapoor|dhoop|agarbatti|incense|bhasma|vibhuti|attar|diya|ghee|samagri|gangajal|hawan)\b/i.test(combined)) {
+    return "puja";
+  }
+  if (/\b(gauri\s*shankar|garbh\s*gauri|trijuti)\b/i.test(combined)) {
+    return "gauri_shankar";
+  }
+
+  const mukhiNums = extractMukhiNumbers(textOrProd);
+  if (mukhiNums.length > 1 || /\b(combo|combination|pack\s*of|pair\s*of)\b/i.test(combined)) {
+    return "combo";
+  }
+  if (mukhiNums.length === 1) {
+    return "single_bead";
+  }
+  if (/\b(ganesh|ganesha)\b/i.test(combined)) {
+    return "ganesh";
+  }
+  return "general";
+}
+
+const DISTINCTIVE_VARIETY_TOKENS = [
+  "karungali",
+  "ebony",
+  "tulsi",
+  "sphatik",
+  "quartz",
+  "crystal",
+  "vaijayanti",
+  "chandan",
+  "raktachandan",
+  "sandalwood",
+  "haldi",
+  "turmeric",
+  "kamalgatta",
+  "hakik",
+  "agate",
+  "pyrite",
+  "amethyst",
+  "citrine",
+  "lapis",
+  "tiger",
+  "parad",
+  "siddha",
+  "indra",
+  "navratna",
+  "chakra",
+  "gauri",
+  "trijuti",
+  "garbh",
+  "savar",
+  "bhadraksha",
+  "kapoor",
+  "camphor",
+  "dhoop",
+  "agarbatti",
+  "bhasma",
+  "vibhuti",
+  "attar",
+  "shivling",
+  "shaligram",
+  "mahakal",
+  "trishul",
+  "damru",
+  "kalash",
+  "shankh"
+];
+
+export function extractDistinctiveTokens(textOrProd) {
+  let text = "";
+  const kind = detectProductKind(textOrProd);
+  if (typeof textOrProd === "string" || typeof textOrProd === "number") {
+    text = String(textOrProd).toLowerCase().replace(/[-_]+/g, " ");
+  } else if (textOrProd && typeof textOrProd === "object") {
+    text = [textOrProd.name, textOrProd.category, textOrProd.subCategory]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .replace(/[-_]+/g, " ");
+    if (!text) {
+      text = String(textOrProd.slug || "").toLowerCase().replace(/[-_]+/g, " ");
+    }
+  }
+
+  const found = [];
+  for (const tok of DISTINCTIVE_VARIETY_TOKENS) {
+    if (tok === "crystal") continue; // Handled below so "Sphatik Crystal" or "Pyrite Crystal" doesn't require "crystal" in slug
+    if (new RegExp(`\\b${tok}\\b`, "i").test(text)) {
+      const canonical =
+        tok === "ebony" ? "karungali" :
+        tok === "quartz" ? "sphatik" :
+        tok === "turmeric" ? "haldi" :
+        tok === "agate" ? "hakik" :
+        tok === "camphor" ? "kapoor" :
+        tok === "sandalwood" ? "chandan" :
+        tok;
+      if (!found.includes(canonical)) found.push(canonical);
+    }
+  }
+
+  if (/\bcrystal\b/i.test(text)) {
+    const hasSpecificStone = found.some((t) =>
+      ["sphatik", "hakik", "pyrite", "amethyst", "citrine", "lapis", "tiger", "navratna"].includes(t)
+    );
+    if (!hasSpecificStone && !found.includes("crystal")) {
+      found.push("crystal");
+    }
+  }
+
+  // Only treat "ganesh" or "hanuman" as distinctive identity tokens when NOT a numbered single Mukhi bead
+  // (because 8 Mukhi has "Lord Ganesha" and 11/14 Mukhi have "Lord Hanuman" in their descriptive names)
+  if (kind !== "single_bead") {
+    if (/\b(ganesh|ganesha)\b/i.test(text) && !found.includes("ganesh")) {
+      found.push("ganesh");
+    }
+    if (/\b(hanuman|bajrang)\b/i.test(text) && !found.includes("hanuman")) {
+      found.push("hanuman");
+    }
+  }
+
+  return found;
+}
+
+export function isProductSlugHealthy(product) {
+  if (!product || typeof product !== "object") return false;
+  const rawSlug = String(product.slug || "").trim().toLowerCase();
+  if (!rawSlug) return false;
+  const rawName = String(product.name || "").trim();
+  if (!rawName) return true;
+
+  const nameKind = detectProductKind({ name: rawName, category: product.category, subCategory: product.subCategory });
+  const slugKind = detectProductKind(rawSlug);
+  if (nameKind !== "general" && slugKind !== "general" && nameKind !== slugKind) {
+    return false;
+  }
+
+  const nameMukhis = extractMukhiNumbers({ name: rawName, mukhi: product.mukhi });
+  const slugMukhis = extractMukhiNumbers(rawSlug);
+  if (nameMukhis.length > 0 && slugMukhis.length > 0 && nameMukhis.join(",") !== slugMukhis.join(",")) {
+    return false;
+  }
+  if (nameKind === "single_bead" && nameMukhis.length === 1 && slugMukhis.length === 0) {
+    return false;
+  }
+
+  const nameVarieties = extractDistinctiveTokens({ name: rawName, category: product.category, subCategory: product.subCategory });
+  const slugVarieties = extractDistinctiveTokens(rawSlug);
+  for (const v of nameVarieties) {
+    if (!slugVarieties.includes(v)) return false;
+  }
+  for (const sv of slugVarieties) {
+    if (!nameVarieties.includes(sv)) return false;
+  }
+
+  return true;
+}
+
+export function buildHealthyProductSlug(product, usedSlugs = new Set()) {
+  if (!product) return "";
+  const pId = String(product.id || product._id || "").trim();
+  const currentSlug = String(product.slug || "").trim().toLowerCase();
+
+  let baseSlug = "";
+  if (currentSlug && isProductSlugHealthy(product)) {
+    baseSlug = slugifyProductName(currentSlug);
+  } else if (product.name) {
+    baseSlug = slugifyProductName(product.name);
+  } else {
+    baseSlug = slugifyProductName(pId);
+  }
+
+  if (!baseSlug) baseSlug = slugifyProductName(pId) || `product-${Date.now()}`;
+
+  if (!usedSlugs.has(baseSlug)) {
+    usedSlugs.add(baseSlug);
+    return baseSlug;
+  }
+
+  const idSuffix = slugifyProductName(pId);
+  const candidateWithId = idSuffix && !baseSlug.endsWith(`-${idSuffix}`)
+    ? `${baseSlug}-${idSuffix}`
+    : `${baseSlug}-2`;
+
+  if (!usedSlugs.has(candidateWithId)) {
+    usedSlugs.add(candidateWithId);
+    return candidateWithId;
+  }
+
+  let counter = 2;
+  while (usedSlugs.has(`${baseSlug}-${counter}`)) {
+    counter++;
+  }
+  const finalSlug = `${baseSlug}-${counter}`;
+  usedSlugs.add(finalSlug);
+  return finalSlug;
+}
+
+export function areProductAndTargetCompatible(product, targetRaw = "", strippedRaw = "") {
+  if (!product) return false;
+  const t = String(targetRaw || "").toLowerCase().trim();
+  const s = String(strippedRaw || stripSeoSlugMarketingModifiers(t)).toLowerCase().trim();
+  if (!t && !s) return true;
+
+  const pId = String(product.id || "").toLowerCase().trim();
+  const pMongoId = String(product._id || "").toLowerCase().trim();
+  const cleanId = t.replace(/^(product-card-|product-)/, "");
+
+  // 1. Direct ID or Mongo _id match is always authoritative
+  if (
+    (pId && (pId === t || pId === cleanId || (s && pId === s && /^[0-9a-f]{24}$|^prod-|^mala$|^ganesh$|^gauri-shankar$/i.test(pId)))) ||
+    (pMongoId && (pMongoId === t || pMongoId === cleanId || pMongoId === s))
+  ) {
+    return true;
+  }
+
+  // 2. Numeric ID match (e.g. "/product/5" -> id: "5") ONLY when target is purely that ID or single_bead
+  const targetKind = detectProductKind(t || s);
+  const prodKind = detectProductKind(product);
+  if (pId && (pId === s || `p${pId}` === s) && targetKind === prodKind) {
+    return true;
+  }
+
+  // 3. Enforce strict Product Kind boundary (Mala vs Single Bead vs Bracelet vs Idol vs Yantra vs Puja)
+  if (targetKind !== "general" && prodKind !== "general" && targetKind !== prodKind) {
+    return false;
+  }
+  if (targetKind === "mala" && prodKind !== "mala") return false;
+  if (prodKind === "mala" && targetKind !== "mala") return false;
+  if (targetKind === "bracelet" && prodKind !== "bracelet") return false;
+  if (prodKind === "bracelet" && targetKind !== "bracelet") return false;
+
+  // 4. Enforce Distinctive Variety / Material Token compatibility (Karungali vs Tulsi vs Sphatik vs Siddha, etc.)
+  const targetVarieties = extractDistinctiveTokens(t || s);
+  const prodVarieties = extractDistinctiveTokens(product);
+
+  if (targetVarieties.length > 0) {
+    for (const tv of targetVarieties) {
+      if (!prodVarieties.includes(tv)) return false;
+    }
+  }
+  if (prodVarieties.length > 0) {
+    for (const pv of prodVarieties) {
+      if (!targetVarieties.includes(pv)) return false;
+    }
+  }
+
+  // 5. Enforce Mukhi Number compatibility
+  const targetMukhis = extractMukhiNumbers(t || s);
+  const prodMukhis = extractMukhiNumbers(product);
+
+  if (targetMukhis.length > 0) {
+    if (prodMukhis.length === 0) return false;
+    if (targetMukhis.join(",") !== prodMukhis.join(",")) return false;
+  } else if (prodMukhis.length > 0) {
+    // Target has NO Mukhi number (e.g. "karungali-mala", "siddha-mala", "ganesh-rudraksha", "rudraksha-mala-108-beads")
+    // Never match a numbered single bead when target has no Mukhi number
+    if (prodKind === "single_bead") {
+      return false;
+    }
+    if (prodKind === "combo" && targetVarieties.length === 0) {
+      return false;
+    }
+    // For generic Malas/Bracelets without a variety token or Mukhi number in the URL:
+    // Only allow matching standard 5-Mukhi Mala, not a specific e.g. 7-Mukhi or 11-Mukhi Mala
+    if (targetVarieties.length === 0 && (prodMukhis.length !== 1 || prodMukhis[0] !== 5)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function computeTokenOverlapScore(product, targetRaw, strippedRaw) {
+  const stopWords = new Set([
+    "the", "and", "for", "with", "from", "buy", "online", "original", "authentic",
+    "pure", "real", "natural", "certified", "lab", "aura", "rudraksha", "nepali",
+    "nepal", "bead", "beads", "sacred", "consecrated", "vedic", "energized"
+  ]);
+  const tokenize = (str) =>
+    String(str || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length >= 2 && !stopWords.has(w));
+
+  const targetTokens = tokenize(strippedRaw || targetRaw);
+  if (targetTokens.length === 0) return 0;
+
+  const prodTokens = new Set([
+    ...tokenize(product.name),
+    ...tokenize(isProductSlugHealthy(product) ? product.slug : ""),
+    ...tokenize(product.category),
+    ...tokenize(product.subCategory)
+  ]);
+
+  let matched = 0;
+  for (const tk of targetTokens) {
+    if (prodTokens.has(tk)) matched++;
+  }
+  return matched * 150;
+}
+
+export function pickBestProductCandidate(candidates = [], targetRaw = "", strippedRaw = "") {
+  const valid = (Array.isArray(candidates) ? candidates : []).filter(Boolean);
+  if (valid.length === 0) return null;
+
+  const t = String(targetRaw || "").toLowerCase().trim().replace(/^\/+|\/+$/g, "").split("?")[0];
+  const s = String(strippedRaw || (t ? stripSeoSlugMarketingModifiers(t) : "")).toLowerCase().trim();
+
+  // When no target is specified (e.g. generic candidate ranking), rank by media, stock, price, and recency
+  if (!t && !s) {
+    if (valid.length === 1) return valid[0];
+    return [...valid].sort((a, b) => {
+      const score = (p) => {
+        let pts = 0;
+        if (hasRealProductMedia(p)) pts += 1000;
+        if (Number(p.stock ?? 1) > 0) pts += 50;
+        if (Number(p.price) > 0) pts += 20;
+        return pts;
+      };
+      const diff = score(b) - score(a);
+      if (diff !== 0) return diff;
+      const timeA = a?.updatedAt ? new Date(a.updatedAt).getTime() : (a?.createdAt ? new Date(a.createdAt).getTime() : 0);
+      const timeB = b?.updatedAt ? new Date(b.updatedAt).getTime() : (b?.createdAt ? new Date(b.createdAt).getTime() : 0);
+      return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
+    })[0];
+  }
+
+  const compatible = valid.filter((p) => areProductAndTargetCompatible(p, t, s));
+  if (compatible.length === 0) return null;
+  if (compatible.length === 1) return compatible[0];
+
+  const cleanId = t.replace(/^(product-card-|product-)/, "");
+
+  return [...compatible].sort((a, b) => {
+    const score = (p) => {
+      let pts = 0;
+      const pId = String(p.id || "").toLowerCase().trim();
+      const pMongoId = String(p._id || "").toLowerCase().trim();
+      const pSlug = isProductSlugHealthy(p) ? String(p.slug || "").toLowerCase().trim() : "";
+      const pStrippedSlug = pSlug ? stripSeoSlugMarketingModifiers(pSlug) : "";
+      const pNameSlug = slugifyProductName(p.name);
+      const pStrippedNameSlug = stripSeoSlugMarketingModifiers(pNameSlug);
+
+      if (pId === t || pId === cleanId || (pMongoId && (pMongoId === t || pMongoId === cleanId))) {
+        pts += 5000;
+      }
+      if (pSlug && (pSlug === t || pSlug === cleanId)) {
+        pts += 4000;
+      } else if (pNameSlug && (pNameSlug === t || pNameSlug === cleanId)) {
+        pts += 3500;
+      } else if (s && ((pSlug && pSlug === s) || (pStrippedSlug && pStrippedSlug === s) || (pNameSlug && pNameSlug === s) || (pStrippedNameSlug && pStrippedNameSlug === s))) {
+        pts += 2500;
+      }
+
+      pts += computeTokenOverlapScore(p, t, s);
+
+      if (hasRealProductMedia(p)) pts += 1000;
+      if (Number(p.stock ?? 1) > 0) pts += 50;
+      if (Number(p.price) > 0) pts += 20;
+      return pts;
+    };
+    const diff = score(b) - score(a);
+    if (diff !== 0) return diff;
+    const timeA = a?.updatedAt ? new Date(a.updatedAt).getTime() : (a?.createdAt ? new Date(a.createdAt).getTime() : 0);
+    const timeB = b?.updatedAt ? new Date(b.updatedAt).getTime() : (b?.createdAt ? new Date(b.createdAt).getTime() : 0);
+    return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
+  })[0];
 }
 
 /**
@@ -783,56 +1208,67 @@ export function matchProductFromCatalog(catalog = [], idOrSlug) {
     return s !== "draft" && s !== "inactive" && s !== "archived";
   };
 
-  // 1. Direct exact match on id, _id, or slug (prefer real-image candidates if duplicates exist)
-  const exactMatches = catalog.filter(p => isPublicItem(p) && (
-    String(p.id).toLowerCase() === target ||
-    String(p.id).toLowerCase() === cleanId ||
-    String(p.id).toLowerCase() === strippedTarget ||
-    String(p._id || "").toLowerCase() === target ||
-    (p.slug && (
-      String(p.slug).toLowerCase() === target ||
-      String(p.slug).toLowerCase() === strippedTarget ||
-      stripSeoSlugMarketingModifiers(p.slug) === strippedTarget
-    ))
-  ));
+  // 1. Direct exact match on id, _id, or healthy slug
+  const exactMatches = catalog.filter(p => {
+    if (!isPublicItem(p)) return false;
+    const pId = String(p.id || "").toLowerCase();
+    const pMongoId = String(p._id || "").toLowerCase();
+    if (pId === target || pId === cleanId || (pMongoId && (pMongoId === target || pMongoId === cleanId))) {
+      return true;
+    }
+    if (pId === strippedTarget && areProductAndTargetCompatible(p, target, strippedTarget)) {
+      return true;
+    }
+    if (p.slug && isProductSlugHealthy(p)) {
+      const pSlug = String(p.slug).toLowerCase();
+      if (pSlug === target || pSlug === cleanId) return true;
+      if ((pSlug === strippedTarget || stripSeoSlugMarketingModifiers(pSlug) === strippedTarget) && areProductAndTargetCompatible(p, target, strippedTarget)) {
+        return true;
+      }
+    }
+    return false;
+  });
   if (exactMatches.length > 0) return pickBestProductCandidate(exactMatches, target, strippedTarget);
 
-  // 2. Slugified name match (e.g. "5-mukhi-rudraksha" or "buy-original-7-mukhi-rudraksha")
+  // 2. Slugified name match (strictly validated by compatibility — no blind prefix collisions)
   const nameMatches = catalog.filter(p => {
     if (!isPublicItem(p) || !p.name) return false;
-    const slugName = String(p.name).toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
+    if (!areProductAndTargetCompatible(p, target, strippedTarget)) return false;
+    const slugName = slugifyProductName(p.name);
     const strippedName = stripSeoSlugMarketingModifiers(slugName);
     return (
       slugName === target ||
       slugName === strippedTarget ||
       (strippedName && strippedName === strippedTarget) ||
-      (strippedTarget.length >= 5 && (slugName.startsWith(strippedTarget) || strippedTarget.startsWith(slugName)))
+      (strippedTarget.length >= 6 && (slugName.startsWith(`${strippedTarget}-`) || strippedTarget.startsWith(`${slugName}-`)))
     );
   });
   if (nameMatches.length > 0) return pickBestProductCandidate(nameMatches, target, strippedTarget);
 
-  // 3. Mukhi number extraction with strict non-digit boundary (e.g. "7-mukhi" never matches "17")
-  const numMatch = target.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) ||
-                   strippedTarget.match(/^([1-9]|1[0-9]|20|21)(?:-mukhi|$)/i);
-  if (numMatch && numMatch[1]) {
-    const mukhiNum = numMatch[1];
-    const mukhiRegex = new RegExp(`(^|[^0-9])${mukhiNum}(\\s*-?\\s*mukhi|$)`, "i");
-    const mukhiMatches = catalog.filter(p => isPublicItem(p) && (
-      String(p.id) === mukhiNum ||
-      String(p.id).toLowerCase() === `p${mukhiNum}` ||
-      String(p.mukhi || "").replace(/\D/g, "") === mukhiNum ||
-      (p.slug && mukhiRegex.test(String(p.slug))) ||
-      (p.name && mukhiRegex.test(String(p.name)))
-    ));
+  // 3. Compatible Mukhi number match (e.g. "5-mukhi-rudraksha" or "5-mukhi-rudraksha-mala")
+  const targetMukhis = extractMukhiNumbers(target);
+  if (targetMukhis.length > 0) {
+    const mukhiMatches = catalog.filter(p => {
+      if (!isPublicItem(p)) return false;
+      return areProductAndTargetCompatible(p, target, strippedTarget);
+    });
     if (mukhiMatches.length > 0) return pickBestProductCandidate(mukhiMatches, target, strippedTarget);
   }
 
-  // 4. Keyword match for mala or special items
-  if (target.includes("mala")) {
-    const malaMatches = catalog.filter(p => isPublicItem(p) && (String(p.id).toLowerCase() === "mala" || (p.name && p.name.toLowerCase().includes("mala"))));
-    if (malaMatches.length > 0) return pickBestProductCandidate(malaMatches, target, strippedTarget);
+  // 4. Compatible category/variety match (Mala, Bracelet, Gauri Shankar, Ganesh, etc.)
+  const compatiblePool = catalog.filter(p => isPublicItem(p) && areProductAndTargetCompatible(p, target, strippedTarget));
+  if (compatiblePool.length > 0) {
+    const targetKind = detectProductKind(target);
+    const targetVarieties = extractDistinctiveTokens(target);
+    if (targetKind !== "general" || targetVarieties.length > 0) {
+      const filtered = compatiblePool.filter(p => {
+        if (targetKind !== "general" && detectProductKind(p) !== targetKind) return false;
+        if (computeTokenOverlapScore(p, target, strippedTarget) > 0) return true;
+        if (targetKind === "mala" && targetVarieties.length === 0 && String(p.id).toLowerCase() === "mala") return true;
+        return false;
+      });
+      if (filtered.length > 0) return pickBestProductCandidate(filtered, target, strippedTarget);
+    }
   }
 
   return null;
@@ -870,7 +1306,7 @@ export async function findProductForSeo(idOrSlug) {
 
   // 1. Check fast in-memory SEO product cache first (never serve placeholder from cache if DB is connected)
   const cachedEntry = seoProductCache.get(clean) || seoProductCache.get(strippedSlug);
-  if (cachedEntry && Date.now() < cachedEntry.expiry) {
+  if (cachedEntry && Date.now() < cachedEntry.expiry && areProductAndTargetCompatible(cachedEntry.product, clean, strippedSlug)) {
     if (!dbReady || hasRealProductMedia(cachedEntry.product)) {
       return cachedEntry.product;
     }
@@ -905,7 +1341,7 @@ export async function findProductForSeo(idOrSlug) {
       const isMongoId = /^[0-9a-fA-F]{24}$/.test(clean) || /^[0-9a-fA-F]{24}$/.test(cleanId) || /^[0-9a-fA-F]{24}$/.test(strippedSlug);
       const escapeForRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-      // Strategy 1: Exact ID, Slug, or Mongo _id match (rank candidates so real Admin photos always win)
+      // Strategy 1: Exact ID, Slug, or Mongo _id match
       let candidates = await Product.find({
         ...publicVisibilityFilter,
         $or: [
@@ -918,7 +1354,7 @@ export async function findProductForSeo(idOrSlug) {
           ...(strippedSlug ? [{ slug: { $regex: new RegExp(`^${escapeForRegex(strippedSlug)}$`, "i") } }] : []),
           ...(isMongoId ? [{ _id: clean }, { _id: cleanId }, { _id: strippedSlug }] : [])
         ]
-      }).limit(15).lean();
+      }).limit(20).lean();
 
       let product = pickBestProductCandidate(candidates, clean, strippedSlug);
       if (product) {
@@ -926,94 +1362,7 @@ export async function findProductForSeo(idOrSlug) {
         return product;
       }
 
-      // Strategy 2: Exact Mukhi number extraction (e.g. "buy-original-7-mukhi...", "1-mukhi", "5-mukhi")
-      const mukhiMatch = clean.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) || 
-                         strippedSlug.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i);
-      if (mukhiMatch && mukhiMatch[1]) {
-        const mNum = parseInt(mukhiMatch[1], 10);
-        candidates = await Product.find({
-          ...publicVisibilityFilter,
-          $or: [
-            { mukhi: mNum },
-            { mukhi: String(mNum) },
-            { mukhi: `${mNum} Mukhi` },
-            { mukhi: `${mNum} MUKHI` },
-            { id: String(mNum) },
-            { id: `p${mNum}` },
-            { name: { $regex: new RegExp(`(^|[^0-9])${mNum}\\s*-?\\s*mukhi`, "i") } },
-            { slug: { $regex: new RegExp(`(^|[^0-9])${mNum}\\s*-?\\s*mukhi`, "i") } }
-          ]
-        }).limit(15).lean();
-
-        product = pickBestProductCandidate(candidates, clean, strippedSlug);
-        if (product) {
-          seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
-          return product;
-        }
-      }
-
-      // Strategy 3: Special formations (Gauri Shankar, Ganesh, Siddha Mala, Hanuman Idol, Camphor, etc.)
-      if (clean.includes("gauri") || strippedSlug.includes("gauri")) {
-        candidates = await Product.find({ ...publicVisibilityFilter, name: { $regex: /gauri/i } }).limit(10).lean();
-        product = pickBestProductCandidate(candidates, clean, strippedSlug);
-        if (product) {
-          seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
-          return product;
-        }
-      }
-      if (clean.includes("ganesh") || strippedSlug.includes("ganesh")) {
-        candidates = await Product.find({ ...publicVisibilityFilter, name: { $regex: /ganesh/i } }).limit(10).lean();
-        product = pickBestProductCandidate(candidates, clean, strippedSlug);
-        if (product) {
-          seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
-          return product;
-        }
-      }
-      if (clean.includes("hanuman") || strippedSlug.includes("hanuman")) {
-        candidates = await Product.find({ ...publicVisibilityFilter, name: { $regex: /hanuman/i } }).limit(10).lean();
-        product = pickBestProductCandidate(candidates, clean, strippedSlug);
-        if (product) {
-          seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
-          return product;
-        }
-      }
-      if (clean.includes("camphor") || clean.includes("kapoor")) {
-        candidates = await Product.find({ ...publicVisibilityFilter, name: { $regex: /camphor|kapoor/i } }).limit(10).lean();
-        product = pickBestProductCandidate(candidates, clean, strippedSlug);
-        if (product) {
-          seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
-          return product;
-        }
-      }
-      if (clean.includes("mala") || clean.includes("kantha")) {
-        candidates = await Product.find({ ...publicVisibilityFilter, name: { $regex: /mala|kantha/i } }).limit(10).lean();
-        product = pickBestProductCandidate(candidates, clean, strippedSlug);
-        if (product) {
-          seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
-          return product;
-        }
-      }
-
-      // Strategy 4: Core title token matching
-      const words = strippedSlug
-        .replace(/[-_]+/g, " ")
-        .split(/\s+/)
-        .filter(w => w.length >= 3 && /^[a-z]+$/.test(w) && !["authentic", "certified", "aura", "lab", "online", "buy", "product", "nepali", "original"].includes(w));
-      
-      if (words.length > 0) {
-        const pattern = words.slice(0, 3).join(".*");
-        candidates = await Product.find({
-          ...publicVisibilityFilter,
-          name: { $regex: new RegExp(pattern, "i") }
-        }).limit(10).lean();
-        product = pickBestProductCandidate(candidates, clean, strippedSlug);
-        if (product) {
-          seoProductCache.set(clean, { product, expiry: Date.now() + SEO_PRODUCT_CACHE_TTL_MS });
-          return product;
-        }
-      }
-
-      // Strategy 5: Full published MongoDB catalog scan using matchProductFromCatalog
+      // Strategy 2: Full published MongoDB catalog scan using strict matchProductFromCatalog
       const allDbPublicProds = await Product.find(publicVisibilityFilter).lean();
       if (Array.isArray(allDbPublicProds) && allDbPublicProds.length > 0) {
         inMemoryStore.products = allDbPublicProds;

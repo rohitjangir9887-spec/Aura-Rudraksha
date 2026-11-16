@@ -16,7 +16,10 @@ import {
   invalidateSeoProductCache,
   stripSeoSlugMarketingModifiers,
   matchProductFromCatalog,
-  pickBestProductCandidate
+  pickBestProductCandidate,
+  slugifyProductName,
+  isProductSlugHealthy,
+  buildHealthyProductSlug
 } from "../services/seoService.js";
 
 function getEffectiveOrderValue(p, layoutIndexMap = null) {
@@ -200,6 +203,42 @@ export function invalidateProductCache() {
   } catch (_) {}
 }
 
+export async function ensureHealthyCatalogSlugs(products = []) {
+  if (!Array.isArray(products) || products.length === 0) return products;
+  const usedSlugs = new Set();
+  const bulkOps = [];
+
+  const healed = products.map((p) => {
+    if (!p || typeof p !== "object") return p;
+    const currentSlug = String(p.slug || "").trim().toLowerCase();
+    const nextSlug = buildHealthyProductSlug(p, usedSlugs);
+    if (nextSlug && nextSlug !== currentSlug) {
+      const filter = p._id
+        ? { _id: p._id }
+        : p.id
+        ? { id: String(p.id) }
+        : null;
+      if (filter) {
+        bulkOps.push({
+          updateOne: {
+            filter,
+            update: { $set: { slug: nextSlug } }
+          }
+        });
+      }
+      return { ...p, slug: nextSlug };
+    }
+    return p;
+  });
+
+  if (bulkOps.length > 0 && isDbConnected()) {
+    Product.bulkWrite(bulkOps).catch((err) =>
+      console.warn("[Slug Auto-Heal Notice]:", err?.message)
+    );
+  }
+  return healed;
+}
+
 export async function getProducts(req, res, next) {
   try {
     const isAdmin = await checkIsAdmin(req);
@@ -288,7 +327,8 @@ export async function getProducts(req, res, next) {
       }
     } catch (_) {}
 
-    const products = sortProductsByAdminSequence(rawProducts, liveLayoutIds);
+    const sortedProducts = sortProductsByAdminSequence(rawProducts, liveLayoutIds);
+    const products = await ensureHealthyCatalogSlugs(sortedProducts);
     if (Array.isArray(products) && products.length > 0 && !isAdmin && !req.query.status && !req.query.category) {
       inMemoryStore.products = products;
       inMemoryStore.isProductsSyncedFromDb = true;
@@ -340,18 +380,9 @@ export async function getProductById(req, res, next) {
 
     const isAdmin = await checkIsAdmin(req);
     if (!isAdmin && publicProductsCache && Date.now() < publicProductsCacheExpiry) {
-      const cachedMatch = publicProductsCache.find(p => {
-        if (!p) return false;
-        const xId = String(p.id || "").toLowerCase();
-        const xSlug = String(p.slug || "").toLowerCase();
-        const xName = String(p.name || "").toLowerCase();
-        const xSlugName = xName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
-        return (
-          xId === cleanTarget || xId === strippedTarget ||
-          xSlug === cleanTarget || xSlug === slugTarget || xSlug === strippedTarget ||
-          xSlugName === cleanTarget || xSlugName === slugTarget || xSlugName === strippedTarget
-        );
-      });
+      const cachedMatch =
+        matchProductFromCatalog(publicProductsCache, cleanTarget) ||
+        matchProductFromCatalog(publicProductsCache, strippedTarget);
       if (cachedMatch) {
         return res.json({ success: true, data: cachedMatch });
       }
@@ -407,30 +438,8 @@ export async function getProductById(req, res, next) {
     let product = pickBestProductCandidate(candidates, slugTarget, strippedTarget);
 
     if (!product) {
-      // Secondary search in MongoDB by mukhi number or exact slugified name
-      const mukhiMatch = cleanTarget.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) || 
-                         strippedTarget.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i);
-      if (mukhiMatch && mukhiMatch[1]) {
-        const mNum = parseInt(mukhiMatch[1], 10);
-        candidates = await Product.find({
-          ...publicFilter,
-          $or: [
-            { mukhi: mNum },
-            { mukhi: String(mNum) },
-            { mukhi: `${mNum} Mukhi` },
-            { mukhi: `${mNum} MUKHI` },
-            { id: String(mNum) },
-            { id: `p${mNum}` },
-            { name: { $regex: new RegExp(`(^|[^0-9])${mNum}\\s*-?\\s*mukhi`, "i") } },
-            { slug: { $regex: new RegExp(`(^|[^0-9])${mNum}\\s*-?\\s*mukhi`, "i") } }
-          ]
-        }).limit(20).lean();
-        product = pickBestProductCandidate(candidates, slugTarget, strippedTarget);
-      }
-    }
-
-    if (!product) {
-      const allProds = await Product.find(publicFilter).lean();
+      const rawAllProds = await Product.find(publicFilter).lean();
+      const allProds = await ensureHealthyCatalogSlugs(rawAllProds);
       product =
         matchProductFromCatalog(allProds, cleanTarget) ||
         matchProductFromCatalog(allProds, strippedTarget);
@@ -499,9 +508,29 @@ export async function createProduct(req, res, next) {
       return res.status(400).json({ success: false, message: "Name and Price are required" });
     }
 
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        databaseUnavailable: true,
+        error: "Database unavailable",
+        message: "Cannot create product while database is disconnected."
+      });
+    }
+
     const id = data.id || Date.now().toString();
+    const cleanId = String(id).trim();
     const normalizedStatus = normalizeProductStatus(data.status, "Published");
-    const computedSlug = data.slug || (data.name ? String(data.name).trim().toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-") : String(id));
+    let computedSlug = buildHealthyProductSlug({ ...data, id: cleanId });
+
+    // Prevent slug collision with any other product in MongoDB
+    const slugCollision = await Product.findOne({
+      id: { $ne: cleanId },
+      slug: computedSlug
+    }).select("_id id slug").lean();
+    if (slugCollision) {
+      const suffix = slugifyProductName(cleanId) || Date.now().toString().slice(-5);
+      computedSlug = `${computedSlug}-${suffix}`;
+    }
 
     const salesCountNum = Number(data.salesCount ?? data.timesPurchased) || (data.totalSold ? parseInt(String(data.totalSold).replace(/\D/g, ""), 10) || 0 : 0);
     const totalSoldStr = data.totalSold !== undefined && String(data.totalSold).trim() ? String(data.totalSold).trim() : (salesCountNum > 0 ? `${salesCountNum}+ Sold` : "");
@@ -530,7 +559,7 @@ export async function createProduct(req, res, next) {
 
     const productPayload = {
       ...data,
-      id,
+      id: cleanId,
       slug: computedSlug,
       status: normalizedStatus,
       isRudraksha: isRudrakshaDetected,
@@ -568,22 +597,11 @@ export async function createProduct(req, res, next) {
       dailySalesMax: 0
     };
 
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        databaseUnavailable: true,
-        error: "Database unavailable",
-        message: "Cannot create product while database is disconnected."
-      });
-    }
-
-    const cleanId = String(productPayload.id).trim();
     const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
     const created = await Product.findOneAndUpdate(
       { 
         $or: [
           { id: cleanId },
-          { slug: productPayload.slug },
           ...(isMongoId ? [{ _id: cleanId }] : [])
         ]
       },
@@ -592,7 +610,7 @@ export async function createProduct(req, res, next) {
     );
     if (created && inMemoryStore.products && Array.isArray(inMemoryStore.products)) {
       const freshDoc = created.toObject ? created.toObject() : created;
-      const exIdx = inMemoryStore.products.findIndex(p => String(p.id) === cleanId || (created._id && String(p._id) === String(created._id)) || (created.slug && String(p.slug) === String(created.slug)));
+      const exIdx = inMemoryStore.products.findIndex(p => String(p.id) === cleanId || (created._id && String(p._id) === String(created._id)));
       if (exIdx >= 0) inMemoryStore.products[exIdx] = freshDoc;
       else inMemoryStore.products.unshift(freshDoc);
     }
@@ -651,10 +669,59 @@ export async function updateProduct(req, res, next) {
 
     const data = pickFields(rawBody, PRODUCT_FIELDS);
 
-    const updatePayload = { ...data, id: String(id) };
-    if (data.name && !data.slug) {
-      updatePayload.slug = String(data.name).trim().toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-");
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        success: false,
+        databaseUnavailable: true,
+        error: "Database unavailable",
+        message: "Cannot update product while database is disconnected."
+      });
     }
+
+    const cleanId = String(id).trim();
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
+    const numericIdFilter = /^\d+$/.test(cleanId) ? [{ id: Number(cleanId) }] : [];
+
+    const oldProduct = await Product.findOne({
+      $or: [
+        { id: cleanId },
+        ...numericIdFilter,
+        { slug: cleanId },
+        ...(isMongoId ? [{ _id: cleanId }] : [])
+      ]
+    }).lean();
+
+    const mergedCandidate = { ...(oldProduct || {}), ...data, id: String(oldProduct?.id || id) };
+    const updatePayload = { ...data, id: String(oldProduct?.id || id) };
+
+    const nameChanged = Boolean(
+      data.name &&
+      oldProduct?.name &&
+      String(data.name).trim().toLowerCase() !== String(oldProduct.name).trim().toLowerCase()
+    );
+    const slugUnchangedFromOld = !data.slug || (oldProduct?.slug && String(data.slug).trim() === String(oldProduct.slug).trim());
+
+    if (nameChanged && slugUnchangedFromOld) {
+      updatePayload.slug = slugifyProductName(data.name);
+    } else if (!isProductSlugHealthy({ ...mergedCandidate, slug: updatePayload.slug || oldProduct?.slug })) {
+      updatePayload.slug = buildHealthyProductSlug({ ...mergedCandidate, slug: "" });
+    } else if (data.name && !updatePayload.slug && !oldProduct?.slug) {
+      updatePayload.slug = slugifyProductName(data.name);
+    }
+
+    if (updatePayload.slug && oldProduct?._id) {
+      const collision = await Product.findOne({
+        _id: { $ne: oldProduct._id },
+        slug: updatePayload.slug
+      }).select("_id id slug").lean();
+      if (collision) {
+        const suffix = slugifyProductName(updatePayload.id);
+        updatePayload.slug = suffix && !updatePayload.slug.endsWith(`-${suffix}`)
+          ? `${updatePayload.slug}-${suffix}`
+          : `${updatePayload.slug}-${Date.now().toString().slice(-4)}`;
+      }
+    }
+
     if (data.tags !== undefined) updatePayload.tags = Array.isArray(data.tags) ? data.tags : [];
     if (data.keywords !== undefined) {
       updatePayload.keywords = Array.isArray(data.keywords) ? data.keywords : [];
@@ -713,38 +780,19 @@ export async function updateProduct(req, res, next) {
       updatePayload.displayOrder = nextOrder;
     }
 
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        success: false,
-        databaseUnavailable: true,
-        error: "Database unavailable",
-        message: "Cannot update product while database is disconnected."
-      });
-    }
-
-    const cleanId = String(id).trim();
-    const isMongoId = /^[0-9a-fA-F]{24}$/.test(cleanId);
-    const numericIdFilter = /^\d+$/.test(cleanId) ? [{ id: Number(cleanId) }] : [];
     updatePayload.updatedAt = new Date().toISOString();
 
-    const oldProduct = await Product.findOne({
-      $or: [
-        { id: cleanId },
-        ...numericIdFilter,
-        { slug: cleanId },
-        ...(isMongoId ? [{ _id: cleanId }] : [])
-      ]
-    }).lean();
-
     let updated = await Product.findOneAndUpdate(
-      {
-        $or: [
-          { id: cleanId },
-          ...numericIdFilter,
-          { slug: cleanId },
-          ...(isMongoId ? [{ _id: cleanId }] : [])
-        ]
-      },
+      oldProduct?._id
+        ? { _id: oldProduct._id }
+        : {
+            $or: [
+              { id: cleanId },
+              ...numericIdFilter,
+              { slug: cleanId },
+              ...(isMongoId ? [{ _id: cleanId }] : [])
+            ]
+          },
       { $set: updatePayload },
       { returnDocument: "after" }
     );
@@ -753,7 +801,7 @@ export async function updateProduct(req, res, next) {
     }
     if (updated && inMemoryStore.products && Array.isArray(inMemoryStore.products)) {
       const freshDoc = updated.toObject ? updated.toObject() : updated;
-      const exIdx = inMemoryStore.products.findIndex(p => String(p.id) === cleanId || (updated._id && String(p._id) === String(updated._id)) || (updated.slug && String(p.slug) === String(updated.slug)));
+      const exIdx = inMemoryStore.products.findIndex(p => String(p.id) === String(updated.id) || (updated._id && String(p._id) === String(updated._id)));
       if (exIdx >= 0) inMemoryStore.products[exIdx] = freshDoc;
       else inMemoryStore.products.unshift(freshDoc);
     }

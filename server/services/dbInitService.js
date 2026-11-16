@@ -15,6 +15,7 @@ import {
 } from "../data/defaultData.js";
 import { applyOrderIndexes } from "./orderIndexService.js";
 import { isDbConnected } from "../config/db.js";
+import { buildHealthyProductSlug } from "./seoService.js";
 
 let isInitializing = false;
 
@@ -68,23 +69,19 @@ export async function ensureDatabaseInitialized() {
       }
     }
 
-    // Slug Migration for Existing MongoDB Products
+    // Slug Migration & Auto-Healing for Existing MongoDB Products (missing, stale, or colliding slugs)
     try {
-      const noSlugProducts = await Product.find({
-        $or: [
-          { slug: { $exists: false } },
-          { slug: null },
-          { slug: "" }
-        ]
-      }).select("_id id name").lean();
+      const allProductsForSlugCheck = await Product.find({})
+        .select("_id id name slug category subCategory mukhi productType")
+        .sort({ createdAt: 1 })
+        .lean();
 
-      for (const doc of noSlugProducts) {
-        const fallbackSlug = (doc.name || `product-${doc.id}`)
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-+|-+$/g, "");
-        if (fallbackSlug) {
-          await Product.updateOne({ _id: doc._id }, { $set: { slug: fallbackSlug } });
+      const usedSlugs = new Set();
+      for (const doc of allProductsForSlugCheck) {
+        const currentSlug = String(doc.slug || "").trim().toLowerCase();
+        const nextSlug = buildHealthyProductSlug(doc, usedSlugs);
+        if (nextSlug && nextSlug !== currentSlug) {
+          await Product.updateOne({ _id: doc._id }, { $set: { slug: nextSlug } });
         }
       }
 

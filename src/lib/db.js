@@ -1,5 +1,12 @@
 import { getProductPrimaryImage, getProductGalleryImages } from "./imageUtils";
-import { getProductRoute } from "./routes";
+import {
+  getProductRoute,
+  slugifyProductName,
+  stripMarketingModifiers,
+  isProductSlugHealthy,
+  areProductAndTargetCompatible,
+  extractMukhiNumbers
+} from "./routes";
 import { authClient } from "./authClient.js";
 import { preloadImages } from "./imageUtils.js";
 import { searchAndRankProducts } from "./searchUtils.js";
@@ -1301,20 +1308,7 @@ export const db = {
     const target = raw.toLowerCase().split("?")[0];
     const cleanId = target.replace(/^(product-card-|product-)/, "");
     const slugTarget = target.replace(/^\/+|\/+$/g, "");
-    const stripMarketingSlug = (val) => {
-      let current = String(val || "")
-        .toLowerCase()
-        .replace(/^(product-card-|product-)/, "");
-      let prev = "";
-      while (current !== prev) {
-        prev = current;
-        current = current
-          .replace(/^(?:premium-|original-|buy-|authentic-|pure-|real-|nepali-)+/i, "")
-          .replace(/(?:-authentic-lab-certified-aura-rudraksha|-lab-certified-aura-rudraksha|-aura-rudraksha|-nepali-online-lab-certified|-online-lab-certified|-lab-certified|-authentic|-supreme-bead|-deva-mani|-online)+$/gi, "");
-      }
-      return current.replace(/^-+|-+$/g, "");
-    };
-    const strippedSlug = stripMarketingSlug(slugTarget);
+    const strippedSlug = stripMarketingModifiers(slugTarget);
 
     const hasRealMedia = (prod) => {
       if (!prod) return false;
@@ -1328,8 +1322,10 @@ export const db = {
 
     const pickPreferred = (matches) => {
       if (!Array.isArray(matches) || matches.length === 0) return null;
-      if (matches.length === 1) return matches[0];
-      return matches.find(hasRealMedia) || matches[0];
+      const compatible = matches.filter((m) => areProductAndTargetCompatible(m, slugTarget, strippedSlug));
+      if (compatible.length === 0) return null;
+      if (compatible.length === 1) return compatible[0];
+      return compatible.find(hasRealMedia) || compatible[0];
     };
 
     const deletedIds = getDeletedProductIds();
@@ -1344,22 +1340,23 @@ export const db = {
         const xMongoId = String(x._id || "").toLowerCase();
         if (deletedIds.has(String(x.id)) || deletedIds.has(String(x._id))) return false;
 
-        if (xId === target || xId === slugTarget || xId === cleanId || xId === strippedSlug) return true;
+        if (xId === target || xId === slugTarget || xId === cleanId) return true;
         if (xMongoId && (xMongoId === target || xMongoId === slugTarget || xMongoId === cleanId || xMongoId === strippedSlug)) return true;
-        if (!isNaN(target) && Number(x.id) === Number(target)) return true;
-        if (!isNaN(cleanId) && Number(x.id) === Number(cleanId)) return true;
-        if (!isNaN(strippedSlug) && strippedSlug !== "" && Number(x.id) === Number(strippedSlug)) return true;
+        if (xId === strippedSlug && areProductAndTargetCompatible(x, slugTarget, strippedSlug)) return true;
+        if (!isNaN(target) && target !== "" && Number(x.id) === Number(target) && areProductAndTargetCompatible(x, slugTarget, strippedSlug)) return true;
+        if (!isNaN(cleanId) && cleanId !== "" && Number(x.id) === Number(cleanId) && areProductAndTargetCompatible(x, slugTarget, strippedSlug)) return true;
         return false;
       });
-      if (matches.length > 0) return pickPreferred(matches);
+      const step1 = pickPreferred(matches);
+      if (step1) return step1;
 
-      // 2. Match on slug (exact or stripped marketing slug)
+      // 2. Match on healthy slug (exact or stripped marketing slug)
       matches = list.filter(x => {
         if (!x) return false;
         if (deletedIds.has(String(x.id)) || deletedIds.has(String(x._id))) return false;
-        const xSlug = String(x.slug || "").toLowerCase();
-        if (!xSlug) return false;
-        const xStripped = stripMarketingSlug(xSlug);
+        if (!x.slug || !isProductSlugHealthy(x)) return false;
+        const xSlug = String(x.slug).toLowerCase();
+        const xStripped = stripMarketingModifiers(xSlug);
         return (
           xSlug === target ||
           xSlug === slugTarget ||
@@ -1368,48 +1365,53 @@ export const db = {
           (strippedSlug && xStripped === strippedSlug)
         );
       });
-      if (matches.length > 0) return pickPreferred(matches);
+      const step2 = pickPreferred(matches);
+      if (step2) return step2;
 
-      // 3. Match on slugified product name
+      // 3. Match on slugified product name (only when compatible in kind, mukhi, and variety)
       matches = list.filter(x => {
         if (!x) return false;
         if (deletedIds.has(String(x.id)) || deletedIds.has(String(x._id))) return false;
+        if (!areProductAndTargetCompatible(x, slugTarget, strippedSlug)) return false;
         const xName = String(x.name || "").toLowerCase().trim();
-        const xSlugifiedName = xName.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+        const xSlugifiedName = slugifyProductName(xName);
+        const xStrippedName = stripMarketingModifiers(xSlugifiedName);
         if (
           xSlugifiedName &&
           (xSlugifiedName === target ||
             xSlugifiedName === slugTarget ||
             xSlugifiedName === cleanId ||
             xSlugifiedName === strippedSlug ||
-            (strippedSlug.length >= 5 && (xSlugifiedName.startsWith(strippedSlug) || strippedSlug.startsWith(xSlugifiedName))))
+            (strippedSlug && xStrippedName === strippedSlug))
         ) {
           return true;
         }
         if (xName && (xName === target || xName === slugTarget)) return true;
         return false;
       });
-      if (matches.length > 0) return pickPreferred(matches);
+      const step3 = pickPreferred(matches);
+      if (step3) return step3;
 
-      // 4. Match by Mukhi number for SEO URLs like "5-mukhi-rudraksha" or "buy-original-7-mukhi-rudraksha..."
-      const mukhiMatch = slugTarget.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i) ||
-                         strippedSlug.match(/\b([1-9]|1[0-9]|20|21)\s*-?\s*mukhi\b/i);
-      if (mukhiMatch && mukhiMatch[1]) {
-        const mNum = String(parseInt(mukhiMatch[1], 10));
-        const mukhiRegex = new RegExp(`(^|[^0-9])${mNum}(\\s*-?\\s*mukhi|$)`, "i");
-        matches = list.filter(x => {
-          if (!x) return false;
-          if (deletedIds.has(String(x.id)) || deletedIds.has(String(x._id))) return false;
-          return (
-            String(x.id) === mNum ||
-            String(x.id).toLowerCase() === `p${mNum}` ||
-            String(x.mukhi || "").replace(/\D/g, "") === mNum ||
-            (x.slug && mukhiRegex.test(String(x.slug))) ||
-            (x.name && mukhiRegex.test(String(x.name)))
-          );
-        });
-        if (matches.length > 0) return pickPreferred(matches);
-      }
+      // 4. Match by compatible Mukhi / Kind / Variety across catalog
+      matches = list.filter(x => {
+        if (!x) return false;
+        if (deletedIds.has(String(x.id)) || deletedIds.has(String(x._id))) return false;
+        if (!areProductAndTargetCompatible(x, slugTarget, strippedSlug)) return false;
+
+        const targetMukhis = extractMukhiNumbers(slugTarget || strippedSlug);
+        if (targetMukhis.length > 0) {
+          const prodMukhis = extractMukhiNumbers(x);
+          return prodMukhis.length > 0 && targetMukhis.join(",") === prodMukhis.join(",");
+        }
+
+        const xSlugName = slugifyProductName(x.name);
+        if (strippedSlug.length >= 5 && xSlugName && (xSlugName.includes(strippedSlug) || strippedSlug.includes(xSlugName))) {
+          return true;
+        }
+        return false;
+      });
+      const step4 = pickPreferred(matches);
+      if (step4) return step4;
 
       return null;
     };
@@ -1439,7 +1441,7 @@ export const db = {
       rating: liveRating,
       reviews: liveReviews,
       reviewCount: liveReviews,
-      slug: p.slug || (p.name ? p.name.toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-") : pId),
+      slug: (p.slug && isProductSlugHealthy(p)) ? p.slug : (p.name ? slugifyProductName(p.name) : pId),
       mrp: p.mrp || p.comparePrice || p.price,
       comparePrice: p.comparePrice || p.mrp || p.price,
       img: getProductPrimaryImage(p),
@@ -1463,6 +1465,7 @@ export const db = {
     const normalizeFetched = (p) => ({
       ...p,
       id: String(p.id || p._id),
+      slug: (p.slug && isProductSlugHealthy(p)) ? p.slug : (p.name ? slugifyProductName(p.name) : String(p.id || p._id)),
       mrp: p.mrp || p.comparePrice || p.price,
       comparePrice: p.comparePrice || p.mrp || p.price,
       img: getProductPrimaryImage(p),
@@ -1472,9 +1475,17 @@ export const db = {
       timesPurchased: Number(p.timesPurchased ?? p.salesCount) || (p.totalSold ? parseInt(String(p.totalSold).replace(/\D/g, ""), 10) || 0 : 0)
     });
 
-    // STEP 1: Immediate Memory & Cache Check (0ms Response Time when real media is already present)
+    // STEP 1: Immediate Memory & Cache Check (only trust immediately if exact ID/healthy slug match with real media)
     const cached = db.getProduct(idOrSlug);
-    if (cached && hasRealMedia(cached)) {
+    const cleanTarget = String(idOrSlug).trim().toLowerCase().replace(/^\/+|\/+$/g, "");
+    const isExactCachedMatch = Boolean(
+      cached &&
+      (String(cached.id || "").toLowerCase() === cleanTarget ||
+        String(cached._id || "").toLowerCase() === cleanTarget ||
+        (cached.slug && isProductSlugHealthy(cached) && String(cached.slug).toLowerCase() === cleanTarget))
+    );
+
+    if (cached && isExactCachedMatch && hasRealMedia(cached)) {
       // Background non-blocking network revalidation
       (async () => {
         try {
@@ -1492,7 +1503,7 @@ export const db = {
       return cached;
     }
 
-    // STEP 2: Live API Fetch when not cached OR cached copy only had placeholder images
+    // STEP 2: Live API Fetch when not exact-cached OR cached copy only had placeholder images
     try {
       let cleanParam = String(idOrSlug).trim();
       try { cleanParam = decodeURIComponent(cleanParam); } catch (_) {}
@@ -1526,6 +1537,10 @@ export const db = {
   },
 
   saveProduct: async (p) => {
+    const hadExistingId = Boolean(
+      (p.id && p.id !== "new" && !String(p.id).startsWith("TEMP-")) ||
+      p._id
+    );
     const id = p.id ? String(p.id) : (p._id ? String(p._id) : Date.now().toString());
     const imgs = getProductGalleryImages(p);
     const primaryImg = getProductPrimaryImage(p);
@@ -1541,9 +1556,14 @@ export const db = {
       ? Number(p.displayOrder)
       : 0;
 
+    const cleanSlug = (p.slug && isProductSlugHealthy({ ...p, slug: p.slug }))
+      ? p.slug
+      : (p.name ? slugifyProductName(p.name) : String(id));
+
     const finalProduct = {
       ...p,
       id,
+      slug: cleanSlug,
       img: primaryImg,
       images: imgs,
       tags: normalizeKeywordItems(p.tags),
@@ -1591,7 +1611,7 @@ export const db = {
     };
 
     lastMutationTime = Date.now();
-    const isExisting = Boolean(finalProduct.id && finalProduct.id !== "new" && !String(finalProduct.id).startsWith("TEMP-"));
+    const isExisting = hadExistingId;
     const endpoint = isExisting ? `/products/${encodeURIComponent(finalProduct.id)}` : "/products";
     const method = isExisting ? "PUT" : "POST";
 

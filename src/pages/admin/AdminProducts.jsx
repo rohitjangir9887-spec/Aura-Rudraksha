@@ -1199,9 +1199,16 @@ export function AdminProducts() {
           })
       : [];
 
+    const cleanTitle = editing.name.trim();
+    const computedSlug = cleanTitle
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
     const finalProduct = {
       ...editing,
-      name: editing.name.trim(),
+      name: cleanTitle,
+      slug: computedSlug || editing.slug || "",
       price: Number(editing.price) || 0,
       mrp: Number(editing.mrp) || Number(editing.price) || 0,
       stock: Number(editing.stock) >= 0 ? Number(editing.stock) : 50,

@@ -1,5 +1,5 @@
 import { getProductPrimaryImage, getProductGalleryImages, getOptimizedImageUrl } from "../lib/imageUtils";
-import { getProductRoute } from "../lib/routes";
+import { getProductRoute, getProductRouteId, areProductAndTargetCompatible, isProductSlugHealthy } from "../lib/routes";
 import { safePrice } from "../lib/productHelper";
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
@@ -47,15 +47,15 @@ export function Product() {
 
   // Core product state - check location state and immediate synchronous cache to render instantly without lag
   const initialProduct = React.useMemo(() => {
-    if (routeStateProduct) {
+    if (routeStateProduct && areProductAndTargetCompatible(routeStateProduct, id)) {
       const targetClean = String(id || "").toLowerCase().replace(/^(product-card-|product-)/, "");
       const rId = String(routeStateProduct.id || "").toLowerCase();
       const rMongoId = String(routeStateProduct._id || "").toLowerCase();
-      const rSlug = String(routeStateProduct.slug || "").toLowerCase();
+      const rSlug = isProductSlugHealthy(routeStateProduct) ? String(routeStateProduct.slug || "").toLowerCase() : "";
       const match = 
         rId === String(id).toLowerCase() || rId === targetClean ||
         rMongoId === String(id).toLowerCase() || rMongoId === targetClean ||
-        rSlug === String(id).toLowerCase() || rSlug === targetClean;
+        (rSlug && (rSlug === String(id).toLowerCase() || rSlug === targetClean));
       if (match) return routeStateProduct;
     }
     return db.getProduct(id);
@@ -124,17 +124,17 @@ export function Product() {
   }, [shareOpen]);
 
   // Load and subscribe to database updates
-  const loadData = async (silent = true) => {
-    const existing = product || initialProduct || db.getProduct(id);
-    const isSilent = silent || !!existing;
+  const loadData = async (silent = true, targetRouteId = id) => {
+    const syncMatch = initialProduct || db.getProduct(targetRouteId);
+    const isSilent = silent && Boolean(syncMatch);
     if (!isSilent) setLoading(true);
 
     try {
-      let found = await db.getProductAsync(id);
+      let found = await db.getProductAsync(targetRouteId);
       if (!found) {
         // Fallback: Refresh full product catalog in cache and re-query
         await db.fetchProducts(true);
-        found = db.getProduct(id);
+        found = db.getProduct(targetRouteId);
       }
 
       const isDraft = found && (
@@ -154,7 +154,7 @@ export function Product() {
           const firstV = validProduct.variants[0];
           setSelectedVariant(typeof firstV === "string" ? firstV : (firstV.name || firstV.label || ""));
         }
-      } else if (!existing) {
+      } else {
         setProduct(null);
       }
 
@@ -184,8 +184,12 @@ export function Product() {
       if (syncProduct.variants && syncProduct.variants.length > 0) {
         const firstV = syncProduct.variants[0];
         setSelectedVariant(typeof firstV === "string" ? firstV : (firstV.name || firstV.label || ""));
+      } else {
+        setSelectedVariant("");
       }
     } else {
+      setProduct(null);
+      setReviews([]);
       setLoading(true);
     }
 
@@ -214,7 +218,7 @@ export function Product() {
     setSelectedOrigin("Nepal");
 
     // Load fresh data silently if we already have the product in cache
-    loadData(true);
+    loadData(Boolean(syncProduct), id);
 
     const unsub = onStoreUpdate((eventOrType, maybePayload) => {
       const type = typeof eventOrType === "string"
@@ -232,11 +236,10 @@ export function Product() {
           !payload ||
           String(payload.id || "").toLowerCase() === targetId ||
           String(payload._id || "").toLowerCase() === targetId ||
-          String(payload.slug || "").toLowerCase() === targetId ||
+          (isProductSlugHealthy(payload) && String(payload.slug || "").toLowerCase() === targetId) ||
           (updatedInMem && (
             String(updatedInMem.id || "").toLowerCase() === String(payload.id || "").toLowerCase() ||
-            (payload._id && String(updatedInMem._id || "").toLowerCase() === String(payload._id).toLowerCase()) ||
-            (payload.slug && String(updatedInMem.slug || "").toLowerCase() === String(payload.slug).toLowerCase())
+            (payload._id && String(updatedInMem._id || "").toLowerCase() === String(payload._id).toLowerCase())
           ));
 
         if (matchesTarget) {
@@ -365,7 +368,8 @@ export function Product() {
   const ogImgUrl = primaryImg.startsWith("http") 
     ? primaryImg 
     : `${siteOrigin}${primaryImg.startsWith("/") ? "" : "/"}${primaryImg}`;
-  const canonicalUrl = p ? `https://aurarudraksha.bond/product/${p.slug || p.id || id}` : undefined;
+  const resolvedRouteId = p ? (getProductRouteId(rawP || p) || id) : id;
+  const canonicalUrl = p ? `https://aurarudraksha.bond/product/${resolvedRouteId}` : undefined;
 
   const productSchemas = React.useMemo(() => {
     if (!p) return [];
@@ -482,7 +486,7 @@ export function Product() {
     const supportPhone = settings.supportPhone || "+91 9672996531";
     const waCleanPhone = supportPhone.replace(/[^0-9]/g, "");
     const price = Number(p.price) || 0;
-    const productUrl = `https://aurarudraksha.bond/product/${p.slug || p.id || id}`;
+    const productUrl = `https://aurarudraksha.bond/product/${resolvedRouteId}`;
     const message = `Namaste Aura Rudraksha,\n\nI would like to order:\n\n*Product:* ${p.name}\n*Variant:* ${selectedVariant || selectedSize}\n*Quantity:* ${qty}\n*Total Price:* ${money(price * qty)}\n*Link:* ${productUrl}\n\nPlease confirm availability and dispatch details.\n\nDhanyawad!`;
     const waUrl = `https://wa.me/${waCleanPhone}?text=${encodeURIComponent(message)}`;
     window.open(waUrl, "_blank");
@@ -491,7 +495,7 @@ export function Product() {
   const getProductShareUrl = () => {
     if (!p) return typeof window !== "undefined" ? window.location.href : "https://aurarudraksha.bond";
     const origin = typeof window !== "undefined" ? window.location.origin : "https://aurarudraksha.bond";
-    return `${origin}/product/${p.slug || p.id || id}`;
+    return `${origin}/product/${resolvedRouteId}`;
   };
 
   const handleCopyLink = async () => {

@@ -151,13 +151,22 @@ export async function warmCatalogCacheFromDb() {
   return catalogWarmInFlight;
 }
 
+export function sanitizeMongoUriString(rawUri) {
+  if (!rawUri || typeof rawUri !== "string") return "";
+  return rawUri.trim().replace(/^["']+|["']+$/g, "").trim();
+}
+
 export function isValidMongoUri(rawUri) {
-  if (!rawUri || typeof rawUri !== "string") return false;
-  const trimmed = rawUri.trim();
+  const trimmed = sanitizeMongoUriString(rawUri);
+  if (!trimmed) return false;
   return trimmed.startsWith("mongodb://") || trimmed.startsWith("mongodb+srv://");
 }
 
 let memoryServerInstance = null;
+
+export function isMemoryMongoActive() {
+  return Boolean(memoryServerInstance && !getMongoUri());
+}
 
 export async function getOrStartMemoryMongo() {
   const isVercelServerless = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.AWS_LAMBDA_FUNCTION_NAME);
@@ -178,12 +187,19 @@ export async function getOrStartMemoryMongo() {
 }
 
 export function getMongoUri() {
-  const uri = (process.env.MONGODB_URI || process.env.MONGO_URI || process.env.MONGODB_URL || "").trim();
+  const raw =
+    process.env.MONGODB_URI ||
+    process.env.MONGO_URI ||
+    process.env.MONGODB_URL ||
+    process.env.DATABASE_URL ||
+    process.env.VITE_MONGODB_URI ||
+    "";
+  const uri = sanitizeMongoUriString(raw);
   return isValidMongoUri(uri) ? uri : null;
 }
 
 export function getMaskedMongoUri() {
-  const uri = (process.env.MONGODB_URI || process.env.MONGO_URI || process.env.MONGODB_URL || "").trim();
+  const uri = getMongoUri() || "";
   if (!uri) {
     if (memoryServerInstance || mongoose?.connection?.readyState === 1) {
       const host = mongoose?.connection?.host || "127.0.0.1";
@@ -205,7 +221,8 @@ export function getMaskedMongoUri() {
 
 let lastConnectionAttemptTime = 0;
 
-export async function connectDB() {
+export async function connectDB(options = {}) {
+  const forceAttempt = Boolean(options?.force);
   const configuredUri = getMongoUri();
   cached.lastAttempt = new Date().toISOString();
 
@@ -215,7 +232,7 @@ export async function connectDB() {
   }
 
   if (!targetUri) {
-    const raw = (process.env.MONGODB_URI || "").trim();
+    const raw = sanitizeMongoUriString(process.env.MONGODB_URI || "");
     const errMsg = raw && raw !== "."
       ? "MONGODB_URI is provided but invalid (must start with 'mongodb://' or 'mongodb+srv://')."
       : "MONGODB_URI environment variable is not defined and local fallback could not be started.";
@@ -246,7 +263,7 @@ export async function connectDB() {
   // Throttle rapid failed bursts to prevent hanging consecutive serverless requests
   const now = Date.now();
   const failureCooldown = isVercelServerless ? 2500 : 2000;
-  if (mongoose.connection.readyState === 0 && cached.lastFailedAttempt && (now - cached.lastFailedAttempt < failureCooldown)) {
+  if (!forceAttempt && mongoose.connection.readyState === 0 && cached.lastFailedAttempt && (now - cached.lastFailedAttempt < failureCooldown)) {
     return false;
   }
 
@@ -270,6 +287,8 @@ export async function connectDB() {
       noDelay: true
     };
 
+    const isTestRunner = Boolean(process.env.VITEST === "true" || process.env.NODE_ENV === "test");
+
     const doConnect = async () => {
       const maxAttempts = isVercelServerless ? 1 : 2;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -281,15 +300,17 @@ export async function connectDB() {
           cached.lastFailedAttempt = null;
           cached.isIpWhitelistError = false;
 
-          if (!global.__db_init_triggered) {
-            global.__db_init_triggered = true;
-            import("../services/dbInitService.js").then(({ ensureDatabaseInitialized }) => {
-              ensureDatabaseInitialized()
-                .then(() => warmCatalogCacheFromDb())
-                .catch(err => console.warn("⚠️ [DB Init Error]:", err?.message));
-            }).catch(() => {});
-          } else {
-            warmCatalogCacheFromDb().catch(() => {});
+          if (!isTestRunner) {
+            if (!global.__db_init_triggered) {
+              global.__db_init_triggered = true;
+              import("../services/dbInitService.js").then(({ ensureDatabaseInitialized }) => {
+                ensureDatabaseInitialized()
+                  .then(() => warmCatalogCacheFromDb())
+                  .catch(err => console.warn("⚠️ [DB Init Error]:", err?.message));
+              }).catch(() => {});
+            } else {
+              warmCatalogCacheFromDb().catch(() => {});
+            }
           }
           return mongooseInstance;
         } catch (err) {
@@ -320,10 +341,12 @@ export async function connectDB() {
                   cached.lastFailedAttempt = null;
                   cached.isIpWhitelistError = false;
                   cached.errorLogs = [];
-                  if (!global.__db_init_triggered) {
+                  if (!isTestRunner && !global.__db_init_triggered) {
                     global.__db_init_triggered = true;
                     import("../services/dbInitService.js").then(({ ensureDatabaseInitialized }) => {
-                      ensureDatabaseInitialized().catch(e => console.warn("⚠️ [DB Init Error]:", e?.message));
+                      ensureDatabaseInitialized()
+                        .then(() => warmCatalogCacheFromDb())
+                        .catch(e => console.warn("⚠️ [DB Init Error]:", e?.message));
                     }).catch(() => {});
                   }
                   return memInstance;
@@ -403,7 +426,7 @@ export async function getDbDiagnostics() {
     }
   }
 
-  const rawUri = (process.env.MONGODB_URI || "").trim();
+  const rawUri = getMongoUri() || "";
   const hasActiveEngine = Boolean(isConnected || memoryServerInstance || isValidMongoUri(rawUri));
   const uriConfigured = hasActiveEngine;
   let uriScheme = "none";
@@ -443,7 +466,7 @@ export async function getDbDiagnostics() {
 export async function testDbConnection() {
   const start = Date.now();
   try {
-    const success = await connectDB();
+    const success = await connectDB({ force: true });
     const durationMs = Date.now() - start;
     const diagnostics = await getDbDiagnostics();
     return {

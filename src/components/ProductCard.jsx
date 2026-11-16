@@ -1,6 +1,6 @@
 import { getProductPrimaryImage, getProductGalleryImages, getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
 import { OptimizedImage } from "./OptimizedImage";
-import { getProductRoute } from "../lib/routes";
+import { getProductRoute, getProductRouteId } from "../lib/routes";
 import { prefetchRoute, prefetchPath } from "../lib/prefetchRoutes";
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
@@ -59,7 +59,7 @@ function ProductCardComponent({ p, onAdd, isShop = false }) {
   if (!p) return null;
 
   const productId = String(p?.id || p?._id || p?.slug || "");
-  const targetRoute = p?.slug || productId;
+  const targetRoute = getProductRouteId(p) || productId;
   const productHref = targetRoute ? `/product/${encodeURIComponent(targetRoute)}` : "/shop";
   const isAlreadyOnProductPage = (location.pathname || "").startsWith("/product/");
   const originPath = isAlreadyOnProductPage
