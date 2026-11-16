@@ -2,6 +2,7 @@ import { test } from 'vitest';
 import assert from 'node:assert';
 import {
   parseAuraAiPayload,
+  customerSafeAiText,
   isAuraResponseIncomplete,
   smartMergeContinuation
 } from './auraAiResponse.js';
@@ -176,5 +177,16 @@ test('smartMergeContinuation - strips repeated heading and preserves markdown pa
   assert.strictEqual(merged.includes("### 6. नवग्रह फल\n### 6. नवग्रह फल"), false);
   assert.ok(merged.includes("\n\n### 7. द्वादश भाव फल"));
   assert.ok(merged.includes("उत्तम स्वास्थ्य।"));
+});
+
+test('isAuraResponseIncomplete & customerSafeAiText - catches odd bold markers, dangling bullet headings & trailing <think>', () => {
+  const oddBold = "आपकी जन्म कुंडली के अनुसार **मंगल ग्रह सप्तम भाव में स्थित होकर शुभ";
+  assert.strictEqual(isAuraResponseIncomplete(oddBold, "panditji"), true);
+
+  const danglingBulletHeading = "आपकी कुंडली के प्रमुख योग:\n• **7. सप्तम भाव (विवाह एवं साझेदारी)**";
+  assert.strictEqual(isAuraResponseIncomplete(danglingBulletHeading, "panditji"), true);
+
+  const midStreamThink = "प्रणाम 🙏 5 मुखी रुद्राक्ष अत्यंत शुभ है।\n<think>Let me double check prices";
+  assert.strictEqual(customerSafeAiText(midStreamThink), "प्रणाम 🙏 5 मुखी रुद्राक्ष अत्यंत शुभ है।");
 });
 

@@ -1,6 +1,6 @@
 import { describe, test } from "vitest";
 import assert from "node:assert";
-import { extractRemainingContinuationSection, chatAuraAI } from "../auraAiController.js";
+import { extractRemainingContinuationSection, chatAuraAI, getNvidiaClient, isTextIncomplete } from "../auraAiController.js";
 
 describe("Aura AI Controller — Zero-Failure & Smart Continuation", () => {
   test("extractRemainingContinuationSection omits already-seen headings and returns remaining sections", () => {
@@ -22,6 +22,16 @@ describe("Aura AI Controller — Zero-Failure & Smart Continuation", () => {
     const remainder = extractRemainingContinuationSection(fullRef, fullRef, fullRef);
 
     assert.ok(remainder.includes("पूर्ण हो चुका है"));
+  });
+
+  test("getNvidiaClient allows long streams (>=45s) and isTextIncomplete catches MAX_TOKENS & dangling headings", () => {
+    const client = getNvidiaClient("nvapi-test-key");
+    assert.ok(client);
+    assert.ok(client.timeout >= 45000, `Expected streaming timeout >= 45000ms, got ${client.timeout}`);
+
+    assert.strictEqual(isTextIncomplete("यह पूर्ण वाक्य है।", "MAX_TOKENS", "panditji"), true);
+    assert.strictEqual(isTextIncomplete("आपकी जन्म कुंडली में निम्नलिखित प्रमुख दोष व योग हैं:\n• **मंगल दोष एवं उपाय**\n• **शनि साढ़े साती**", "stop", "panditji"), true);
+    assert.strictEqual(isTextIncomplete("ऑरा रुद्राक्ष के सभी मनके 100% लैब प्रमाणित और प्राकृतिक रूप से सिद्ध किए गए हैं।", "stop", "standard"), false);
   });
 
   test("chatAuraAI recovers with HTTP 200 JSON payload if internal processing hits unexpected error", async () => {

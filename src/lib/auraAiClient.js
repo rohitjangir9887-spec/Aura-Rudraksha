@@ -446,7 +446,7 @@ export const auraAiClient = {
           idleTimer = setTimeout(() => {
             timedOutIdle = true;
             try { reader.cancel(); } catch (_) {}
-          }, 26000);
+          }, 36000);
         };
 
         armIdleTimer();
@@ -464,7 +464,7 @@ export const auraAiClient = {
             if (value) {
               armIdleTimer();
               buffer += decoder.decode(value, { stream: true });
-              const lines = buffer.split("\n");
+              const lines = buffer.split(/\r?\n/);
               buffer = lines.pop() || "";
               for (const line of lines) {
                 if (thisController.signal.aborted || thisSeq !== activeStreamSeq) break;
@@ -475,7 +475,7 @@ export const auraAiClient = {
               // Flush remaining decoder buffer on stream end
               buffer += decoder.decode();
               if (buffer.trim()) {
-                const lines = buffer.split("\n");
+                const lines = buffer.split(/\r?\n/);
                 for (const line of lines) {
                   if (thisController.signal.aborted || thisSeq !== activeStreamSeq) break;
                   processLine(line);

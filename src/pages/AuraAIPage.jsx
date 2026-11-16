@@ -133,6 +133,7 @@ export function AuraAIPage() {
   const [errorOccurred, setErrorOccurred] = useState(false);
   const [lastUserQuery, setLastUserQuery] = useState("");
   const [activePassCount, setActivePassCount] = useState(0);
+  const [streamingMsgId, setStreamingMsgId] = useState(null);
   const timerRef = useRef(null);
 
   const cart = useCart();
@@ -443,6 +444,7 @@ export function AuraAIPage() {
 
     const aiMsgId = "ai_" + Date.now();
     activeAiMsgIdRef.current = aiMsgId;
+    setStreamingMsgId(aiMsgId);
     let streamInitialized = false;
 
     try {
@@ -566,6 +568,7 @@ export function AuraAIPage() {
             return;
           }
           autoContinuationCountRef.current = 0;
+          setStreamingMsgId((prev) => (prev === aiMsgId ? null : prev));
         },
         onError: (err) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
@@ -596,6 +599,7 @@ export function AuraAIPage() {
             return [...prev, updatedMsg];
           });
           setLoading(false);
+          setStreamingMsgId((prev) => (prev === aiMsgId ? null : prev));
           if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;
@@ -633,13 +637,14 @@ export function AuraAIPage() {
     } finally {
       if (currentTurnSeq === turnSeqRef.current) {
         setLoading(false);
+        setStreamingMsgId((prev) => (prev === aiMsgId && autoContinuationCountRef.current === 0 ? null : prev));
       }
     }
   };
 
   const handleContinueChat = async (targetMsg, autoPassNumber = 0, maxPasses = 10) => {
     if (!targetMsg) return;
-    if (autoPassNumber === 0 && loading && activeAiMsgIdRef.current === targetMsg.id) {
+    if (autoPassNumber === 0 && (loading || streamingMsgId === targetMsg.id) && activeAiMsgIdRef.current === targetMsg.id) {
       return;
     }
     const baseText = targetMsg.text || "";
@@ -649,6 +654,7 @@ export function AuraAIPage() {
     auraAiClient.abortActiveStream();
     const currentTurnSeq = ++turnSeqRef.current;
     activeAiMsgIdRef.current = targetMsg.id;
+    setStreamingMsgId(targetMsg.id);
     setActivePassCount(autoPassNumber + 1);
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -780,11 +786,14 @@ export function AuraAIPage() {
           if (shouldContinue) {
             autoContinuationCountRef.current = nextPass;
             setTimeout(() => {
-              handleContinueChat(aiMsg, nextPass, maxPasses);
+              if (currentTurnSeq === turnSeqRef.current) {
+                handleContinueChat(aiMsg, nextPass, maxPasses);
+              }
             }, 300);
           } else {
             autoContinuationCountRef.current = 0;
             setActivePassCount(0);
+            setStreamingMsgId((prev) => (prev === aiMsgId ? null : prev));
             if (activeAiMsgIdRef.current === aiMsgId) {
               activeAiMsgIdRef.current = null;
             }
@@ -795,6 +804,7 @@ export function AuraAIPage() {
           console.warn("Continue stream notice in full-page:", err);
           setLoading(false);
           setActivePassCount(0);
+          setStreamingMsgId((prev) => (prev === aiMsgId ? null : prev));
           if (activeAiMsgIdRef.current === aiMsgId) {
             activeAiMsgIdRef.current = null;
           }
@@ -811,6 +821,7 @@ export function AuraAIPage() {
       if (currentTurnSeq !== turnSeqRef.current) return;
       setLoading(false);
       setActivePassCount(0);
+      setStreamingMsgId((prev) => (prev === aiMsgId ? null : prev));
       if (activeAiMsgIdRef.current === aiMsgId) {
         activeAiMsgIdRef.current = null;
       }
@@ -830,6 +841,7 @@ export function AuraAIPage() {
     auraAiClient.abortActiveStream();
     turnSeqRef.current++;
     activeAiMsgIdRef.current = null;
+    setStreamingMsgId(null);
     setLoading(false);
     setErrorOccurred(false);
     setStatusText(mode === "panditji" ? "गणित व नक्षत्र गणना..." : "Thinking...");
@@ -1711,8 +1723,9 @@ export function AuraAIPage() {
                           {m.sender === "ai" && (
                             <div style={{ display: "flex", alignItems: "center", gap: "5px", marginLeft: "auto", flexWrap: "wrap" }}>
                               {(() => {
-                                const isIncomplete = isAuraResponseIncomplete(m.text, mode);
-                                const isThisContinuing = loading && activeAiMsgIdRef.current === m.id;
+                                const isThisStreaming = streamingMsgId === m.id;
+                                const isIncomplete = !isThisStreaming && isAuraResponseIncomplete(m.text, mode);
+                                const isThisContinuing = isThisStreaming || (loading && activeAiMsgIdRef.current === m.id);
                                 if (!isIncomplete && mode !== "panditji" && !isThisContinuing) return null;
                                 return (
                                   <button
@@ -1742,7 +1755,7 @@ export function AuraAIPage() {
                                     <Sparkles size={11} className={isThisContinuing ? "animate-spin" : ""} style={{ color: "#d97706" }} />
                                     <span>
                                       {isThisContinuing
-                                        ? `जारी है (${activePassCount || 1}/10)...`
+                                        ? (activePassCount > 0 ? `जारी है (${activePassCount}/10)...` : "लिखा जा रहा है...")
                                         : isIncomplete
                                           ? "✨ शुरू करें (आगे पूरा करें)"
                                           : "✨ और विस्तार से"}

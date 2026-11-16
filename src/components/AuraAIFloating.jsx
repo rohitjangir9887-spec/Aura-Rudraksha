@@ -393,6 +393,7 @@ export function AuraAIFloating() {
   const [errorOccurred, setErrorOccurred] = useState(false);
   const [lastUserQuery, setLastUserQuery] = useState("");
   const [activePassCount, setActivePassCount] = useState(0);
+  const [streamingMsgId, setStreamingMsgId] = useState(null);
   const timerRef = useRef(null);
   const continuationTimerRef = useRef(null);
   const turnSeqRef = useRef(0);
@@ -415,6 +416,7 @@ export function AuraAIFloating() {
     }
     autoContinuationCountRef.current = 0;
     activeAiMsgIdRef.current = null;
+    setStreamingMsgId(null);
     setActivePassCount(0);
     setLoading(false);
     setIsListening(false);
@@ -937,6 +939,8 @@ export function AuraAIFloating() {
     }, 1000);
 
     const aiMsgId = "ai_" + Date.now();
+    activeAiMsgIdRef.current = aiMsgId;
+    setStreamingMsgId(aiMsgId);
     let streamInitialized = false;
 
     try {
@@ -1083,6 +1087,7 @@ export function AuraAIFloating() {
           }
 
           autoContinuationCountRef.current = 0;
+          setStreamingMsgId((prev) => (prev === aiMsgId ? null : prev));
         },
         onError: (err) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
@@ -1115,6 +1120,7 @@ export function AuraAIFloating() {
             return [...prev, updatedMsg];
           });
           setLoading(false);
+          setStreamingMsgId((prev) => (prev === aiMsgId ? null : prev));
           if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;
@@ -1154,13 +1160,14 @@ export function AuraAIFloating() {
     } finally {
       if (currentTurnSeq === turnSeqRef.current) {
         setLoading(false);
+        setStreamingMsgId((prev) => (prev === aiMsgId && autoContinuationCountRef.current === 0 ? null : prev));
       }
     }
   };
 
   const handleContinueChat = async (targetMsg, autoPassNumber = 0, maxPasses = 10) => {
     if (!targetMsg) return;
-    if (autoPassNumber === 0 && loading && activeAiMsgIdRef.current === targetMsg.id) {
+    if (autoPassNumber === 0 && (loading || streamingMsgId === targetMsg.id) && activeAiMsgIdRef.current === targetMsg.id) {
       return;
     }
     const baseText = targetMsg.text || "";
@@ -1170,6 +1177,7 @@ export function AuraAIFloating() {
     auraAiClient.abortActiveStream();
     const currentTurnSeq = ++turnSeqRef.current;
     activeAiMsgIdRef.current = targetMsg.id;
+    setStreamingMsgId(targetMsg.id);
     setActivePassCount(autoPassNumber + 1);
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -1310,6 +1318,7 @@ export function AuraAIFloating() {
           } else {
             autoContinuationCountRef.current = 0;
             setActivePassCount(0);
+            setStreamingMsgId((prev) => (prev === aiMsgId ? null : prev));
             if (activeAiMsgIdRef.current === aiMsgId) {
               activeAiMsgIdRef.current = null;
             }
@@ -1320,6 +1329,7 @@ export function AuraAIFloating() {
           console.warn("Continue stream notice:", err);
           setLoading(false);
           setActivePassCount(0);
+          setStreamingMsgId((prev) => (prev === aiMsgId ? null : prev));
           if (activeAiMsgIdRef.current === aiMsgId) {
             activeAiMsgIdRef.current = null;
           }
@@ -1336,6 +1346,7 @@ export function AuraAIFloating() {
       if (currentTurnSeq !== turnSeqRef.current) return;
       setLoading(false);
       setActivePassCount(0);
+      setStreamingMsgId((prev) => (prev === aiMsgId ? null : prev));
       if (activeAiMsgIdRef.current === aiMsgId) {
         activeAiMsgIdRef.current = null;
       }
@@ -3030,14 +3041,14 @@ export function AuraAIFloating() {
 
                             {m.sender === "ai" && (
                               <div style={{ display: "flex", alignItems: "center", gap: "5px", marginLeft: "auto", flexWrap: "wrap" }}>
-                                {isAuraResponseIncomplete(m.text, mode) ? (
+                                {(streamingMsgId === m.id || isAuraResponseIncomplete(m.text, mode)) ? (
                                   <button
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleContinueChat(m, 0, 10);
                                     }}
-                                    disabled={loading && activeAiMsgIdRef.current === m.id}
+                                    disabled={streamingMsgId === m.id || (loading && activeAiMsgIdRef.current === m.id)}
                                     style={{
                                       padding: "4px 10px",
                                       background: "linear-gradient(135deg, #FFF7ED, #FEF3C7)",
@@ -3046,7 +3057,7 @@ export function AuraAIFloating() {
                                       fontSize: "11px",
                                       color: "#8c2b10",
                                       fontWeight: 700,
-                                      cursor: (loading && activeAiMsgIdRef.current === m.id) ? "wait" : "pointer",
+                                      cursor: (streamingMsgId === m.id || (loading && activeAiMsgIdRef.current === m.id)) ? "wait" : "pointer",
                                       display: "inline-flex",
                                       alignItems: "center",
                                       gap: "4px",
@@ -3055,8 +3066,8 @@ export function AuraAIFloating() {
                                     }}
                                     title="उत्तर जहाँ से रुका है, वहीं से आगे पूरा करें (1-Click Auto Complete)"
                                   >
-                                    <Sparkles size={11} className={(loading && activeAiMsgIdRef.current === m.id) ? "animate-spin" : ""} style={{ color: "#d97706" }} />
-                                    <span>{(loading && activeAiMsgIdRef.current === m.id) ? `जारी है (${activePassCount || 1}/10)...` : "✨ शुरू करें (आगे पूरा करें)"}</span>
+                                    <Sparkles size={11} className={(streamingMsgId === m.id || (loading && activeAiMsgIdRef.current === m.id)) ? "animate-spin" : ""} style={{ color: "#d97706" }} />
+                                    <span>{(streamingMsgId === m.id || (loading && activeAiMsgIdRef.current === m.id)) ? (activePassCount > 0 ? `जारी है (${activePassCount}/10)...` : "लिखा जा रहा है...") : "✨ शुरू करें (आगे पूरा करें)"}</span>
                                   </button>
                                 ) : (mode === "panditji" && !m.id?.startsWith("init_") && index === messages.length - 1 && !loading) ? (
                                   <button

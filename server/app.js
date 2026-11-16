@@ -119,11 +119,21 @@ export function createApp(options = {}) {
     next();
   });
 
-  // Performance: Fast Gzip/Deflate compression for all responses > 1KB
+  // Performance: Fast Gzip/Deflate compression for all responses > 1KB (NEVER buffer SSE streams)
   app.use(compression({
     threshold: 1024,
     filter: (req, res) => {
       if (req.headers["x-no-compression"]) return false;
+      const accept = String(req.headers.accept || "");
+      const contentType = String(res.getHeader("Content-Type") || "");
+      if (
+        contentType.includes("text/event-stream") ||
+        accept.includes("text/event-stream") ||
+        req.query?.stream === "true" ||
+        req.body?.stream === true
+      ) {
+        return false;
+      }
       return compression.filter(req, res);
     }
   }));

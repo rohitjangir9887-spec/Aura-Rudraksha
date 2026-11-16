@@ -286,7 +286,7 @@ export function getNvidiaClient(customKey = "") {
     return new OpenAI({
       baseURL,
       apiKey,
-      timeout: 11000,
+      timeout: 55000, // Allow full streaming responses to finish without 11s mid-sentence aborts (first-token & stall guards enforce fast failover)
       maxRetries: 0 // Prevent 3x silent retry stalls on slow/rate-limited models
     });
   } catch (err) {
@@ -370,7 +370,8 @@ export async function invokeNimChatWithAbort(client, payload, { timeoutMs = 8500
  * Detect if AI generated response is genuinely truncated, cut off mid-sentence, or hit token limits
  */
 export function isTextIncomplete(text, finishReason = "", mode = "standard") {
-  if (finishReason === "length") return true;
+  const normalizedFinish = String(finishReason || "").toLowerCase();
+  if (normalizedFinish === "length" || normalizedFinish === "max_tokens") return true;
   if (!text || typeof text !== "string") return false;
   const trimmed = text.trim();
   if (trimmed.length < 50) return false;
@@ -379,13 +380,15 @@ export function isTextIncomplete(text, finishReason = "", mode = "standard") {
   if (trimmed.includes("[AURA_KEYWORDS]:") || trimmed.includes("AURA_KEYWORDS")) return false;
 
   // 2. Explicit terminal blessings = complete
-  if (/(\*\*हर हर महादेव\*?\*?\s*$|हर हर महादेव\.?\s*$|जय\s*श्री\s*राम\.?\s*$|ॐ\s*शांति\.?\s*$|शुभम्\.?\s*$|अस्तु\.?\s*$)/i.test(trimmed)) {
+  if (/(\*{0,2}(?:हर\s*हर\s*महादेव|जय\s*श्री\s*राम|ॐ\s*नमः\s*शिवाय|ॐ\s*शांति|शुभम्|अस्तु)[.!*\s🙏🕉️]*$)/i.test(trimmed)) {
     return false;
   }
 
-  // 3. Check unclosed code fences
+  // 3. Check unclosed code fences or unclosed bold markdown
   const codeBlockCount = (trimmed.match(/```/g) || []).length;
   if (codeBlockCount % 2 !== 0) return true;
+  const boldMarkerCount = (trimmed.match(/\*\*/g) || []).length;
+  if (boldMarkerCount % 2 !== 0) return true;
 
   // 4. Check unclosed markdown table row that got cut off mid-line
   if (/\|[^\n|]+$/.test(trimmed) && !trimmed.endsWith("|")) return true;
@@ -395,16 +398,22 @@ export function isTextIncomplete(text, finishReason = "", mode = "standard") {
     return true;
   }
 
+  // 4c. Check standalone dangling bullet/heading on the last line (cut off right after heading before body)
+  const lastLine = trimmed.split("\n").pop()?.trim() || "";
+  if (/^(?:#{1,4}\s+.+|(?:[-•*]|\d+\.)\s+\*\*[^*\n]+\*\*:?)$/i.test(lastLine)) {
+    return true;
+  }
+
   // 5. Check terminal punctuation or emojis
   const hasTerminalSignal = /([।!?.]\s*$|[।!?.]\s*[*_~"'\)\]]+\s*$|[🙏🕉️✨🌟🌿📿🔱🚩✅💐]\s*$)/.test(trimmed);
   if (hasTerminalSignal) return false;
 
   // 6. Check if ends with TRUE dangling connector words or unclosed bullet points
-  const trueDanglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|जो कि|यानी|and|or|but|because|with|by|to|for|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.)$/i;
+  const trueDanglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|जो कि|यानी|and|or|but|because|with|by|to|for|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|[-–—:/,;]\s*|\.\.\.)$/i;
   if (trueDanglingConnectors.test(trimmed)) return true;
 
-  // If finishReason is stop/end_turn or normal completion, treat as complete
-  return false;
+  // If ends mid-word / mid-clause without terminal punctuation, flag incomplete
+  return true;
 }
 
 /**
@@ -3369,15 +3378,18 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
       let fullStreamedText = "";
       let streamSucceeded = false;
       let streamedModelUsed = "";
+      let streamFinishReason = "";
+      let streamInterruptedMidOutput = false;
       await resolveNvidiaKey();
       const nvidiaClient = getNvidiaClient();
 
       // Prune initial context messages if token count is near ~8000 words limit
       const prunedNimMessages = pruneMessagesForTokenLimit(nimMessages, 8000);
 
-      // Bounded first-visible-token timeout + shared overall LLM budget so interactive chat never hangs or 504s
-      const STREAM_FIRST_TOKEN_TIMEOUT_MS = 7500;
-      const externalStreamDeadline = Date.now() + 20000;
+      // Separate fast first-token failover deadline from full streaming completion budget so long answers never stop mid-sentence
+      const STREAM_FIRST_TOKEN_TIMEOUT_MS = 8500;
+      const firstTokenDeadline = Date.now() + 20000;
+      const streamCompletionDeadline = Date.now() + 55000;
 
       // Resolve website-wide active model (honors Admin's saved choice across both NVIDIA NIM & Gemini)
       const activeWebsiteModel = await resolveActiveWebsiteAiModel();
@@ -3387,16 +3399,89 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
       const geminiCandidates = buildGeminiCandidateList(preferGeminiStream ? activeWebsiteModel : "", 3);
 
       const shouldUseDeterministicStandard = effectiveMode !== "panditji" && (Boolean(precomputedCalc?.handled) || Boolean(mukhiRange));
-      const streamMaxTokens = effectiveMode === "panditji" ? 4096 : 1800;
+      const streamMaxTokens = effectiveMode === "panditji" ? 6144 : 2400;
 
-      const tryNvidiaStream = async () => {
-        if (!nvidiaClient || streamSucceeded || clientDisconnected || shouldUseDeterministicStandard) return;
+      // Real-time stream filter to strip hidden <think>...</think> / <reasoning>...</reasoning> blocks before emitting visible chunks
+      const createVisibleStreamFilter = () => {
+        let pending = "";
+        let insideTag = ""; // "" | "think" | "reasoning" | "analysis"
+        const openTags = ["<think>", "<reasoning>", "<analysis>"];
+        const closeMap = {
+          think: "</think>",
+          reasoning: "</reasoning>",
+          analysis: "</analysis>"
+        };
+        return {
+          push(delta) {
+            if (!delta) return "";
+            pending += delta;
+            let out = "";
+            while (pending.length > 0) {
+              if (insideTag) {
+                const closeTag = closeMap[insideTag];
+                const closeIdx = pending.toLowerCase().indexOf(closeTag);
+                if (closeIdx !== -1) {
+                  pending = pending.slice(closeIdx + closeTag.length);
+                  insideTag = "";
+                  continue;
+                }
+                // Keep tail in case closing tag spans chunks
+                if (pending.length > closeTag.length) {
+                  pending = pending.slice(-closeTag.length);
+                }
+                break;
+              } else {
+                const lower = pending.toLowerCase();
+                let earliestIdx = -1;
+                let matchedOpen = "";
+                for (const tag of openTags) {
+                  const idx = lower.indexOf(tag);
+                  if (idx !== -1 && (earliestIdx === -1 || idx < earliestIdx)) {
+                    earliestIdx = idx;
+                    matchedOpen = tag;
+                  }
+                }
+                if (earliestIdx !== -1) {
+                  out += pending.slice(0, earliestIdx);
+                  pending = pending.slice(earliestIdx + matchedOpen.length);
+                  insideTag = matchedOpen.slice(1, -1);
+                  continue;
+                }
+                // Hold back up to 11 chars if pending ends with '<' partial tag prefix
+                const lastLt = pending.lastIndexOf("<");
+                if (lastLt !== -1 && pending.length - lastLt <= 11) {
+                  out += pending.slice(0, lastLt);
+                  pending = pending.slice(lastLt);
+                  break;
+                }
+                out += pending;
+                pending = "";
+                break;
+              }
+            }
+            return out;
+          },
+          flush() {
+            if (insideTag) {
+              pending = "";
+              return "";
+            }
+            const rest = pending;
+            pending = "";
+            return rest;
+          }
+        };
+      };
+
+      const tryNvidiaStream = async (overrideMessages = null, { appendToExisting = false } = {}) => {
+        if (!nvidiaClient || clientDisconnected || shouldUseDeterministicStandard) return false;
+        const messagesToUse = overrideMessages || prunedNimMessages;
         for (const modelCandidate of nimCandidates) {
-          const remainingBudgetMs = externalStreamDeadline - Date.now();
-          if (streamSucceeded || clientDisconnected || remainingBudgetMs < 2000) break;
+          const remainingBudgetMs = (fullStreamedText.trim() ? streamCompletionDeadline : firstTokenDeadline) - Date.now();
+          if (clientDisconnected || remainingBudgetMs < 2000) break;
 
           const isHeavyModel = /550b|deepseek-r1/i.test(modelCandidate);
-          const candidateFirstTokenTimeout = isHeavyModel ? 6200 : STREAM_FIRST_TOKEN_TIMEOUT_MS;
+          const candidateFirstTokenTimeout = isHeavyModel ? 7000 : STREAM_FIRST_TOKEN_TIMEOUT_MS;
 
           const modelAbort = new AbortController();
           const onParentAbort = () => modelAbort.abort(abortController.signal.reason || new Error("Client disconnected"));
@@ -3405,13 +3490,16 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
 
           let firstTokenTimedOut = false;
           let streamIdleTimer = null;
-          let receivedAnyChunk = false;
+          let receivedAnyVisibleChunk = false;
+          let attemptBuffer = "";
+          let attemptFinishReason = "";
+          const thinkFilter = createVisibleStreamFilter();
 
           const resetCompletionTimer = (ms) => {
             if (streamIdleTimer) clearTimeout(streamIdleTimer);
             streamIdleTimer = setTimeout(() => {
-              if (!receivedAnyChunk) firstTokenTimedOut = true;
-              modelAbort.abort(new Error(receivedAnyChunk ? "NIM_CHUNK_STALL" : "NIM_FIRST_TOKEN_TIMEOUT"));
+              if (!receivedAnyVisibleChunk) firstTokenTimedOut = true;
+              modelAbort.abort(new Error(receivedAnyVisibleChunk ? "NIM_CHUNK_STALL" : "NIM_FIRST_TOKEN_TIMEOUT"));
             }, ms);
           };
 
@@ -3422,7 +3510,7 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
 
             const basePayload = {
               model: modelCandidate,
-              messages: prunedNimMessages,
+              messages: messagesToUse,
               temperature: 0.35,
               max_tokens: streamMaxTokens,
               stream: true
@@ -3441,7 +3529,7 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
                 streamCompletion = await nvidiaClient.chat.completions.create(
                   {
                     model: modelCandidate,
-                    messages: prunedNimMessages,
+                    messages: messagesToUse,
                     max_tokens: Math.min(streamMaxTokens, 2048),
                     stream: true
                   },
@@ -3455,38 +3543,65 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
             // Keep first-token timeout running while awaiting visible content (blocks silent <think> reasoning stalls!)
             for await (const chunk of streamCompletion) {
               if (clientDisconnected || modelAbort.signal.aborted) break;
-              const deltaContent = chunk.choices?.[0]?.delta?.content || "";
-              if (deltaContent) {
-                if (!receivedAnyChunk) {
-                  receivedAnyChunk = true;
+              const choice = chunk.choices?.[0];
+              if (choice?.finish_reason) {
+                attemptFinishReason = String(choice.finish_reason);
+              }
+              const rawDelta = choice?.delta?.content || "";
+              const visibleDelta = thinkFilter.push(rawDelta);
+              if (visibleDelta) {
+                if (!receivedAnyVisibleChunk) {
+                  receivedAnyVisibleChunk = true;
                 }
-                resetCompletionTimer(12000); // Per-chunk stall guard once visible text is flowing
-                fullStreamedText += deltaContent;
-                res.write(`data: ${JSON.stringify({ type: "chunk", delta: deltaContent })}\n\n`);
+                resetCompletionTimer(15000); // Per-chunk stall guard once visible text is flowing
+                attemptBuffer += visibleDelta;
+                if (!appendToExisting) {
+                  fullStreamedText += visibleDelta;
+                  res.write(`data: ${JSON.stringify({ type: "chunk", delta: visibleDelta })}\n\n`);
+                  res.flush?.();
+                }
+              }
+            }
+
+            const flushedTail = thinkFilter.flush();
+            if (flushedTail) {
+              receivedAnyVisibleChunk = true;
+              attemptBuffer += flushedTail;
+              if (!appendToExisting) {
+                fullStreamedText += flushedTail;
+                res.write(`data: ${JSON.stringify({ type: "chunk", delta: flushedTail })}\n\n`);
                 res.flush?.();
               }
             }
 
             if (streamIdleTimer) clearTimeout(streamIdleTimer);
 
-            if (receivedAnyChunk && fullStreamedText.trim()) {
-              streamSucceeded = true;
+            if (receivedAnyVisibleChunk && attemptBuffer.trim()) {
               streamedModelUsed = modelCandidate;
-              break;
+              streamFinishReason = attemptFinishReason || streamFinishReason;
+              if (appendToExisting) {
+                return attemptBuffer;
+              }
+              streamSucceeded = true;
+              return true;
             }
           } catch (streamErr) {
             if (streamIdleTimer) clearTimeout(streamIdleTimer);
             if (clientDisconnected) {
               clearInterval(heartbeatTimer);
-              return;
+              return false;
             }
             const errNote = firstTokenTimedOut ? `NIM_FIRST_TOKEN_TIMEOUT (${modelCandidate})` : (streamErr?.message || streamErr);
             console.warn(`[Aura AI Streaming] NVIDIA NIM failover notice (${modelCandidate}):`, errNote);
-            // If partial text already reached user, mark as partial success instead of overwriting mid-bubble
-            if (receivedAnyChunk && fullStreamedText.trim().length > 40) {
-              streamSucceeded = true;
+            // If partial visible text already reached user, mark interrupted so server auto-completes seamlessly
+            if (receivedAnyVisibleChunk && attemptBuffer.trim().length > 30) {
               streamedModelUsed = modelCandidate;
-              break;
+              streamInterruptedMidOutput = true;
+              if (appendToExisting) {
+                return attemptBuffer;
+              }
+              streamSucceeded = true;
+              return true;
             }
             continue;
           } finally {
@@ -3494,59 +3609,102 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
             abortController.signal.removeEventListener("abort", onParentAbort);
           }
         }
+        return false;
       };
 
-      const tryGeminiStream = async () => {
-        if (streamSucceeded || clientDisconnected || shouldUseDeterministicStandard) return;
-        if (externalStreamDeadline - Date.now() < 2000) return;
+      const tryGeminiStream = async (overrideMessages = null, overrideSysPrompt = "", { appendToExisting = false } = {}) => {
+        if (clientDisconnected || shouldUseDeterministicStandard) return false;
+        const deadline = fullStreamedText.trim() ? streamCompletionDeadline : firstTokenDeadline;
+        if (deadline - Date.now() < 2000) return false;
         await resolveGeminiKey();
         const geminiClient = getGeminiClient();
-        if (!geminiClient) return;
-        const gContents = convertNimMessagesToGemini(prunedNimMessages);
+        if (!geminiClient) return false;
+        const gContents = convertNimMessagesToGemini(overrideMessages || prunedNimMessages);
+        const sysPromptToUse = overrideSysPrompt || effectiveSystemPrompt;
+
         for (const gModel of geminiCandidates) {
-          const remainingBudgetMs = externalStreamDeadline - Date.now();
-          if (streamSucceeded || clientDisconnected || remainingBudgetMs < 2000) break;
-          const attemptTimeoutMs = Math.min(9500, remainingBudgetMs);
+          const remainingBudgetMs = (fullStreamedText.trim() ? streamCompletionDeadline : streamCompletionDeadline) - Date.now();
+          if (clientDisconnected || remainingBudgetMs < 2000) break;
+          const attemptTimeoutMs = Math.min(22000, remainingBudgetMs);
           try {
             if (typeof geminiClient.models.generateContentStream === "function") {
+              let attemptBuffer = "";
+              let attemptFinishReason = "";
+              const thinkFilter = createVisibleStreamFilter();
               try {
                 const streamResp = await streamGeminiResilient(geminiClient, {
                   model: gModel,
                   contents: gContents,
-                  systemInstruction: effectiveSystemPrompt,
-                  timeoutMs: attemptTimeoutMs
+                  systemInstruction: sysPromptToUse,
+                  timeoutMs: Math.min(11000, remainingBudgetMs)
                 });
-                let streamedChunkText = "";
-                for await (const chunk of streamResp) {
-                  if (clientDisconnected) break;
-                  const chunkText = chunk?.text || chunk?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
-                  if (chunkText) {
-                    streamedChunkText += chunkText;
-                    fullStreamedText += chunkText;
-                    res.write(`data: ${JSON.stringify({ type: "chunk", delta: chunkText })}\n\n`);
+                let chunkIdleTimer = null;
+                let chunkStalled = false;
+                const armChunkGuard = () => {
+                  if (chunkIdleTimer) clearTimeout(chunkIdleTimer);
+                  chunkIdleTimer = setTimeout(() => { chunkStalled = true; }, 16000);
+                };
+                armChunkGuard();
+                try {
+                  for await (const chunk of streamResp) {
+                    if (clientDisconnected || chunkStalled) break;
+                    const candFinish = chunk?.candidates?.[0]?.finishReason;
+                    if (candFinish) attemptFinishReason = String(candFinish);
+                    const rawChunkText = chunk?.text || chunk?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+                    const chunkText = thinkFilter.push(rawChunkText);
+                    if (chunkText) {
+                      armChunkGuard();
+                      attemptBuffer += chunkText;
+                      if (!appendToExisting) {
+                        fullStreamedText += chunkText;
+                        res.write(`data: ${JSON.stringify({ type: "chunk", delta: chunkText })}\n\n`);
+                        res.flush?.();
+                      }
+                    }
+                  }
+                } finally {
+                  if (chunkIdleTimer) clearTimeout(chunkIdleTimer);
+                }
+                const flushedTail = thinkFilter.flush();
+                if (flushedTail) {
+                  attemptBuffer += flushedTail;
+                  if (!appendToExisting) {
+                    fullStreamedText += flushedTail;
+                    res.write(`data: ${JSON.stringify({ type: "chunk", delta: flushedTail })}\n\n`);
                     res.flush?.();
                   }
                 }
-                if (streamedChunkText.trim()) {
-                  streamSucceeded = true;
+                if (attemptBuffer.trim()) {
                   streamedModelUsed = gModel;
-                  break;
+                  streamFinishReason = attemptFinishReason || streamFinishReason;
+                  if (chunkStalled) streamInterruptedMidOutput = true;
+                  if (appendToExisting) return attemptBuffer;
+                  streamSucceeded = true;
+                  return true;
                 }
               } catch (streamAttemptErr) {
-                // Fallback from stream to unary generateContent on the same model if stream yielded no chunks
-                if (fullStreamedText.trim().length > 30) {
-                  streamSucceeded = true;
+                // If partial chunks were already streamed before stall/error, preserve and flag for continuation
+                if (attemptBuffer.trim().length > 30) {
                   streamedModelUsed = gModel;
-                  break;
+                  streamInterruptedMidOutput = true;
+                  if (appendToExisting) return attemptBuffer;
+                  streamSucceeded = true;
+                  return true;
                 }
                 const gResp = await generateGeminiResilient(geminiClient, {
                   model: gModel,
                   contents: gContents,
-                  systemInstruction: effectiveSystemPrompt,
-                  timeoutMs: Math.min(8000, Math.max(2000, externalStreamDeadline - Date.now()))
+                  systemInstruction: sysPromptToUse,
+                  timeoutMs: Math.min(14000, Math.max(2500, streamCompletionDeadline - Date.now()))
                 });
-                const gText = gResp?.text || gResp?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+                const candFinish = gResp?.candidates?.[0]?.finishReason;
+                if (candFinish) streamFinishReason = String(candFinish);
+                const gText = cleanServerAiText(gResp?.text || gResp?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "");
                 if (gText.trim()) {
+                  if (appendToExisting) {
+                    streamedModelUsed = gModel;
+                    return gText.trim();
+                  }
                   fullStreamedText = gText.trim();
                   const gTokens = fullStreamedText.split(/(\s+)/);
                   for (let i = 0; i < gTokens.length; i += 4) {
@@ -3559,7 +3717,7 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
                   }
                   streamSucceeded = true;
                   streamedModelUsed = gModel;
-                  break;
+                  return true;
                 }
                 throw streamAttemptErr;
               }
@@ -3567,11 +3725,17 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
               const gResp = await generateGeminiResilient(geminiClient, {
                 model: gModel,
                 contents: gContents,
-                systemInstruction: effectiveSystemPrompt,
+                systemInstruction: sysPromptToUse,
                 timeoutMs: attemptTimeoutMs
               });
-              const gText = gResp?.text || gResp?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+              const candFinish = gResp?.candidates?.[0]?.finishReason;
+              if (candFinish) streamFinishReason = String(candFinish);
+              const gText = cleanServerAiText(gResp?.text || gResp?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "");
               if (gText.trim()) {
+                if (appendToExisting) {
+                  streamedModelUsed = gModel;
+                  return gText.trim();
+                }
                 fullStreamedText = gText.trim();
                 const gTokens = fullStreamedText.split(/(\s+)/);
                 for (let i = 0; i < gTokens.length; i += 4) {
@@ -3584,7 +3748,7 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
                 }
                 streamSucceeded = true;
                 streamedModelUsed = gModel;
-                break;
+                return true;
               }
             }
           } catch (gErr) {
@@ -3592,6 +3756,7 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
             continue;
           }
         }
+        return false;
       };
 
       if (preferGeminiStream) {
@@ -3603,6 +3768,67 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
         await tryNvidiaStream();
         if (!streamSucceeded && !clientDisconnected) {
           await tryGeminiStream();
+        }
+      }
+
+      // Server-Side Seamless Auto-Continuation: If stream stopped mid-sentence (timeout, MAX_TOKENS, length, or dangling phrase),
+      // seamlessly generate the remainder on the SAME SSE connection before sending `final` + `[DONE]`!
+      if (streamSucceeded && !clientDisconnected && !isContinuation && fullStreamedText.trim().length > 30) {
+        for (let serverPass = 1; serverPass <= 2; serverPass++) {
+          if (clientDisconnected || streamCompletionDeadline - Date.now() < 4000) break;
+          const cleanedSoFar = cleanServerAiText(stripInternalJsonFromCustomerText(fullStreamedText));
+          const needsMore =
+            streamInterruptedMidOutput ||
+            isTextIncomplete(cleanedSoFar, streamFinishReason, effectiveMode);
+
+          if (!needsMore) break;
+
+          streamInterruptedMidOutput = false;
+          streamFinishReason = "";
+
+          const contTail = cleanedSoFar.slice(-450);
+          const contSystem = `${effectiveSystemPrompt}\n\nSEAMLESS CONTINUATION DIRECTIVE: Your previous response got cut off mid-way. Continue IMMEDIATELY from the exact cutoff point below without any greeting, without repeating previous sentences or headings, and bring the response to a complete, natural conclusion:\n"""\n${contTail}\n"""`;
+          const contMessages = [
+            { role: "system", content: contSystem },
+            ...prunedNimMessages.slice(1).slice(-3),
+            { role: "assistant", content: cleanedSoFar.slice(-1800) },
+            { role: "user", content: "कृपया बिना कुछ दोहराए ठीक वहीं से आगे लिखकर उत्तर पूरा करें। (Continue seamlessly right from the cutoff and finish completely.)" }
+          ];
+
+          let contChunk = false;
+          if (preferGeminiStream) {
+            contChunk = await tryGeminiStream(contMessages, contSystem, { appendToExisting: true });
+            if (!contChunk && !clientDisconnected) {
+              contChunk = await tryNvidiaStream(contMessages, { appendToExisting: true });
+            }
+          } else {
+            contChunk = await tryNvidiaStream(contMessages, { appendToExisting: true });
+            if (!contChunk && !clientDisconnected) {
+              contChunk = await tryGeminiStream(contMessages, contSystem, { appendToExisting: true });
+            }
+          }
+
+          if (typeof contChunk === "string" && contChunk.trim()) {
+            const cleanPiece = cleanServerAiText(stripInternalJsonFromCustomerText(contChunk));
+            const mergedText = mergeContinuation(fullStreamedText, cleanPiece);
+            if (mergedText.length > fullStreamedText.length + 2) {
+              const newDelta = mergedText.slice(fullStreamedText.length);
+              fullStreamedText = mergedText;
+              const deltaTokens = newDelta.split(/(\s+)/);
+              for (let i = 0; i < deltaTokens.length; i += 4) {
+                if (clientDisconnected) break;
+                const dPart = deltaTokens.slice(i, i + 4).join("");
+                if (dPart) {
+                  res.write(`data: ${JSON.stringify({ type: "chunk", delta: dPart })}\n\n`);
+                  res.flush?.();
+                }
+              }
+            } else {
+              break;
+            }
+          } else {
+            break;
+          }
         }
       }
 
@@ -3772,10 +3998,10 @@ ${effectiveContinuationTail ? `- PREVIOUS ENDING SNIPPET:\n"""\n${effectiveConti
     const nonStreamPrunedMsgs = pruneMessagesForTokenLimit(nimMessages, 8000);
 
     const nonStreamNvidiaClient = getNvidiaClient();
-    const NON_STREAM_TIMEOUT_MS = 8000;
-    const nonStreamDeadline = Date.now() + 18000;
+    const NON_STREAM_TIMEOUT_MS = 14000;
+    const nonStreamDeadline = Date.now() + 26000;
     const shouldUseDeterministicNonStream = effectiveMode !== "panditji" && (Boolean(precomputedCalc?.handled) || Boolean(mukhiRange));
-    const nonStreamMaxTokens = effectiveMode === "panditji" ? 4096 : 1800;
+    const nonStreamMaxTokens = effectiveMode === "panditji" ? 6144 : 2400;
 
     const nonStreamActiveModel = await resolveActiveWebsiteAiModel();
     const preferGeminiNonStream = isGeminiModelName(nonStreamActiveModel);

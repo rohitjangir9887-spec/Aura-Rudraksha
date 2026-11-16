@@ -31,13 +31,8 @@ export function stripThinkingAndReasoning(raw) {
   text = text.replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, "");
   text = text.replace(/<analysis>[\s\S]*?<\/analysis>/gi, "");
 
-  // 2. If unclosed <think> tag is at the start (active thinking phase before response), strip it
-  if (/^[\s\n]*<think>/i.test(text) && !text.includes("</think>")) {
-    return "";
-  }
-  if (/^[\s\n]*<reasoning>/i.test(text) && !text.includes("</reasoning>")) {
-    return "";
-  }
+  // 2. If unclosed <think> / <reasoning> / <analysis> tag appears anywhere (active thinking phase before response), strip from open tag onward
+  text = text.replace(/<(?:think|reasoning|analysis)>[\s\S]*$/gi, "");
 
   // 3. Remove internal chain-of-thought phrases & line narrations
   const reasoningRegexes = [
@@ -449,13 +444,15 @@ export function isAuraResponseIncomplete(text, mode = "standard") {
   if (trimmed.length < 30) return false;
 
   // 1. Explicit terminal blessings / greetings closing or keywords = complete
-  if (/(\*\*हर\s*हर\s*महादेव\*?\*?\s*$|हर\s*हर\s*महादेव\.?\s*$|जय\s*श्री\s*राम\.?\s*$|ॐ\s*नमः\s*शिवाय\.?\s*$|ॐ\s*शांति\.?\s*$|शुभम्\.?\s*$|अस्तु\.?\s*$|शुभकामनाएं\.?\s*$|\[AURA_KEYWORDS\])/i.test(trimmed)) {
+  if (/(\*{0,2}(?:हर\s*हर\s*महादेव|जय\s*श्री\s*राम|ॐ\s*नमः\s*शिवाय|ॐ\s*शांति|शुभम्|अस्तु|शुभकामनाएं)[.!*\s🙏🕉️]*$|\[AURA_KEYWORDS\])/i.test(trimmed)) {
     return false;
   }
 
-  // 2. Unclosed code fences = incomplete
+  // 2. Unclosed code fences or unclosed bold markdown = incomplete
   const codeBlockCount = (trimmed.match(/```/g) || []).length;
   if (codeBlockCount % 2 !== 0) return true;
+  const boldMarkerCount = (trimmed.match(/\*\*/g) || []).length;
+  if (boldMarkerCount % 2 !== 0) return true;
 
   // 3. Unclosed markdown table row cut off mid-cell
   if (/\|[^\n|]+$/.test(trimmed) && !trimmed.endsWith("|")) return true;
@@ -478,21 +475,24 @@ export function isAuraResponseIncomplete(text, mode = "standard") {
     }
   }
 
+  // 3c. Standalone dangling heading or bullet heading on the last line with no explanation after it
+  const lastLine = trimmed.split("\n").pop()?.trim() || "";
+  if (/^(?:#{1,4}\s+.+|(?:[-•*]|\d+\.)\s+\*\*[^*\n]+\*\*:?)$/i.test(lastLine)) {
+    return true;
+  }
+
   // 4. Check explicit continuation/truncation signals
   if (/(\.\.\.|…|\(जारी\.\.\.\)|\(to be continued\.\.\.\)|अधूरा उत्तर|आगे का उत्तर|अगला भाग)$/i.test(trimmed)) {
     return true;
   }
 
   // 5. Check true dangling connectors or open punctuation at end of string
-  const trueDanglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|जिसका|जो कि|यानी|अतः|इसलिए|तदोपरांत|and|or|but|because|with|by|to|for|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|:\s*|,|\.\.\.|\(-)$/i;
+  const trueDanglingConnectors = /(तथा|और|एवं|क्योंकि|अर्थात|जैसे कि|किन्तु|परन्तु|जिसमें|जिसके|जिसका|जो कि|यानी|अतः|इसलिए|तदोपरांत|and|or|but|because|with|by|to|for|1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|•|→|[-–—:/,;]\s*|\.\.\.|\(-)$/i;
   if (trueDanglingConnectors.test(trimmed)) return true;
 
-  // 6. Check last non-whitespace character. If it ends with complete sentence punctuation, closing markdown bold, or emoji, it is complete!
-  const lastChar = trimmed.slice(-1);
-  const completeEndPattern = /[।\.!\?\)\}\]>\|\n\*"'”’%🙏🕉️✨🚩💯🏷️📦📿📞👍😊🌸🍀🔮🌟💎✅🌺👇👉🪔🙌🤝🎯⚡ॐ]/;
-
-  if (completeEndPattern.test(lastChar)) {
-    return false; // Complete response -> Do NOT show "आगे पूरा करें"
+  // 6. Check proper sentence/blessing/emoji ending (do NOT treat stray trailing * or ) as complete unless preceded by sentence punctuation)
+  if (/([।!?.]\s*$|[।!?.]\s*[*_~"'\)\]]+\s*$|[🙏🕉️✨🚩💯🏷️📦📿📞👍😊🌸🍀🔮🌟💎✅🌺👇👉🪔🙌🤝🎯⚡ॐ]\s*$)/.test(trimmed)) {
+    return false;
   }
 
   // If it ends without punctuation (mid-sentence/mid-word), it is incomplete!
