@@ -9,8 +9,13 @@ import { Save, Instagram, Facebook, Youtube, Share2, FileText, Truck, RotateCcw,
 import "./admin-pages.css";
 
 export function AdminSettings() {
-  const [settings, setSettings] = useState(() => db.getSettings());
-  const [policies, setPolicies] = useState(() => db.getPolicies());
+  const [storedSettings, setSettings] = useState(() => db.getSettings());
+  const [storedPolicies, setPolicies] = useState(() => db.getPolicies());
+  const [draft, setDraft] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [submittingUrls, setSubmittingUrls] = useState(false);
+  const settings = { ...storedSettings, ...draft };
+  const policies = { ...storedPolicies, ...draft };
   const [tickets, setTickets] = useState([]);
   const [products, setProducts] = useState(() => db.getProducts());
   const [prodSearch, setProdSearch] = useState("");
@@ -46,17 +51,22 @@ export function AdminSettings() {
     return () => unsub();
   }, []);
 
-  const updateSettings = (key, value) => setSettings((current) => ({ ...current, [key]: value }));
-  const updatePolicy = (key, value) => setPolicies((current) => ({ ...current, [key]: value }));
+  const updateSettings = (key, value) => {
+    setSaved(false);
+    setDraft(current => ({ ...current, [key]: value }));
+  };
+  const updatePolicy = updateSettings;
 
   const handleInstantToggleSetting = async (key, nextValue, label) => {
-    const updated = { ...settings, [key]: nextValue };
-    setSettings(updated);
+    if (saving) return;
+    setSaving(true);
     try {
-      await db.saveSettings(updated);
+      await db.saveSettings({ [key]: nextValue });
       emitToast(`${label} turned ${nextValue ? "ON" : "OFF"} successfully!`, "success");
     } catch (err) {
       emitToast(err.message || `Failed to update ${label}`, "error");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -87,14 +97,18 @@ export function AdminSettings() {
 
   const handleSave = async (event) => {
     event.preventDefault();
+    if (saving || !Object.keys(draft).length) return;
+    setSaving(true);
     try {
-      await db.saveSettings(settings);
-      await db.savePolicies(policies);
+      await db.saveSettings(draft);
+      setDraft(current => Object.fromEntries(Object.entries(current).filter(([key, value]) => draft[key] !== value)));
       setSaved(true);
       emitToast("Store settings & customer care policies saved successfully!", "success");
       window.setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       emitToast(err.message || "Failed to save settings to database", "error");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -195,6 +209,7 @@ export function AdminSettings() {
                 </div>
                 <button
                   type="button"
+                  disabled={saving}
                   onClick={() => handleInstantToggleSetting("enableCod", settings.enableCod === false, "Cash on Delivery (COD)")}
                   style={{
                     padding: "8px 14px",
@@ -276,6 +291,7 @@ export function AdminSettings() {
                 </div>
                 <button
                   type="button"
+                  disabled={saving}
                   onClick={() => handleInstantToggleSetting("enableOnlinePayment", settings.enableOnlinePayment === false, "Online Payment")}
                   style={{
                     padding: "8px 14px",
@@ -313,17 +329,17 @@ export function AdminSettings() {
             </div>
             <button
               type="button"
+              disabled={submittingUrls}
               onClick={async () => {
+                setSubmittingUrls(true);
                 try {
-                  const res = await fetch("/api/seo/ping", { method: "POST" });
-                  const data = await res.json();
-                  if (data && data.success) {
-                    emitToast(`Pinged Google, Brave, Bing & IndexNow with ${data.urlCount || "all"} live URLs!`, "success");
-                  } else {
-                    emitToast("Search engine sitemap ping completed!", "success");
-                  }
-                } catch (_) {
-                  emitToast("Search engine index ping triggered!", "info");
+                  const result = await db.submitSearchUrls();
+                  if (!result?.success) throw new Error(result?.message || "URL submission failed");
+                  emitToast(result.message, "success");
+                } catch (err) {
+                  emitToast(err.message || "URL submission failed", "error");
+                } finally {
+                  setSubmittingUrls(false);
                 }
               }}
               style={{
@@ -337,10 +353,11 @@ export function AdminSettings() {
                 cursor: "pointer"
               }}
             >
-              🚀 Ping Google, Brave & Bing Search Now
+              {submittingUrls ? "Submitting…" : "Submit URLs to IndexNow"}
             </button>
           </div>
 
+          <p><a href="https://search.google.com/search-console" target="_blank" rel="noreferrer">Google Search Console</a> · <a href="/sitemap.xml" target="_blank" rel="noreferrer">Store sitemap</a> · <a href="https://pagespeed.web.dev/" target="_blank" rel="noreferrer">PageSpeed Insights</a></p>
           <div className="admin-form-row">
             <div className="admin-form-group">
               <label htmlFor="metaPixelId" style={{ fontWeight: "700" }}>Meta Pixel ID (Instagram & Facebook Dataset ID)</label>
@@ -361,6 +378,7 @@ export function AdminSettings() {
                 <input
                   type="checkbox"
                   checked={settings.metaPixelEnabled !== false}
+                  disabled={saving}
                   onChange={(e) => handleInstantToggleSetting("metaPixelEnabled", e.target.checked, "Meta Pixel Tracking")}
                 />
                 <span>Enable Meta Ads Conversion Tracking & Attribution (fbclid / igshid / UTM)</span>
@@ -787,7 +805,7 @@ export function AdminSettings() {
         </div>
         
         <div className="admin-form-actions">
-          <button type="submit" className="admin-btn">
+          <button type="submit" disabled={saving || !Object.keys(draft).length} className="admin-btn">
             {saved ? "Settings Saved ✓" : <><Save size={16} /> Save Settings & Policies</>}
           </button>
         </div>

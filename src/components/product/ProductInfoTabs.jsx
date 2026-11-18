@@ -45,23 +45,16 @@ export function ProductInfoTabs({ product, reviewsCount = 0, averageRating = "5.
     }
     
     // Plain text / markdown bold formatting
-    const lines = text.split('\n');
-    let formattedHtml = '';
-    
-    lines.forEach((line) => {
-      const rawT = line.trim();
-      if (!rawT) {
-        formattedHtml += '<div style="height: 10px;"></div>';
-      } else if (rawT.startsWith('•') || rawT.startsWith('-')) {
-        const bulletText = rawT.substring(1).trim().replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        formattedHtml += `<div class="desc-bullet-row"><span class="desc-bullet-dot">•</span><span>${bulletText}</span></div>`;
-      } else {
-        const t = rawT.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        formattedHtml += `<p class="desc-paragraph">${t}</p>`;
-      }
-    });
-
-    return <div dangerouslySetInnerHTML={{ __html: formattedHtml }} className="custom-desc-body" />;
+    return <div className="custom-desc-body">{text.split("\n").map((line, index) => {
+      const value = line.trim();
+      if (!value) return <div key={index} style={{ height: 10 }} />;
+      const bullet = /^[•-]/.test(value);
+      const content = (bullet ? value.slice(1).trim() : value).split(/\*\*(.*?)\*\*/g)
+        .map((part, i) => i % 2 ? <strong key={i}>{part}</strong> : part);
+      return bullet
+        ? <div key={index} className="desc-bullet-row"><span className="desc-bullet-dot">•</span><span>{content}</span></div>
+        : <p key={index} className="desc-paragraph">{content}</p>;
+    })}</div>;
   };
 
   const tabs = isRudraksha ? [

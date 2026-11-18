@@ -56,7 +56,7 @@ export function AdminCategories() {
       db.fetchProducts().then(() => syncFromStore(false)).catch(() => {});
     }
     const unsub = onStoreUpdate((e) => {
-      const action = e?.detail?.action || "";
+      const action = e?.type || "";
       if (action === "settings:saved" || action === "settings:synced") {
         syncFromStore(true);
       } else if (action.startsWith("product")) {
@@ -99,18 +99,9 @@ export function AdminCategories() {
       emitToast("Uploading category image...", "info");
       const url = await uploadMedia(file);
       if (url) {
-        setCategories(prev => {
-          const newCats = [...prev];
-          newCats[index] = { 
-            ...newCats[index], 
-            image: url,
-            customImage: url
-          };
-          const currentSettings = db.getSettings();
-          db.saveSettings({ ...currentSettings, shopCategories: newCats }).catch(() => {});
-          return newCats;
-        });
-        emitToast("Category image uploaded & saved successfully!", "success");
+        handleChange(index, "image", url);
+        handleChange(index, "customImage", url);
+        emitToast("Image uploaded. Save categories to publish it.", "info");
       }
     } catch (err) {
       emitToast(err.message || "Failed to upload image", "error");
@@ -121,13 +112,12 @@ export function AdminCategories() {
     if (e) e.preventDefault();
     setIsSaving(true);
     try {
-      const currentSettings = db.getSettings();
       const updatedCategories = categories.map(cat => ({
         ...cat,
         image: cat.image || cat.customImage || "",
         customImage: cat.image || cat.customImage || ""
       }));
-      const updatedSettings = { ...currentSettings, shopCategories: updatedCategories };
+      const updatedSettings = { shopCategories: updatedCategories };
       await db.saveSettings(updatedSettings);
       emitToast("Shop Categories saved successfully!", "success");
     } catch (err) {

@@ -66,7 +66,7 @@ export async function submitToIndexNow(urls, req = null) {
 
     const rawList = Array.isArray(urls) ? urls : [urls];
     const now = Date.now();
-    const urlList = [];
+    const candidates = new Set();
 
     for (const u of rawList) {
       if (!u || typeof u !== "string") continue;
@@ -77,10 +77,10 @@ export async function submitToIndexNow(urls, req = null) {
       if (lastSent && now - lastSent < 300_000) {
         continue;
       }
-      submittedUrlsCache.set(fullUrl, now);
-      urlList.push(fullUrl);
+      candidates.add(fullUrl);
     }
 
+    const urlList = Array.from(candidates);
     if (urlList.length === 0) {
       return { success: true, count: 0, message: "No new URLs to submit" };
     }
@@ -112,6 +112,7 @@ export async function submitToIndexNow(urls, req = null) {
         res.on("end", () => {
           const ok = res.statusCode >= 200 && res.statusCode < 300;
           if (ok) {
+            for (const url of urlList) submittedUrlsCache.set(url, Date.now());
             console.log(`[IndexNow] Successfully notified ${urlList.length} URL(s) to search engines.`);
           } else {
             console.warn(`[IndexNow] Notification response status ${res.statusCode}: ${responseBody}`);

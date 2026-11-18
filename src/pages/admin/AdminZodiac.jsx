@@ -83,9 +83,7 @@ export function AdminZodiac() {
     e.preventDefault();
     setIsSaving(true);
     try {
-      const currentSettings = db.getSettings();
-      const updatedSettings = { ...currentSettings, zodiacs };
-      await db.saveSettings(updatedSettings);
+      await db.saveSettings({ zodiacs });
       emitToast("Zodiac settings saved successfully!", "success");
     } catch (err) {
       emitToast(err.message || "Failed to save zodiac settings", "error");

@@ -2,7 +2,7 @@ import { Order } from "../models/Order.js";
 import { Product } from "../models/Product.js";
 import { Coupon } from "../models/Coupon.js";
 import { Setting } from "../models/Setting.js";
-import { isDbConnected } from "../config/db.js";
+import { connectDB, isDbConnected } from "../config/db.js";
 import { recordCustomerOrder } from "./customerController.js";
 import { recordProductSalesIncrement } from "./productController.js";
 import Customer from "../models/Customer.js";

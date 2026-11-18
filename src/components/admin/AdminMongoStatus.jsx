@@ -35,38 +35,11 @@ export function AdminMongoStatus({ onStatusChange, compact = false }) {
           onStatusChange(res.data);
         }
       } else {
-        // Check public database health check so connection status is accurate
-        const health = await db.checkDbHealth().catch(() => null);
-        if (health && health.connected) {
-          const fallbackDiagnostics = {
-            status: "connected",
-            isConnected: true,
-            connected: true,
-            readyState: { code: 1, label: "Connected" },
-            readyStateNum: 1,
-            host: "127.0.0.1",
-            port: 27017,
-            databaseName: "aurarudraksha",
-            uriConfigured: true,
-            uriScheme: "mongodb",
-            maskedUri: "mongodb://127.0.0.1:27017/aurarudraksha",
-            statusMessage: "MongoDB Cluster Active & Operational",
-            pingMs: 2,
-            collectionsCount: 12,
-            serverVersion: "7.0.14",
-            lastConnected: new Date().toISOString(),
-            lastSync: new Date().toISOString(),
-            lastErrors: [],
-            environment: "Production"
-          };
-          setDiagnostics(fallbackDiagnostics);
-          setErrorMsg(null);
-          if (onStatusChange) onStatusChange(fallbackDiagnostics);
-        } else {
-          setErrorMsg(res?.message || health?.message || "Could not retrieve MongoDB diagnostics");
-        }
+        setDiagnostics(null);
+        setErrorMsg(res?.message || "Could not retrieve MongoDB diagnostics");
       }
     } catch (err) {
+      setDiagnostics(null);
       setErrorMsg(err?.message || "Failed to reach MongoDB diagnostics service");
     } finally {
       if (!isSilent) setLoading(false);
@@ -160,6 +133,8 @@ export function AdminMongoStatus({ onStatusChange, compact = false }) {
         </span>
       );
     }
+
+    if (!diagnostics) return <span>Connection status unavailable</span>;
 
     if (isConnected) {
       return (
@@ -400,7 +375,7 @@ export function AdminMongoStatus({ onStatusChange, compact = false }) {
           </div>
           <p style={{ margin: 0, fontSize: "12.5px", lineHeight: "1.5" }}>
             Your MongoDB Atlas cluster could not be reached because this server's IP address is not whitelisted. 
-            To resolve: Go to <strong>MongoDB Atlas &gt; Security &gt; Network Access &gt; Add IP Address</strong> and add <code>0.0.0.0/0</code> (Allow Access from Anywhere).
+            To resolve: Go to <strong>MongoDB Atlas &gt; Security &gt; Network Access &gt; Add IP Address</strong> and add your application server’s outbound IP address.
           </p>
         </div>
       )}
@@ -435,7 +410,7 @@ export function AdminMongoStatus({ onStatusChange, compact = false }) {
             {diagnostics?.host || (diagnostics?.uriConfigured ? "Cluster Configured" : "None")}
           </div>
           <div style={{ fontSize: "10px", color: "#9ca3af" }}>
-            Database: <strong style={{ color: "#4b5563" }}>{diagnostics?.databaseName || "aura_rudraksha"}</strong>
+            Database: <strong style={{ color: "#4b5563" }}>{diagnostics?.databaseName || "Unavailable"}</strong>
           </div>
         </div>
 
@@ -453,10 +428,10 @@ export function AdminMongoStatus({ onStatusChange, compact = false }) {
             <Activity size={13} color="#7a320c" /> Ready State
           </div>
           <div style={{ fontSize: "13px", fontWeight: 700, color: isConnected ? "#047857" : "#b45309" }}>
-            {diagnostics?.readyState?.label || "Unknown"} ({diagnostics?.readyState?.code ?? 0})
+            {diagnostics?.readyState?.label || "Unknown"} ({diagnostics?.readyState?.code ?? "—"})
           </div>
           <div style={{ fontSize: "10px", color: "#9ca3af" }}>
-            Driver: Mongoose (Node {diagnostics?.environment || "production"})
+            Driver: Mongoose (Node {diagnostics?.environment || "unknown"})
           </div>
         </div>
 
@@ -479,7 +454,7 @@ export function AdminMongoStatus({ onStatusChange, compact = false }) {
                 {diagnostics.pingMs} ms
               </span>
             ) : (
-              <span style={{ color: "#9ca3af" }}>N/A (Offline)</span>
+              <span style={{ color: "#9ca3af" }}>Unavailable</span>
             )}
           </div>
           <div style={{ fontSize: "10px", color: "#9ca3af" }}>
@@ -501,7 +476,7 @@ export function AdminMongoStatus({ onStatusChange, compact = false }) {
             <Layers size={13} color="#7a320c" /> Collections
           </div>
           <div style={{ fontSize: "13px", fontWeight: 700, color: "#2b170d" }}>
-            {diagnostics?.collectionsCount !== undefined ? `${diagnostics.collectionsCount} Active Collections` : "Local Sync"}
+            {diagnostics?.collectionsCount != null ? `${diagnostics.collectionsCount} Active Collections` : "Unavailable"}
           </div>
           <div style={{ fontSize: "10px", color: "#9ca3af" }} title={diagnostics?.lastConnected || "Never"}>
             Last Connected: {diagnostics?.lastConnected ? new Date(diagnostics.lastConnected).toLocaleTimeString() : "Never"}
@@ -533,7 +508,7 @@ export function AdminMongoStatus({ onStatusChange, compact = false }) {
               color: "#3b281c",
               fontSize: "11px"
             }}>
-              {diagnostics?.maskedUri || "MONGODB_URI not configured"}
+              {diagnostics?.maskedUri || "Unavailable"}
             </code>
           </div>
         </div>

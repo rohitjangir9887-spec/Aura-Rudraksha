@@ -7,7 +7,7 @@ import { Coupon } from "../models/Coupon.js";
 import { Banner } from "../models/Banner.js";
 import { Order } from "../models/Order.js";
 import { Customer } from "../models/Customer.js";
-import { isDbConnected } from "../config/db.js";
+import { connectDB, isDbConnected } from "../config/db.js";
 import { pickFields } from "../utils/sanitize.js";
 import { isAdminUser, hasAdminRole } from "../middleware/auth.js";
 import {
@@ -23,10 +23,10 @@ const SETTING_FIELDS = {
   shippingPolicy: "string", returnPolicy: "string", privacyPolicy: "string",
   termsPolicy: "string", contactSupport: "string", storageProvider: "string", zodiacs: "array",
   shopCategories: "array", standardShippingFee: "number", freeShippingThreshold: "number",
-  enableProductShipping: "boolean", enableCod: "boolean", enableOnlinePayment: "boolean",
-  codFee: "number", metaPixelId: "string", metaPixelEnabled: "boolean",
+  enableProductShipping: "bool", enableCod: "bool", enableOnlinePayment: "bool",
+  codFee: "number", metaPixelId: "string", metaPixelEnabled: "bool",
   metaDomainVerification: "string", metaCapiAccessToken: "string",
-  featuredProductId: "string", featuredProductEnabled: "boolean", homeProductLayout: "object",
+  featuredProductId: "string", featuredProductEnabled: "bool", homeProductLayout: "object",
   pcloudAccessToken: "string", pcloudFolderId: "string",
   imagekitPublicKey: "string", imagekitPrivateKey: "string", imagekitUrlEndpoint: "string"
 };
@@ -111,6 +111,7 @@ function sanitizeSettingsForClient(settings, isAdmin = false) {
     delete copy.imagekitUrlEndpoint;
     delete copy.metaCapiAccessToken;
   } else {
+    delete copy.pcloudRefreshToken;
     if (copy.imagekitPrivateKey) {
       copy.imagekitPrivateKeyMasked = copy.imagekitPrivateKey.length > 8
         ? copy.imagekitPrivateKey.slice(0, 4) + "••••••••" + copy.imagekitPrivateKey.slice(-4)
@@ -162,10 +163,10 @@ export async function saveSettings(req, res, next) {
     const data = pickFields(req.body, SETTING_FIELDS);
 
     // If incoming secret fields are masked placeholders or empty strings, do not overwrite existing secrets
-    if (data.imagekitPrivateKey && (data.imagekitPrivateKey.includes("••••") || !data.imagekitPrivateKey.trim())) {
+    if (data.imagekitPrivateKey !== undefined && (data.imagekitPrivateKey.includes("••••") || !data.imagekitPrivateKey.trim())) {
       delete data.imagekitPrivateKey;
     }
-    if (data.pcloudAccessToken && (data.pcloudAccessToken.includes("••••") || !data.pcloudAccessToken.trim())) {
+    if (data.pcloudAccessToken !== undefined && (data.pcloudAccessToken.includes("••••") || !data.pcloudAccessToken.trim())) {
       delete data.pcloudAccessToken;
     }
     if (data.metaCapiAccessToken !== undefined && (String(data.metaCapiAccessToken).includes("••••") || !String(data.metaCapiAccessToken).trim())) {
@@ -191,15 +192,12 @@ export async function saveSettings(req, res, next) {
       }
     }
 
-    Object.assign(defaultSettings, data);
-    clearSettingsCache();
-
     if (!isDbConnected()) {
       await connectDB().catch(() => {});
     }
 
     if (!isDbConnected()) {
-      return res.json({ success: true, data: sanitizeSettingsForClient(defaultSettings, true) });
+      return res.status(503).json({ success: false, message: "Database unavailable. Settings were not saved." });
     }
 
     const oldSettings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
@@ -270,9 +268,7 @@ export async function savePolicies(req, res, next) {
     }
 
     if (!isDbConnected()) {
-      Object.assign(defaultSettings, data);
-      clearSettingsCache();
-      return res.json({ success: true, data });
+      return res.status(503).json({ success: false, message: "Database unavailable. Policies were not saved." });
     }
 
     const updated = await Setting.findOneAndUpdate(
@@ -282,7 +278,7 @@ export async function savePolicies(req, res, next) {
     );
 
     clearSettingsCache();
-    return res.json({ success: true, data: updated });
+    return res.json({ success: true, data: pickFields(updated.toObject(), POLICY_FIELDS) });
   } catch (err) {
     next(err);
   }

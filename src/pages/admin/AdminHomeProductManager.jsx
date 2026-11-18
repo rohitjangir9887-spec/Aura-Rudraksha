@@ -108,7 +108,7 @@ export function AdminHomeProductManager() {
         isAiAutoOrder: !!isAiAutoOrder
       };
       await db.reorderProducts(draftLayout);
-      await db.saveSettings({ ...currentSettings, homeProductLayout: newLayout });
+      await db.saveSettings({ homeProductLayout: newLayout });
       setAllProducts(sortProductsByCatalogOrder(db.getProducts().filter(isPublicProduct), draftLayout));
       emitToast("✅ Product order saved and synced to All Products & Home UI!", "success");
     } catch (e) {
@@ -120,14 +120,13 @@ export function AdminHomeProductManager() {
   const handlePublish = async () => {
     setIsSaving(true);
     try {
-      const currentSettings = db.getSettings() || {};
       const newLayout = { 
         draft: draftLayout, 
         live: draftLayout,
         isAiAutoOrder: !!isAiAutoOrder 
       };
       await db.reorderProducts(draftLayout);
-      await db.saveSettings({ ...currentSettings, homeProductLayout: newLayout });
+      await db.saveSettings({ homeProductLayout: newLayout });
       setAllProducts(sortProductsByCatalogOrder(db.getProducts().filter(isPublicProduct), draftLayout));
       emitToast("✅ Product sequence published to Home & All Products!", "success");
     } catch (e) {
