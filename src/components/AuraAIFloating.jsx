@@ -1,7 +1,5 @@
-import { getProductPrimaryImage, getProductGalleryImages } from "../lib/imageUtils";
-import { getProductRoute } from "../lib/routes";
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { 
   Sparkles, 
   X, 
@@ -10,7 +8,6 @@ import {
   Minimize2, 
   RotateCcw, 
   ShoppingCart, 
-  Eye, 
   Tag, 
   PhoneCall, 
   Check, 
@@ -19,16 +16,10 @@ import {
   ChevronLeft,
   Package, 
   ShieldCheck, 
-  GripVertical,
   MessageCircle,
   Search,
-  Calendar,
-  Clock,
-  MapPin,
-  User,
   Mic,
   MicOff,
-  ArrowDown,
   Notebook,
   Plus,
   Trash2,
@@ -45,7 +36,6 @@ import { useCart } from "../hooks/useCart";
 import { authClient } from "../lib/authClient";
 import { emitToast } from "../context/ToastContext";
 import { triggerHaptic } from "../lib/haptics";
-import { safePrice } from "../lib/productHelper";
 import { AuraAIChatOrderModal } from "./AuraAIChatOrderModal";
 import { AuraAIMessageContent } from "./AuraAIMessageContent";
 import { VoiceReader } from "./VoiceReader";
@@ -53,6 +43,11 @@ import { AuraAIChatHistoryModal } from "./AuraAIChatHistoryModal";
 import { AuraAISavedKundaliModal } from "./AuraAISavedKundaliModal";
 import { PanditJiVedicTools } from "./PanditJiVedicTools";
 import { AuraCommandDock } from "./AuraCommandDock";
+import { AuraQuickAiAssistantCard } from "./AuraQuickAiAssistantCard";
+import { AuraSuggestedActionsAccordion } from "./AuraSuggestedActionsAccordion";
+import { AuraActiveKundaliCard } from "./AuraActiveKundaliCard";
+import { AuraProductRecCard } from "./AuraProductRecCard";
+import { AuraPanditWorkspacePanel, PANDIT_ASTROLOGY_QUICK_TOPICS } from "./AuraPanditWorkspacePanel";
 
 
 export function AuraAIFloating() {
@@ -497,7 +492,6 @@ export function AuraAIFloating() {
   }, [messages, mode]);
 
   const cart = useCart();
-  const navigate = useNavigate();
 
   // Automatically close AI assistant & clear background modal/overlay when user navigates to another page
   const prevPathnameRef = useRef(location.pathname);
@@ -1698,161 +1692,128 @@ export function AuraAIFloating() {
             >
               {/* iOS Style Top Grabber Bar Handle (visual handle) */}
               {!isFullWindow && (
-                <div 
-                  className="aura-ai-ios-grabber-wrap"
-                  style={{
-                    width: "100%",
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    paddingTop: "6px",
-                    paddingBottom: "3px",
-                    background: mode === "panditji" ? "linear-gradient(180deg, #3d1605 0%, #2f1003 100%)" : "linear-gradient(180deg, #2a1307 0%, #1c0b03 100%)",
-                    borderTopLeftRadius: "inherit",
-                    borderTopRightRadius: "inherit"
-                  }}
+                <div
+                  className={`aura-ai-ios-grabber-wrap ${mode === "panditji" ? "is-panditji" : ""}`}
                 >
                   <div className="aura-ai-ios-grabber" />
                 </div>
               )}
 
-              {/* Header */}
-              <div 
+              {/* PART 1 – COMMON HEADER */}
+              <div
                 className={`aura-ai-header ${!isFullWindow ? "aura-ai-header-draggable" : ""} ${mode === "panditji" ? "aura-ai-header-panditji" : ""}`}
                 style={{ userSelect: "none", WebkitUserSelect: "none" }}
               >
                 <div className="aura-ai-header-left">
-                  {/* Dedicated Back to Website Button */}
+                  {/* Back Button */}
                   <button
                     type="button"
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={handleCloseChat}
-                    className="aura-ai-btn-icon aura-ai-header-back-btn"
-                    title="वापस वेबसाइट पर जाएं (Back to website)"
-                    aria-label="Back to website"
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "2px",
-                      padding: "4px 7px",
-                      background: "rgba(255,255,255,0.7)",
-                      border: "1px solid rgba(212,175,55,0.4)",
-                      borderRadius: "7px",
-                      color: "#5c2b09",
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      marginRight: "4px"
-                    }}
+                    className="aura-ai-header-back-btn"
+                    title="वापस वेबसाइट पर जाएं (Back)"
+                    aria-label="Back"
                   >
-                    <ChevronLeft size={14} strokeWidth={2.5} />
-                    <span>वापस</span>
+                    <ChevronLeft size={14} strokeWidth={2.4} />
+                    <span className="aura-ai-back-text">वापस</span>
                   </button>
 
-                  {!isFullWindow && (
-                    <div className="aura-ai-panel-drag-cue" title="Aura Assistant">
-                      <Sparkles size={11} />
-                    </div>
-                  )}
+                  {/* AI Logo */}
                   <div className={`aura-ai-avatar ${mode === "panditji" ? "aura-ai-avatar-panditji" : ""}`}>
                     {mode === "panditji" ? (
-                      <span style={{ fontSize: "14px", lineHeight: 1 }}>🕉️</span>
+                      <span className="text-[13px] font-bold leading-none">ॐ</span>
                     ) : (
-                      <Sparkles size={12} />
+                      <Sparkles size={13} strokeWidth={2.2} />
                     )}
                   </div>
+
+                  {/* AI Name + Online Status + Language Info */}
                   <div className="aura-ai-header-info">
                     <div className="aura-ai-title">
                       <span>{mode === "panditji" ? "AI Panditji" : "Aura AI"}</span>
                       <span className={`aura-ai-badge ${mode === "panditji" ? "aura-ai-badge-panditji" : ""}`}>
-                        {mode === "panditji" ? "Vedic Astrologer" : "Vedic Guide"}
+                        {mode === "panditji" ? "Vedic Astrology" : "Quick AI"}
                       </span>
                     </div>
                     <div className="aura-ai-status">
-                      <span className="aura-ai-online-dot" style={mode === "panditji" ? { background: "#ff9900" } : undefined} />
-                      <span>{mode === "panditji" ? "Online • 35+ Yrs Vedic Wisdom" : "Online • Hindi & English"}</span>
+                      <span className="aura-ai-online-dot" />
+                      <span>{mode === "panditji" ? "Online • Hindi & English" : "Online • Hindi & English"}</span>
                     </div>
                   </div>
                 </div>
 
+                {/* Common Header Actions: History, Bookmark, Expand, Reset, Close */}
                 <div className="aura-ai-header-actions">
-                  {/* Chat History Button */}
-                  <button 
+                  <button
                     type="button"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       setShowChatHistoryModal(true);
-                    }} 
+                    }}
                     onPointerDown={(e) => e.stopPropagation()}
                     className="aura-ai-btn-icon"
-                    title="पुरानी चैट व इतिहास (Chat History)"
-                    aria-label="Chat History"
+                    title="पुरानी चैट व इतिहास (History)"
+                    aria-label="History"
                   >
-                    <History size={13} />
+                    <History size={13} strokeWidth={2.1} />
                   </button>
 
-                  {/* Saved Kundalis Button (in Panditji mode) */}
-                  {mode === "panditji" && (
-                    <button 
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setShowSavedKundaliModal(true);
-                      }} 
-                      onPointerDown={(e) => e.stopPropagation()}
-                      className="aura-ai-btn-icon"
-                      title="सुरक्षित कुंडलियां (Saved Kundalis)"
-                      aria-label="Saved Kundalis"
-                    >
-                      <Bookmark size={13} />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowSavedKundaliModal(true);
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="aura-ai-btn-icon"
+                    title="सुरक्षित कुंडलियां (Bookmarks)"
+                    aria-label="Bookmark"
+                  >
+                    <Bookmark size={13} strokeWidth={2.1} />
+                  </button>
 
-                  {/* Full Window / Maximize Toggle */}
-                  <button 
+                  <button
                     type="button"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       setIsFullWindow((prev) => !prev);
-                    }} 
+                    }}
                     onPointerDown={(e) => e.stopPropagation()}
                     className="aura-ai-btn-icon"
-                    title={isFullWindow ? "Restore compact window" : "Maximize to full window"}
-                    aria-label={isFullWindow ? "Restore compact window" : "Maximize to full window"}
+                    title={isFullWindow ? "Restore compact window" : "Expand window"}
+                    aria-label={isFullWindow ? "Restore compact window" : "Expand"}
                   >
-                    {isFullWindow ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                    {isFullWindow ? <Minimize2 size={13} strokeWidth={2.1} /> : <Maximize2 size={13} strokeWidth={2.1} />}
                   </button>
 
-                  {/* New Chat Button */}
-                  <button 
+                  <button
                     type="button"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       handleNewChat();
-                    }} 
+                    }}
                     onPointerDown={(e) => e.stopPropagation()}
-                    className={`aura-ai-btn-icon aura-ai-btn-newchat ${isRefreshing ? "aura-ai-btn-refreshing" : ""}`} 
-                    title="New Chat (पुरानी चैट ऑटोमैटिक सुरक्षित रहेगी)"
-                    aria-label="New Chat"
+                    className={`aura-ai-btn-icon aura-ai-btn-newchat ${isRefreshing ? "aura-ai-btn-refreshing" : ""}`}
+                    title="Reset / New Chat"
+                    aria-label="Reset Chat"
                     disabled={isRefreshing}
                   >
-                    <RotateCcw size={13} />
+                    <RotateCcw size={13} strokeWidth={2.1} />
                   </button>
 
-                  {/* Close Chat Button */}
-                  <button 
+                  <button
                     type="button"
                     onPointerDown={(e) => e.stopPropagation()}
-                    onClick={handleCloseChat} 
-                    className="aura-ai-btn-icon aura-ai-btn-close" 
-                    title="Close / Band karein"
-                    aria-label="Close Chat"
+                    onClick={handleCloseChat}
+                    className="aura-ai-btn-icon aura-ai-btn-close"
+                    title="Close"
+                    aria-label="Close"
                   >
-                    <X size={15} />
+                    <X size={14} strokeWidth={2.2} />
                   </button>
                 </div>
               </div>
@@ -1861,14 +1822,14 @@ export function AuraAIFloating() {
               <AnimatePresence>
                 {showRefreshToast && (
                   <div className="aura-ai-refresh-toast">
-                    <Sparkles size={13} className="aura-refresh-spinner" />
-                    <span>Nayi Vedic Consultation taiyaar ho rahi hai...</span>
+                    <Sparkles size={13} />
+                    <span>नया परामर्श तैयार हो रहा है...</span>
                   </div>
                 )}
               </AnimatePresence>
 
-              {/* Mode Selector Pill Bar with Smooth Sliding Animated Indicator */}
-              <div className="aura-ai-mode-bar" style={{ position: "relative" }}>
+              {/* Mode Selector Bar */}
+              <div className="aura-ai-mode-bar" role="tablist" aria-label="AI Mode">
                 <button
                   onClick={() => {
                     triggerHaptic("light");
@@ -1884,13 +1845,18 @@ export function AuraAIFloating() {
                   }}
                   className={`aura-ai-mode-btn ${mode === "standard" ? "active" : ""}`}
                   type="button"
-                  style={{ position: "relative" }}
+                  role="tab"
+                  aria-selected={mode === "standard"}
                 >
                   {mode === "standard" && (
-                    <div className="aura-ai-mode-active-pill" />
+                    <motion.div
+                      layoutId="aura-floating-mode-pill"
+                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                      className="aura-ai-mode-active-pill"
+                    />
                   )}
-                  <span style={{ position: "relative", zIndex: 2, display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                    <Sparkles size={11} /> ⚡ Quick AI
+                  <span className="aura-ai-mode-btn-label">
+                    <Sparkles size={12} strokeWidth={2.1} /> Quick AI
                   </span>
                 </button>
                 <button
@@ -1908,136 +1874,190 @@ export function AuraAIFloating() {
                   }}
                   className={`aura-ai-mode-btn ${mode === "panditji" ? "active" : ""}`}
                   type="button"
-                  style={{ position: "relative" }}
+                  role="tab"
+                  aria-selected={mode === "panditji"}
                 >
                   {mode === "panditji" && (
-                    <div className="aura-ai-mode-active-pill" />
+                    <motion.div
+                      layoutId="aura-floating-mode-pill"
+                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                      className="aura-ai-mode-active-pill"
+                    />
                   )}
-                  <span style={{ position: "relative", zIndex: 2, display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                    <span>🕉️</span> AI Panditji
+                  <span className="aura-ai-mode-btn-label">
+                    <span>ॐ</span> AI Panditji
                   </span>
                 </button>
               </div>
 
-              {/* Single-Line 4-Option Animated Command Dock */}
-              <AuraCommandDock
-                scope="floating"
-                mode={mode}
-                onSwitchMode={(nextMode) => {
-                  triggerHaptic("light");
-                  auraAiClient.abortActiveStream();
-                  if (timerRef.current) {
-                    clearInterval(timerRef.current);
-                    timerRef.current = null;
-                  }
-                  setLoading(false);
-                  setErrorOccurred(false);
-                  setMode(nextMode);
-                  setMessages(auraChatStore.getMessages(nextMode));
-                }}
-                conversationId={conversationId}
-                savedSessions={savedPanditSessions}
-                onNewChat={() => {
-                  if (mode === "panditji") {
+              {/* Mode-specific Controls */}
+              {mode === "standard" ? (
+                <AuraCommandDock
+                  scope="floating"
+                  mode={mode}
+                  onSwitchMode={(nextMode) => {
+                    triggerHaptic("light");
+                    auraAiClient.abortActiveStream();
+                    if (timerRef.current) {
+                      clearInterval(timerRef.current);
+                      timerRef.current = null;
+                    }
+                    setLoading(false);
+                    setErrorOccurred(false);
+                    setMode(nextMode);
+                    setMessages(auraChatStore.getMessages(nextMode));
+                  }}
+                  conversationId={conversationId}
+                  savedSessions={savedPanditSessions}
+                  onNewChat={handleNewChat}
+                  onSelectSession={(sessId) => {
                     auraAiClient.abortActiveStream();
                     turnSeqRef.current++;
                     setLoading(false);
-                    const { newConvId, messages: fresh } = auraChatStore.startNewSession("panditji");
-                    setConversationId(newConvId);
-                    setMessages(fresh);
-                    setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
-                    emitToast("नया पंडित जी चैट बन गया ✨", "success");
-                  } else {
-                    handleNewChat();
-                  }
-                }}
-                onSelectSession={(sessId) => {
-                  auraAiClient.abortActiveStream();
-                  turnSeqRef.current++;
-                  setLoading(false);
-                  const switched = auraChatStore.switchToSession(sessId, "panditji");
-                  if (switched) {
-                    setConversationId(switched.conversationId);
-                    setMessages(switched.messages);
-                    setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
-                  }
-                }}
-                onOpenHistory={() => setShowChatHistoryModal(true)}
-                activeBirthDetails={activeBirthDetails}
-                showBirthForm={showBirthForm}
-                onToggleBirthForm={() => setShowBirthForm((prev) => !prev)}
-                onEditBirthDetails={() => {
-                  if (activeBirthDetails) {
-                    setBirthForm({
-                      name: activeBirthDetails.name || "",
-                      dob: activeBirthDetails.dob || "",
-                      time: activeBirthDetails.birthTime || "",
-                      place: activeBirthDetails.birthPlace || "",
-                      concern: activeBirthDetails.concern || "career"
-                    });
-                  }
-                  setShowBirthForm(true);
-                }}
-                onClearBirthDetails={() => {
-                  auraChatStore.clearActiveBirthDetails();
-                  setActiveBirthDetails(null);
-                  emitToast("सक्रिय कुंडली हटा दी गई", "info");
-                }}
-                onOpenSavedKundalis={() => setShowSavedKundaliModal(true)}
-                panditPrefs={panditPrefs}
-                onChangePanditPref={(patch) => {
-                  const next = auraChatStore.savePanditPreferences(patch);
-                  setPanditPrefs(next);
-                }}
-                onOpenVedicTool={(tabId) => {
-                  setVedicToolsTab(tabId || "milan");
-                  setShowVedicToolsModal(true);
-                }}
-                onSendQuickPrompt={(q) => handleSend(q)}
-                dynamicSuggestions={dynamicSuggestions}
-                onOpenNotes={() => {
-                  fetchNotes();
-                  setShowNotepad(true);
-                }}
-                notesCount={notesList.length}
-                isFullWindow={isFullWindow}
-                onToggleFullWindow={() => setIsFullWindow((prev) => !prev)}
-              />
+                    const switched = auraChatStore.switchToSession(sessId, "panditji");
+                    if (switched) {
+                      setConversationId(switched.conversationId);
+                      setMessages(switched.messages);
+                      setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
+                    }
+                  }}
+                  onOpenHistory={() => setShowChatHistoryModal(true)}
+                  activeBirthDetails={activeBirthDetails}
+                  showBirthForm={showBirthForm}
+                  onToggleBirthForm={() => setShowBirthForm((prev) => !prev)}
+                  onEditBirthDetails={() => {
+                    if (activeBirthDetails) {
+                      setBirthForm({
+                        name: activeBirthDetails.name || "",
+                        dob: activeBirthDetails.dob || "",
+                        time: activeBirthDetails.birthTime || "",
+                        place: activeBirthDetails.birthPlace || "",
+                        concern: activeBirthDetails.concern || "career"
+                      });
+                    }
+                    setShowBirthForm(true);
+                  }}
+                  onClearBirthDetails={() => {
+                    auraChatStore.clearActiveBirthDetails();
+                    setActiveBirthDetails(null);
+                    emitToast("सक्रिय कुंडली हटा दी गई", "info");
+                  }}
+                  onOpenSavedKundalis={() => setShowSavedKundaliModal(true)}
+                  panditPrefs={panditPrefs}
+                  onChangePanditPref={(patch) => {
+                    const next = auraChatStore.savePanditPreferences(patch);
+                    setPanditPrefs(next);
+                  }}
+                  onOpenVedicTool={(tabId) => {
+                    setVedicToolsTab(tabId || "milan");
+                    setShowVedicToolsModal(true);
+                  }}
+                  onSendQuickPrompt={(q) => handleSend(q)}
+                  dynamicSuggestions={dynamicSuggestions}
+                  onOpenNotes={() => {
+                    fetchNotes();
+                    setShowNotepad(true);
+                  }}
+                  notesCount={notesList.length}
+                  isFullWindow={isFullWindow}
+                  onToggleFullWindow={() => setIsFullWindow((prev) => !prev)}
+                />
+              ) : (
+                <div className="aura-pandit-top-area">
+                  <AuraPanditWorkspacePanel
+                    conversationId={conversationId}
+                    savedSessions={savedPanditSessions}
+                    onNewChat={() => {
+                      auraAiClient.abortActiveStream();
+                      turnSeqRef.current++;
+                      setLoading(false);
+                      const { newConvId, messages: fresh } = auraChatStore.startNewSession("panditji");
+                      setConversationId(newConvId);
+                      setMessages(fresh);
+                      setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
+                      emitToast("नया पंडित जी चैट बन गया", "success");
+                    }}
+                    onSelectSession={(sessId) => {
+                      auraAiClient.abortActiveStream();
+                      turnSeqRef.current++;
+                      setLoading(false);
+                      const switched = auraChatStore.switchToSession(sessId, "panditji");
+                      if (switched) {
+                        setConversationId(switched.conversationId);
+                        setMessages(switched.messages);
+                        setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
+                      }
+                    }}
+                    onToggleBirthForm={() => setShowBirthForm((prev) => !prev)}
+                    onOpenSavedKundalis={() => setShowSavedKundaliModal(true)}
+                    onOpenHistory={() => setShowChatHistoryModal(true)}
+                    onSendQuickPrompt={(q) => handleSend(q)}
+                    panditPrefs={panditPrefs}
+                    onChangePanditPref={(patch) => {
+                      const next = auraChatStore.savePanditPreferences(patch);
+                      setPanditPrefs(next);
+                    }}
+                    onOpenVedicTool={(tabId) => {
+                      setVedicToolsTab(tabId || "milan");
+                      setShowVedicToolsModal(true);
+                    }}
+                    onOpenVedicTools={(tabId) => {
+                      setVedicToolsTab(tabId || "milan");
+                      setShowVedicToolsModal(true);
+                    }}
+                  />
 
-              {/* Interactive Kundli Birth Details Form Card for AI Panditji */}
+                  <AuraActiveKundaliCard
+                    activeBirthDetails={activeBirthDetails}
+                    onEdit={() => {
+                      if (activeBirthDetails) {
+                        setBirthForm({
+                          name: activeBirthDetails.name || "",
+                          dob: activeBirthDetails.dob || "",
+                          time: activeBirthDetails.birthTime || "",
+                          place: activeBirthDetails.birthPlace || "",
+                          concern: activeBirthDetails.concern || "career"
+                        });
+                      }
+                      setShowBirthForm(true);
+                    }}
+                    onDelete={() => {
+                      auraChatStore.clearActiveBirthDetails();
+                      setActiveBirthDetails(null);
+                      emitToast("सक्रिय कुंडली हटा दी गई", "info");
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Interactive Kundli Birth Details Form Card */}
               <AnimatePresence>
                 {showBirthForm && (
                   <motion.div
-                    initial={{ opacity: 0, height: 0, y: -6 }}
+                    initial={{ opacity: 0, height: 0, y: -4 }}
                     animate={{ opacity: 1, height: "auto", y: 0 }}
-                    exit={{ opacity: 0, height: 0, y: -6 }}
-                    style={{
-                      background: "linear-gradient(135deg, #FFFDF8 0%, #FAF3E6 100%)",
-                      borderBottom: "2px solid #D4AF37",
-                      padding: "12px 14px",
-                      boxShadow: "0 4px 12px rgba(74, 14, 23, 0.12)",
-                      position: "relative",
-                      zIndex: 15
-                    }}
+                    exit={{ opacity: 0, height: 0, y: -4 }}
+                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                    className="aura-birth-form-drawer"
                   >
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px", borderBottom: "1px dashed #e8d0b5", paddingBottom: "6px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 700, color: "#4A0E17" }}>
-                        <span>🕉️</span>
+                    <div className="aura-birth-form-head">
+                      <div className="aura-birth-form-title">
+                        <span>ॐ</span>
                         <span>पंडित जी हेतु जन्म विवरण (Vedic Birth Details)</span>
                       </div>
                       <button
                         type="button"
                         onClick={() => setShowBirthForm(false)}
-                        style={{ background: "none", border: "none", fontSize: "11px", color: "#8a6014", cursor: "pointer", fontWeight: 600 }}
+                        className="aura-birth-form-close"
                       >
                         ✕ बंद करें
                       </button>
                     </div>
 
                     <form onSubmit={handleBirthFormSubmit}>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px" }}>
+                      <div className="aura-birth-form-grid">
                         <div>
-                          <label style={{ display: "block", fontSize: "10.5px", fontWeight: 700, color: "#4A0E17", marginBottom: "2px" }}>
+                          <label className="aura-birth-form-label">
                             आपका नाम (Name) *
                           </label>
                           <input
@@ -2046,11 +2066,11 @@ export function AuraAIFloating() {
                             placeholder="उदा. राहुल शर्मा"
                             value={birthForm.name}
                             onChange={(e) => setBirthForm({ ...birthForm, name: e.target.value })}
-                            style={{ width: "100%", padding: "5px 8px", border: "1px solid #d4af37", borderRadius: "5px", fontSize: "11.5px", background: "#fff", color: "#333", outline: "none" }}
+                            className="aura-birth-form-input"
                           />
                         </div>
                         <div>
-                          <label style={{ display: "block", fontSize: "10.5px", fontWeight: 700, color: "#4A0E17", marginBottom: "2px" }}>
+                          <label className="aura-birth-form-label">
                             जन्म तिथि (DOB) *
                           </label>
                           <input
@@ -2058,14 +2078,14 @@ export function AuraAIFloating() {
                             required
                             value={birthForm.dob}
                             onChange={(e) => setBirthForm({ ...birthForm, dob: e.target.value })}
-                            style={{ width: "100%", padding: "4px 6px", border: "1px solid #d4af37", borderRadius: "5px", fontSize: "11.5px", background: "#fff", color: "#333", outline: "none" }}
+                            className="aura-birth-form-input"
                           />
                         </div>
                       </div>
 
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px" }}>
+                      <div className="aura-birth-form-grid">
                         <div>
-                          <label style={{ display: "block", fontSize: "10.5px", fontWeight: 700, color: "#4A0E17", marginBottom: "2px" }}>
+                          <label className="aura-birth-form-label">
                             जन्म स्थान (City) *
                           </label>
                           <input
@@ -2074,11 +2094,11 @@ export function AuraAIFloating() {
                             placeholder="उदा. जयपुर, राजस्थान"
                             value={birthForm.place}
                             onChange={(e) => setBirthForm({ ...birthForm, place: e.target.value })}
-                            style={{ width: "100%", padding: "5px 8px", border: "1px solid #d4af37", borderRadius: "5px", fontSize: "11.5px", background: "#fff", color: "#333", outline: "none" }}
+                            className="aura-birth-form-input"
                           />
                         </div>
                         <div>
-                          <label style={{ display: "block", fontSize: "10.5px", fontWeight: 700, color: "#4A0E17", marginBottom: "2px" }}>
+                          <label className="aura-birth-form-label">
                             जन्म समय (Birth Time) *
                           </label>
                           <input
@@ -2086,58 +2106,43 @@ export function AuraAIFloating() {
                             required
                             value={birthForm.time}
                             onChange={(e) => setBirthForm({ ...birthForm, time: e.target.value })}
-                            style={{ width: "100%", padding: "4px 6px", border: "1px solid #d4af37", borderRadius: "5px", fontSize: "11.5px", background: "#fff", color: "#333", outline: "none" }}
+                            className="aura-birth-form-input"
                           />
                         </div>
                       </div>
 
-                      <div style={{ marginBottom: "10px" }}>
-                        <label style={{ display: "block", fontSize: "10.5px", fontWeight: 700, color: "#4A0E17", marginBottom: "2px" }}>
+                      <div style={{ marginBottom: "8px" }}>
+                        <label className="aura-birth-form-label">
                           मुख्य संकल्प / समस्या (Primary Concern)
                         </label>
                         <select
                           value={birthForm.concern}
                           onChange={(e) => setBirthForm({ ...birthForm, concern: e.target.value })}
-                          style={{ width: "100%", padding: "5px 8px", border: "1px solid #d4af37", borderRadius: "5px", fontSize: "11px", background: "#fff", color: "#333", outline: "none" }}
+                          className="aura-birth-form-input"
                         >
-                          <option value="all">🌟 संपूर्ण जीवन मार्गदर्शन (All Concerns - Complete Life Guidance)</option>
-                          <option value="career">⚡ नौकरी, पदोन्नति व नेतृत्व (Career & Leadership)</option>
-                          <option value="business">💼 व्यापार, दुकान व व्यवसाय वृद्धि (Business & Trade)</option>
-                          <option value="finance">💰 धन समृद्धि, बचत व ऋण मुक्ति (Wealth & Debt Relief)</option>
-                          <option value="health">🩺 स्वास्थ्य, ऊर्जा व दीर्घायु (Health & Vitality)</option>
-                          <option value="peace">🧘 मानसिक शांति, एकाग्रता व तनाव मुक्ति (Mental Peace & Focus)</option>
-                          <option value="marriage">❤️ विवाह, शीघ्र रिश्ता व दांपत्य सुख (Marriage & Harmony)</option>
-                          <option value="love">💑 प्रेम संबंध व आकर्षण (Love & Relationships)</option>
-                          <option value="family">🏠 पारिवारिक शांति व सद्भाव (Family Peace & Unity)</option>
-                          <option value="children">👶 संतान सुख व बच्चों का कल्याण (Children & Progeny)</option>
-                          <option value="education">📚 विद्या, पढ़ाई, परीक्षा व स्मरण शक्ति (Education & Memory)</option>
-                          <option value="property">🏢 भूमि, भवन, घर व वाहन सुख (Property & Real Estate)</option>
-                          <option value="foreign_travel">✈️ विदेश यात्रा, वीजा व विदेश योग (Foreign Travel & Settlement)</option>
-                          <option value="legal">⚖️ कोर्ट-कचहरी, शत्रु व कानूनी विजय (Legal Victory & Protection)</option>
-                          <option value="shani_dosha">🛡️ शनि साढ़े साती, ढैया व राहु-केतु शांति (Dosha Shanti)</option>
-                          <option value="spiritual">🕉️ आध्यात्मिक उन्नति, साधना व शिव कृपा (Moksha & Spiritual Growth)</option>
-                          <option value="general">🌸 सर्वकल्याण, रक्षा व सकारात्मक ऊर्जा (General Well-being & Luck)</option>
-                          <option value="custom">✍️ अन्य विशेष संकल्प (Custom Concern)</option>
+                          <option value="all">संपूर्ण जीवन मार्गदर्शन (All Concerns)</option>
+                          <option value="career">नौकरी, पदोन्नति व नेतृत्व (Career)</option>
+                          <option value="business">व्यापार व व्यवसाय वृद्धि (Business)</option>
+                          <option value="finance">धन समृद्धि व ऋण मुक्ति (Wealth)</option>
+                          <option value="health">स्वास्थ्य, ऊर्जा व दीर्घायु (Health)</option>
+                          <option value="peace">मानसिक शांति व एकाग्रता (Mental Peace)</option>
+                          <option value="marriage">विवाह व दांपत्य सुख (Marriage)</option>
+                          <option value="love">प्रेम संबंध व आकर्षण (Relationships)</option>
+                          <option value="family">पारिवारिक शांति व सद्भाव (Family)</option>
+                          <option value="children">संतान सुख व कल्याण (Children)</option>
+                          <option value="education">विद्या, पढ़ाई व परीक्षा (Education)</option>
+                          <option value="property">भूमि, भवन व वाहन सुख (Property)</option>
+                          <option value="foreign_travel">विदेश यात्रा योग (Foreign Travel)</option>
+                          <option value="legal">कोर्ट-कचहरी व सुरक्षा (Protection)</option>
+                          <option value="shani_dosha">शनि साढ़े साती व राहु-केतु शांति (Dosha Shanti)</option>
+                          <option value="spiritual">आध्यात्मिक उन्नति व साधना (Spiritual)</option>
+                          <option value="general">सर्वकल्याण व रक्षा (General)</option>
+                          <option value="custom">अन्य विशेष संकल्प (Custom)</option>
                         </select>
-
                       </div>
 
-                      <button
-                        type="submit"
-                        style={{
-                          width: "100%",
-                          padding: "7px 10px",
-                          background: "linear-gradient(135deg, #a54d2b 0%, #7d3318 100%)",
-                          color: "#ffffff",
-                          border: "1px solid #ffd700",
-                          borderRadius: "6px",
-                          fontSize: "11.5px",
-                          fontWeight: 700,
-                          cursor: "pointer",
-                          boxShadow: "0 2px 6px rgba(165, 77, 43, 0.25)"
-                        }}
-                      >
-                        🙏 पंडित जी को कुंडली भेजें (Analyze Kundli)
+                      <button type="submit" className="aura-birth-form-submit">
+                        पंडित जी को कुंडली भेजें (Analyze Kundli)
                       </button>
                     </form>
                   </motion.div>
@@ -2189,41 +2194,76 @@ export function AuraAIFloating() {
                         </div>
                       )}
 
-                      <motion.div 
-                        id={m.id} 
-                        initial={{ opacity: 0, y: 12, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                      <motion.div
+                        id={m.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                         className={`aura-ai-msg ${m.sender === "user" ? "aura-ai-msg-user" : "aura-ai-msg-ai"}`}
                       >
                         {m.sender === "ai" && (
                           <div className="aura-ai-msg-avatar">
-                            <Sparkles size={13} />
+                            {mode === "panditji" ? <span className="text-[11px] font-bold leading-none">ॐ</span> : <Sparkles size={12} />}
                           </div>
                         )}
                         <div className="aura-ai-msg-content">
-                          <div className="aura-ai-msg-text">
-                            {!m.text && m.sender === "ai" ? (
-                              <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#8c2b10", fontWeight: "600", padding: "2px 0" }}>
-                                <Sparkles size={13} className="animate-spin" style={{ color: "#d4af37" }} />
-                                <span>💭 विश्लेषण चल रहा है (Thinking...)...</span>
-                              </div>
-                            ) : (
-                              <AuraAIMessageContent 
-                                text={customerSafeAiText(stripAuraKeywords(m.text))} 
-                                sender={m.sender} 
-                                fullKundaliData={m.kundali}
-                                birthData={m.kundali?.verifiedBirthData}
-                                products={m.products}
-                                defaultChartStyle={mode === "panditji" ? panditPrefs.chartStyle : "auto"}
-                              />
-                            )}
-                          </div>
-                          {m.sender === "ai" && m.text && (
-                            <div style={{ marginTop: "4px", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                              <VoiceReader text={customerSafeAiText(stripAuraKeywords(m.text))} />
-                            </div>
-                          )}
+                          {(() => {
+                            const isWelcomeMsg = m.sender === "ai" && (
+                              m.id?.startsWith("init_welcome") ||
+                              m.id?.startsWith("init_standard_") ||
+                              m.id?.startsWith("init_panditji_")
+                            );
+                            if (mode === "standard" && isWelcomeMsg) {
+                              return (
+                                <AuraQuickAiAssistantCard
+                                  onSendPrompt={(q) => handleSend(q)}
+                                />
+                              );
+                            }
+                            return (
+                              <>
+                                <div className="aura-ai-msg-text">
+                                  {!m.text && m.sender === "ai" ? (
+                                    <div className="aura-ai-inline-thinking">
+                                      <Sparkles size={13} className="text-[#C69A45]" />
+                                      <span>विश्लेषण चल रहा है...</span>
+                                    </div>
+                                  ) : (
+                                    <AuraAIMessageContent
+                                      text={customerSafeAiText(stripAuraKeywords(m.text))}
+                                      sender={m.sender}
+                                      fullKundaliData={m.kundali}
+                                      birthData={m.kundali?.verifiedBirthData}
+                                      products={m.products}
+                                      defaultChartStyle={mode === "panditji" ? panditPrefs.chartStyle : "auto"}
+                                    />
+                                  )}
+                                </div>
+                                {m.sender === "ai" && m.text && (
+                                  <div className="aura-ai-voice-row">
+                                    <VoiceReader text={customerSafeAiText(stripAuraKeywords(m.text))} />
+                                  </div>
+                                )}
+                                {mode === "panditji" && isWelcomeMsg && (
+                                  <div className="aura-pandit-quick-topics" role="group" aria-label="ज्योतिष मुख्य विषय">
+                                    {PANDIT_ASTROLOGY_QUICK_TOPICS.map((topic) => (
+                                      <button
+                                        key={topic.label}
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleSend(topic.query);
+                                        }}
+                                        className="aura-pandit-topic-chip"
+                                      >
+                                        {topic.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
 
 
                           {/* Authentic Vedic Kundli Result Card */}
@@ -2365,18 +2405,18 @@ export function AuraAIFloating() {
                               })()}
 
                               {/* Interactive Direct Kundali Inquiry Actions */}
-                              <div style={{ marginTop: "10px", paddingTop: "8px", borderTop: "1px dashed rgba(212, 175, 55, 0.4)" }}>
-                                <div style={{ fontSize: "11px", fontWeight: 700, color: "#8c2b10", marginBottom: "6px", display: "flex", alignItems: "center", gap: "5px" }}>
-                                  <Sparkles size={11} className="text-amber-600" />
-                                  <span>✨ इस कुंडली से सीधे पूछें (Ask from this Kundali):</span>
+                              <div className="aura-kundali-ask-wrap">
+                                <div className="aura-kundali-ask-title">
+                                  <Sparkles size={11} className="text-[#C69A45]" />
+                                  <span>इस कुंडली से सीधे पूछें:</span>
                                 </div>
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                <div className="aura-kundali-ask-chips">
                                   {[
-                                    { label: "💼 कैरियर व नौकरी", query: "मेरी कुंडली के अनुसार कैरियर, नौकरी व पदोन्नति का समय कैसा रहेगा?" },
-                                    { label: "💍 विवाह योग व दांपत्य", query: "मेरी कुंडली के अनुसार विवाह योग व जीवनसाथी का विचार बताएं।" },
-                                    { label: "🪐 महादशा व ग्रह दोष", query: "मेरी कुंडली में वर्तमान विंशोत्तरी महादशा, साढ़े साती व ग्रह दोष निवारण के उपाय बताएं।" },
-                                    { label: "💰 धन लाभ व व्यापार", query: "मेरी कुंडली के अनुसार धन योग, आर्थिक स्थिति व व्यापार में वृद्धि के उपाय बताएं।" },
-                                    { label: "📿 रुद्राक्ष संपूर्ण धारण विधि", query: "मेरी कुंडली के लिए अनुशंसित रुद्राक्ष को सिद्ध करने और धारण करने की संपूर्ण विधि व मंत्र बताएं।" }
+                                    { label: "नौकरी व करियर", query: "मेरी कुंडली के अनुसार कैरियर, नौकरी व पदोन्नति का समय कैसा रहेगा?" },
+                                    { label: "विवाह योग व दांपत्य", query: "मेरी कुंडली के अनुसार विवाह योग व जीवनसाथी का विचार बताएं।" },
+                                    { label: "महादशा व ग्रह दोष", query: "मेरी कुंडली में वर्तमान विंशोत्तरी महादशा, साढ़े साती व ग्रह दोष निवारण के उपाय बताएं।" },
+                                    { label: "धन लाभ व व्यापार", query: "मेरी कुंडली के अनुसार धन योग, आर्थिक स्थिति व व्यापार में वृद्धि के उपाय बताएं।" },
+                                    { label: "रुद्राक्ष धारण विधि", query: "मेरी कुंडली के लिए अनुशंसित रुद्राक्ष को सिद्ध करने और धारण करने की संपूर्ण विधि व मंत्र बताएं।" }
                                   ].map((chip, cIdx) => (
                                     <button
                                       key={cIdx}
@@ -2391,18 +2431,7 @@ export function AuraAIFloating() {
                                         };
                                         handleSend(chip.query, bData);
                                       }}
-                                      style={{
-                                        fontSize: "11px",
-                                        fontWeight: 600,
-                                        padding: "4px 8px",
-                                        borderRadius: "12px",
-                                        background: "#FFFBEB",
-                                        border: "1px solid #F59E0B",
-                                        color: "#78350F",
-                                        cursor: "pointer",
-                                        transition: "all 0.15s ease",
-                                        boxShadow: "0 1px 3px rgba(245, 158, 11, 0.1)"
-                                      }}
+                                      className="aura-ai-chip-btn"
                                     >
                                       {chip.label}
                                     </button>
@@ -2412,121 +2441,35 @@ export function AuraAIFloating() {
                             </div>
                           )}
 
-                          {/* Product Recommendations Vertical Compact List (No Horizontal Scroll) */}
+                          {/* Product Recommendations Compact Premium Cards */}
                           {m.products && m.products.length > 0 && (
                             <div className="aura-ai-prods-reel">
                               <div className="aura-ai-prods-title">
-                                <Sparkles size={12} /> Store Products (तुरंत खरीदें):
+                                <Sparkles size={12} /> सिद्ध रुद्राक्ष व उत्पाद (Lab Certified)
                               </div>
                               <div className="aura-ai-prods-list">
                                 {m.products.filter(p => p && typeof p === "object").slice(0, 6).map((p, pIdx) => {
                                   const pId = p.id || p._id || p.slug || `prod-${pIdx}`;
-                                  const isAdded = addedItems[pId];
-                                  const priceNum = Math.max(0, safePrice(p.price, 0));
-                                  const realMrp = Math.max(0, safePrice(p.comparePrice || p.mrp, 0));
-                                  const discountPercent = realMrp > priceNum && realMrp > 0
-                                    ? Math.round(((realMrp - priceNum) / realMrp) * 100)
-                                    : 0;
-                                  const oos = Number(p.stock) <= 0 && p.stock !== undefined;
-                                  const realImg = getProductPrimaryImage(p);
-                                  const pName = p.name || "Sacred Himalayan Rudraksha";
-
                                   return (
-                                    <div key={pId} className="aura-ai-prod-card-row">
-                                      <Link
-                                        to={getProductRoute(p)}
-                                        onClick={() => {
-                                          setIsOpen(false);
-                                          setIsFullWindow(false);
-                                          unlockScreenAndTouch();
-                                        }}
-                                        className="aura-ai-prod-img-wrap block cursor-pointer"
-                                      >
-                                        <img
-                                          src={realImg}
-                                          alt={pName}
-                                          className="aura-ai-prod-img"
-                                          referrerPolicy="no-referrer"
-                                          loading="lazy"
-                                          onError={(e) => { if (!e.target.src.includes("product-5mukhi.jpg")) e.target.src = "/images/placeholder.svg"; }}
-                                        />
-                                        {discountPercent > 0 && (
-                                          <span className="aura-ai-prod-disc">
-                                            {discountPercent}%
-                                          </span>
-                                        )}
-                                      </Link>
-                                      <div className="aura-ai-prod-info">
-                                        <Link
-                                          to={getProductRoute(p)}
-                                          onClick={() => {
-                                            setIsOpen(false);
-                                            setIsFullWindow(false);
-                                            unlockScreenAndTouch();
-                                          }}
-                                          className="aura-ai-prod-name hover:underline cursor-pointer block"
-                                          title={pName}
-                                        >
-                                          {pName}
-                                        </Link>
-                                        <div className="aura-ai-prod-meta">
-                                          <span className="aura-ai-prod-price">₹{priceNum.toLocaleString('en-IN')}</span>
-                                          {discountPercent > 0 && (
-                                            <span className="aura-ai-prod-mrp">₹{realMrp.toLocaleString('en-IN')}</span>
-                                          )}
-                                          {Number(p.rating) > 0 && (
-                                            <span className="aura-ai-prod-rating">★ {Number(p.rating)}</span>
-                                          )}
-                                          <span className={`aura-ai-prod-stock ${oos ? "oos" : ""}`} style={oos ? { color: "#c62828" } : undefined}>
-                                            {oos ? "Out of Stock" : "In Stock"}
-                                          </span>
-                                        </div>
-                                        <div className="aura-ai-prod-actions">
-                                          <Link
-                                            to={getProductRoute(p)}
-                                            onClick={() => {
-                                              setIsOpen(false);
-                                              setIsFullWindow(false);
-                                              unlockScreenAndTouch();
-                                            }}
-                                            className="aura-ai-prod-btn-view"
-                                          >
-                                            <Eye size={10} /> View
-                                          </Link>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              triggerHaptic("light");
-                                              setOrderModalProduct(p);
-                                            }}
-                                            disabled={oos}
-                                            style={oos ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
-                                            className="aura-ai-prod-btn-buy"
-                                            title="तुरंत ऑर्डर करें (Buy directly in chat)"
-                                          >
-                                            <Sparkles size={10} /> खरीदें (Buy)
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              triggerHaptic("medium");
-                                              handleAddToCart(p);
-                                            }}
-                                            disabled={oos}
-                                            style={oos ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
-                                            className={`aura-ai-prod-btn-add ${isAdded ? "added" : ""}`}
-                                          >
-                                            {isAdded ? (
-                                              <><Check size={10} /> Added</>
-                                            ) : oos ? (
-                                              "Sold Out"
-                                            ) : (
-                                              <><ShoppingCart size={10} /> Add</>
-                                            )}
-                                          </button>
-                                        </div>
-                                      </div>
-                                    </div>
+                                    <AuraProductRecCard
+                                      key={pId}
+                                      product={p}
+                                      isAdded={Boolean(addedItems[pId])}
+                                      variant="compact"
+                                      onNavigate={() => {
+                                        setIsOpen(false);
+                                        setIsFullWindow(false);
+                                        unlockScreenAndTouch();
+                                      }}
+                                      onBuy={(prod) => {
+                                        triggerHaptic("light");
+                                        setOrderModalProduct(prod);
+                                      }}
+                                      onAddToCart={(prod) => {
+                                        triggerHaptic("medium");
+                                        handleAddToCart(prod);
+                                      }}
+                                    />
                                   );
                                 })}
                               </div>
@@ -2603,15 +2546,18 @@ export function AuraAIFloating() {
                             </div>
                           )}
 
-                          {/* Quick Reply Chips with Spring Transitions */}
-                          {index === messages.length - 1 && m.quickReplies && m.quickReplies.length > 0 && (
+                          {/* Quick Reply Chips (for follow-up responses, hidden on welcome where cards handle them) */}
+                          {!(mode === "standard" && (m.id?.startsWith("init_welcome") || m.id?.startsWith("init_standard_"))) &&
+                            index === messages.length - 1 &&
+                            m.quickReplies &&
+                            m.quickReplies.length > 0 && (
                             <div className="aura-ai-quick-chips">
                               {m.quickReplies.map((q, qi) => (
                                 <motion.button
                                   key={qi}
                                   type="button"
-                                  whileHover={{ scale: 1.05, y: -1 }}
-                                  whileTap={{ scale: 0.95 }}
+                                  whileTap={{ scale: 0.97 }}
+                                  transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleSend(q);
@@ -2624,154 +2570,75 @@ export function AuraAIFloating() {
                             </div>
                           )}
 
-                          {/* AURA_KEYWORDS Interactive Suggested Search Chips with animated transitions */}
-                          {m.sender === "ai" && (() => {
-                            const parsedKws = parseAuraKeywords(m.text || "");
-                            const isLastAi = index === messages.length - 1;
-                            let effectiveKws = parsedKws;
-                            if (!effectiveKws.length && isLastAi && !loading) {
-                              const canonicalMukhi = m.kundali?.rudrakshaRecommendations?.[0]?.mukhi || m.kundali?.recommendedMukhi;
-                              if (canonicalMukhi) {
-                                effectiveKws = [
-                                  `📿 ${canonicalMukhi} धारण विधि व बीज मंत्र`,
-                                  `🪐 कुंडली अनुसार ${canonicalMukhi} लाभ`,
-                                  `🛍️ सिद्ध ${canonicalMukhi} स्टोर में देखें`,
-                                  `✨ विंशोत्तरी महादशा व ग्रह उपाय`
-                                ];
-                              } else if (mode === "panditji") {
-                                effectiveKws = ["विवाह योग और विवाह का समय", "करियर और सरकारी नौकरी", "धन और आर्थिक स्थिति", "महादशा और अंतर्दशा"];
-                              } else {
-                                effectiveKws = [
-                                  "1-14 मुखी रुद्राक्ष व कीमत",
-                                  "7 मुखी रुद्राक्ष की कीमत बताओ",
-                                  "2 पीस 5 मुखी का total calculate करो",
-                                  "आज के एक्टिव डिस्काउंट कूपन"
-                                ];
-                              }
-                            }
-                            if (!effectiveKws.length) return null;
-                            return (
-                              <div className="aura-ai-keyword-chips-wrap" style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px dashed rgba(212, 175, 55, 0.3)" }}>
-                                <div style={{ fontSize: "10.5px", color: "#8a6014", fontWeight: 700, marginBottom: "5px", display: "flex", alignItems: "center", gap: "4px" }}>
-                                  <span>🔍</span> <span>सुझावित विषय व आगे का परामर्श (Suggested Actions):</span>
-                                </div>
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                                  {effectiveKws.map((kw, ki) => (
-                                    <motion.button
-                                      key={ki}
-                                      type="button"
-                                      whileHover={{ scale: 1.05, y: -1 }}
-                                      whileTap={{ scale: 0.95 }}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleSend(kw);
-                                      }}
-                                      style={{
-                                        padding: "4px 10px",
-                                        background: "linear-gradient(135deg, #FFFDF8, #FBF3E4)",
-                                        border: "1px solid #D4AF37",
-                                        borderRadius: "20px",
-                                        fontSize: "11px",
-                                        fontWeight: 600,
-                                        color: "#6b2a0c",
-                                        cursor: "pointer",
-                                        boxShadow: "0 1px 3px rgba(0,0,0,0.06)"
-                                      }}
-                                    >
-                                      🔎 {kw}
-                                    </motion.button>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })()}
+                          {/* Part 2 D & Part 3 H: Expandable Suggested Actions Accordion */}
+                          {m.sender === "ai" && (
+                            <AuraSuggestedActionsAccordion
+                              mode={mode}
+                              parsedKeywords={parseAuraKeywords(m.text || "")}
+                              canonicalMukhi={m.kundali?.rudrakshaRecommendations?.[0]?.mukhi || m.kundali?.recommendedMukhi || null}
+                              isLatest={index === messages.length - 1}
+                              isWelcome={Boolean(m.id?.startsWith("init_welcome") || m.id?.startsWith("init_standard_") || m.id?.startsWith("init_panditji_"))}
+                              loading={loading}
+                              onSelectSuggestion={(kw) => handleSend(kw)}
+                            />
+                          )}
 
-                          {/* Message Time & Action Toolbar (Copy & WhatsApp Share) */}
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px", marginTop: "4px" }}>
+                          {/* Part 2 E & Part 3 I: Bottom Actions (Start/Continue, Copy, Share, Timestamp) */}
+                          <div className="aura-ai-msg-actions-bar">
                             {timeString && (
-                              <div className="aura-ai-msg-time">
+                              <span className="aura-ai-msg-time">
                                 {timeString}
-                              </div>
+                              </span>
                             )}
 
                             {m.sender === "ai" && (
-                              <div style={{ display: "flex", alignItems: "center", gap: "5px", marginLeft: "auto", flexWrap: "wrap" }}>
-                                {(streamingMsgId === m.id || isAuraResponseIncomplete(m.text, mode)) ? (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleContinueChat(m, 0, 10);
-                                    }}
-                                    disabled={streamingMsgId === m.id || (loading && activeAiMsgIdRef.current === m.id)}
-                                    style={{
-                                      padding: "4px 10px",
-                                      background: "linear-gradient(135deg, #FFF7ED, #FEF3C7)",
-                                      border: "1.5px solid #D97706",
-                                      borderRadius: "14px",
-                                      fontSize: "11px",
-                                      color: "#8c2b10",
-                                      fontWeight: 700,
-                                      cursor: (streamingMsgId === m.id || (loading && activeAiMsgIdRef.current === m.id)) ? "wait" : "pointer",
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      gap: "4px",
-                                      boxShadow: "0 2px 6px rgba(217, 119, 6, 0.25)",
-                                      transition: "all 0.15s ease"
-                                    }}
-                                    title="उत्तर जहाँ से रुका है, वहीं से आगे पूरा करें (1-Click Auto Complete)"
-                                  >
-                                    <Sparkles size={11} className={(streamingMsgId === m.id || (loading && activeAiMsgIdRef.current === m.id)) ? "animate-spin" : ""} style={{ color: "#d97706" }} />
-                                    <span>{(streamingMsgId === m.id || (loading && activeAiMsgIdRef.current === m.id)) ? (activePassCount > 0 ? `जारी है (${activePassCount}/10)...` : "लिखा जा रहा है...") : "✨ शुरू करें (आगे पूरा करें)"}</span>
-                                  </button>
-                                ) : (mode === "panditji" && !m.id?.startsWith("init_") && index === messages.length - 1 && !loading) ? (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleSend("कृपया इसी विषय पर और विस्तार से उदाहरण व विशेष वैदिक उपाय बताएं।");
-                                    }}
-                                    style={{
-                                      padding: "3px 8px",
-                                      background: "#FFFDF8",
-                                      border: "1px solid #D97706",
-                                      borderRadius: "12px",
-                                      fontSize: "10.5px",
-                                      color: "#8c2b10",
-                                      fontWeight: 700,
-                                      cursor: "pointer",
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      gap: "3px"
-                                    }}
-                                    title="और गहराई से विस्तार सुनें"
-                                  >
-                                    <Sparkles size={10} /> <span>और विस्तार से</span>
-                                  </button>
-                                ) : null}
+                              <div className="aura-ai-msg-action-group">
+                                {(() => {
+                                  const isStreamingThis = streamingMsgId === m.id || (loading && activeAiMsgIdRef.current === m.id);
+                                  const isIncomplete = isAuraResponseIncomplete(m.text, mode);
+                                  const isWelcomeMsg = Boolean(m.id?.startsWith("init_welcome") || m.id?.startsWith("init_standard_") || m.id?.startsWith("init_panditji_"));
+                                  const buttonLabel = isStreamingThis
+                                    ? (activePassCount > 0 ? `जारी (${activePassCount}/10)...` : "लिख रहे हैं...")
+                                    : mode === "panditji"
+                                      ? "शुरू करें (आगे पूरा करें)"
+                                      : "Start / Continue";
+
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (isStreamingThis) return;
+                                        if (isIncomplete) {
+                                          handleContinueChat(m, 0, 10);
+                                        } else if (isWelcomeMsg) {
+                                          textareaRef.current?.focus();
+                                        } else {
+                                          handleSend("कृपया इसी विषय पर और विस्तार से उदाहरण व विशेष मार्गदर्शन बताएं।");
+                                        }
+                                      }}
+                                      disabled={isStreamingThis}
+                                      className={`aura-ai-msg-action-btn aura-ai-msg-action-continue ${isStreamingThis ? "is-busy" : ""}`}
+                                      title={isIncomplete ? "जहाँ से रुका है, वहीं से आगे पूरा करें" : "आगे विस्तार या नया प्रश्न शुरू करें"}
+                                    >
+                                      <Sparkles size={11} strokeWidth={2.2} />
+                                      <span>{buttonLabel}</span>
+                                    </button>
+                                  );
+                                })()}
 
                                 <button
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     auraChatStore.copyChatToClipboard([m]);
-                                    emitToast("📋 उत्तर कॉपी हो गया (Copied)", "success");
+                                    emitToast("उत्तर कॉपी हो गया (Copied)", "success");
                                   }}
-                                  style={{
-                                    padding: "3px 7px",
-                                    background: "rgba(0,0,0,0.04)",
-                                    border: "1px solid rgba(0,0,0,0.09)",
-                                    borderRadius: "4px",
-                                    fontSize: "10.5px",
-                                    color: "#555",
-                                    cursor: "pointer",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "3px"
-                                  }}
-                                  title="उत्तर कॉपी करें (Copy answer)"
+                                  className="aura-ai-msg-action-btn"
+                                  title="उत्तर कॉपी करें (Copy)"
                                 >
-                                  <Copy size={11} /> <span>कॉपी</span>
+                                  <Copy size={11} strokeWidth={2.1} />
+                                  <span>कॉपी</span>
                                 </button>
 
                                 <button
@@ -2780,21 +2647,11 @@ export function AuraAIFloating() {
                                     e.stopPropagation();
                                     auraChatStore.shareChatOnWhatsApp([m]);
                                   }}
-                                  style={{
-                                    padding: "3px 7px",
-                                    background: "rgba(37, 211, 102, 0.12)",
-                                    border: "1px solid rgba(37, 211, 102, 0.35)",
-                                    borderRadius: "4px",
-                                    fontSize: "10.5px",
-                                    color: "#075e54",
-                                    cursor: "pointer",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "3px"
-                                  }}
-                                  title="WhatsApp पर शेयर करें (Share on WhatsApp)"
+                                  className="aura-ai-msg-action-btn aura-ai-msg-action-share"
+                                  title="WhatsApp पर शेयर करें (Share)"
                                 >
-                                  <Share2 size={11} /> <span>शेयर</span>
+                                  <Share2 size={11} strokeWidth={2.1} />
+                                  <span>शेयर</span>
                                 </button>
                               </div>
                             )}
@@ -2805,29 +2662,29 @@ export function AuraAIFloating() {
                   );
                 })}
 
-
                 {loading && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                     className="aura-ai-msg aura-ai-msg-ai"
                   >
                     <div className="aura-ai-msg-avatar">
-                      <Sparkles size={13} />
+                      {mode === "panditji" ? <span className="text-[11px] font-bold leading-none">ॐ</span> : <Sparkles size={12} />}
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "5px", alignItems: "flex-start" }}>
-                      <div className="aura-ai-typing-bubble" style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px" }}>
+                    <div className="flex flex-col gap-1.5 items-start">
+                      <div className="aura-ai-typing-bubble">
                         <span className="dot" />
                         <span className="dot" />
                         <span className="dot" />
-                        <span style={{ fontSize: "11px", color: "#8c2b10", fontWeight: "700", marginLeft: "4px" }}>
-                          💭 विश्लेषण चल रहा है (Thinking...)...
+                        <span className="text-[11px] font-semibold text-[#542B19] ml-1">
+                          {statusText || "विश्लेषण जारी है..."}
                         </span>
-                      </div>
-                      <div className="aura-ai-status-text" style={{ fontSize: "11px", color: "#8c2b10", fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "5px", background: "linear-gradient(135deg, #FFFDF8, #FBF3E4)", padding: "4px 10px", borderRadius: "14px", border: "1px solid rgba(212, 175, 55, 0.4)", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-                        <span>💭 {statusText || "विश्लेषण व गणना जारी है..."}</span>
-                        {elapsedTime > 0 && <span style={{ opacity: 0.7, fontSize: "10px" }}>({elapsedTime}s)</span>}
+                        {elapsedTime > 0 && (
+                          <span className="text-[10px] text-[#887565] tabular-nums ml-1">
+                            ({elapsedTime}s)
+                          </span>
+                        )}
                       </div>
                     </div>
                   </motion.div>

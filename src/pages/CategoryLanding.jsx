@@ -101,9 +101,15 @@ export default function CategoryLanding() {
     const loadCatalog = async () => {
       try {
         setLoading(true);
-        const list = await db.getProducts();
+        const list = db.getProducts();
         if (isMounted) {
           setProducts(list || []);
+        }
+        if (!db.isBackendSynced() && typeof db.fetchProducts === "function") {
+          await db.fetchProducts();
+          if (isMounted) {
+            setProducts(db.getProducts() || []);
+          }
         }
       } catch (err) {
         console.warn("Notice loading products:", err);
@@ -112,7 +118,9 @@ export default function CategoryLanding() {
       }
     };
     loadCatalog();
-    const unsub = typeof onStoreUpdate === "function" ? onStoreUpdate(() => loadCatalog()) : () => {};
+    const unsub = typeof onStoreUpdate === "function" ? onStoreUpdate(() => {
+      if (isMounted) setProducts(db.getProducts() || []);
+    }) : () => {};
     return () => { 
       isMounted = false;
       unsub();
@@ -125,18 +133,24 @@ export default function CategoryLanding() {
     if (!slug || slug === "all") return products;
 
     const lowerSlug = slug.toLowerCase();
-    const mukhiNum = lowerSlug.replace("-mukhi", "");
+    const mukhiNum = lowerSlug.replace("-mukhi", "").trim();
 
     return products.filter(p => {
       const name = (p.name || "").toLowerCase();
-      const pMukhi = String(p.mukhi || "").toLowerCase();
+      const pMukhi = String(p.mukhi || "").toLowerCase().trim();
       const cat = (p.category || "").toLowerCase();
       const desc = (p.description || "").toLowerCase();
       const normName = name.replace(/-/g, " ");
       const normDesc = desc.replace(/-/g, " ");
 
       if (lowerSlug.includes("mukhi")) {
-        return pMukhi === mukhiNum || normName.includes(`${mukhiNum} mukhi`) || normDesc.includes(`${mukhiNum} mukhi`);
+        const mukhiRegex = new RegExp(`(?:^|[^0-9])${mukhiNum}\\s*mukhi\\b`, "i");
+        return (
+          pMukhi === mukhiNum ||
+          pMukhi === `${mukhiNum} mukhi` ||
+          mukhiRegex.test(normName) ||
+          mukhiRegex.test(normDesc)
+        );
       }
       if (lowerSlug === "nepali") {
         return (p.origin || "").toLowerCase().includes("nepal") || normName.includes("nepal");

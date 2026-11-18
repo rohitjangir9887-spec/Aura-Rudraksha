@@ -187,7 +187,7 @@ const CLIENT_VARIETY_TOKENS = [
   "karungali", "ebony", "tulsi", "sphatik", "quartz", "crystal", "vaijayanti",
   "chandan", "raktachandan", "sandalwood", "haldi", "turmeric", "kamalgatta",
   "hakik", "agate", "pyrite", "amethyst", "citrine", "lapis", "tiger", "parad",
-  "siddha", "indra", "navratna", "chakra", "gauri", "trijuti", "garbh", "savar",
+  "siddha", "navratna", "gauri", "trijuti", "garbh", "savar",
   "bhadraksha", "kapoor", "camphor", "dhoop", "agarbatti", "bhasma", "vibhuti",
   "attar", "shivling", "shaligram", "mahakal", "trishul", "damru", "kalash", "shankh"
 ];
@@ -236,6 +236,8 @@ export function extractDistinctiveTokens(textOrProd) {
   if (kind !== "single_bead") {
     if (/\b(ganesh|ganesha)\b/i.test(text) && !found.includes("ganesh")) found.push("ganesh");
     if (/\b(hanuman|bajrang)\b/i.test(text) && !found.includes("hanuman")) found.push("hanuman");
+    if (/\bindra\b/i.test(text) && !found.includes("indra")) found.push("indra");
+    if (/\bchakra\b/i.test(text) && !found.includes("chakra")) found.push("chakra");
   }
 
   return found;

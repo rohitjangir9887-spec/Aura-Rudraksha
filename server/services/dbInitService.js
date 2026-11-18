@@ -14,7 +14,7 @@ import {
   defaultSettings
 } from "../data/defaultData.js";
 import { applyOrderIndexes } from "./orderIndexService.js";
-import { isDbConnected } from "../config/db.js";
+import { isDbConnected, isMemoryMongoActive } from "../config/db.js";
 import { buildHealthyProductSlug } from "./seoService.js";
 
 let isInitializing = false;
@@ -46,16 +46,20 @@ export async function ensureDatabaseInitialized() {
     const initState = await Setting.findOne({ id: "db_init_state" }).lean();
     const alreadySeededProducts = Boolean(initState?.productsInitialized);
 
-    // 1. Ensure Products & Sample Reviews: NEVER auto-seed demo placeholder items into live stores.
-    // Only seed in isolated test runs so schema/init tests remain verifiable without polluting live catalogs.
+    // 1. Ensure Products: seed only in isolated test runs, explicit flag, or ephemeral local Memory Mongo preview
+    // (NEVER auto-seed demo items into live production external MongoDB stores).
     const allowAutoSeedTestFixtures = Boolean(
       process.env.NODE_ENV === "test" ||
       process.env.VITEST === "true" ||
       process.env.AUTO_SEED_DEMO_PRODUCTS === "true"
     );
+    const allowAutoSeedCatalog = Boolean(
+      allowAutoSeedTestFixtures ||
+      isMemoryMongoActive()
+    );
     const productCount = await Product.countDocuments();
-    if (allowAutoSeedTestFixtures && !alreadySeededProducts && productCount === 0 && Array.isArray(defaultProducts) && defaultProducts.length > 0) {
-      console.log("🌱 [DB Init] Test environment setup: seeding sample Rudraksha products...");
+    if (allowAutoSeedCatalog && (!alreadySeededProducts || (isMemoryMongoActive() && productCount === 0)) && productCount === 0 && Array.isArray(defaultProducts) && defaultProducts.length > 0) {
+      console.log("🌱 [DB Init] Seeding store Rudraksha & Mala catalog...");
       for (const p of defaultProducts) {
         if (!p || !p.id) continue;
         const exists = await Product.exists({ id: String(p.id) });
@@ -167,9 +171,10 @@ export async function ensureDatabaseInitialized() {
         }
       }
     }
+    const didInitProducts = productCount > 0 || summary.productsSeeded > 0;
     await Setting.updateOne(
       { id: "db_init_state" },
-      { $set: { productsInitialized: true, couponsInitialized: true, lastInitAt: new Date().toISOString() } },
+      { $set: { productsInitialized: didInitProducts, couponsInitialized: true, lastInitAt: new Date().toISOString() } },
       { upsert: true }
     );
 

@@ -863,9 +863,7 @@ const DISTINCTIVE_VARIETY_TOKENS = [
   "tiger",
   "parad",
   "siddha",
-  "indra",
   "navratna",
-  "chakra",
   "gauri",
   "trijuti",
   "garbh",
@@ -928,14 +926,20 @@ export function extractDistinctiveTokens(textOrProd) {
     }
   }
 
-  // Only treat "ganesh" or "hanuman" as distinctive identity tokens when NOT a numbered single Mukhi bead
-  // (because 8 Mukhi has "Lord Ganesha" and 11/14 Mukhi have "Lord Hanuman" in their descriptive names)
+  // Only treat deity/style tokens like ganesh/hanuman/indra/chakra as distinctive identity tokens when NOT a numbered single Mukhi bead
+  // (e.g. 8 Mukhi mentions Ganesh, 11/14 Mukhi mention Hanuman, 13 Mukhi mentions Indra)
   if (kind !== "single_bead") {
     if (/\b(ganesh|ganesha)\b/i.test(text) && !found.includes("ganesh")) {
       found.push("ganesh");
     }
     if (/\b(hanuman|bajrang)\b/i.test(text) && !found.includes("hanuman")) {
       found.push("hanuman");
+    }
+    if (/\bindra\b/i.test(text) && !found.includes("indra")) {
+      found.push("indra");
+    }
+    if (/\bchakra\b/i.test(text) && !found.includes("chakra")) {
+      found.push("chakra");
     }
   }
 
