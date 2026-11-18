@@ -11299,20 +11299,18 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   background: rgba(253, 230, 138, 0.85);
 }
 
-/* Base Panel Styles for Desktop & Mobile - iPhone Frosted Glass */
+/* Base Panel Styles for Desktop & Mobile - High-Contrast Crisp Frame (Zero Blur Lag) */
 .aura-ai-panel {
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  background: rgba(255, 253, 249, 0.97);
-  backdrop-filter: blur(12px) saturate(150%);
-  -webkit-backdrop-filter: blur(12px) saturate(150%);
-  border: 1.2px solid rgba(212, 175, 55, 0.45);
+  background: #FFF9F0;
+  border: 1.5px solid rgba(212, 175, 55, 0.6);
   overflow: hidden;
   box-sizing: border-box;
   transform-origin: bottom left;
-  border-radius: 26px;
-  transform: translateZ(0);
+  border-radius: 22px;
+  transform: translate3d(0, 0, 0);
 }
 
 @media (min-width: 1024px) {
@@ -11364,9 +11362,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 
 .aura-ai-backdrop-full,
 .aura-ai-floating-backdrop.aura-ai-backdrop-full {
-  background: rgba(18, 7, 2, 0.6);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: rgba(18, 7, 2, 0.68);
   justify-content: center;
   align-items: center;
   padding: 16px;
@@ -11397,12 +11393,10 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
     margin: 0;
     border-radius: 20px;
     background: #FFF9F0;
-    backdrop-filter: blur(12px) saturate(140%);
-    -webkit-backdrop-filter: blur(12px) saturate(140%);
-    border: 1px solid #E9D9C5;
+    border: 1.5px solid rgba(212, 175, 55, 0.6);
     box-shadow:
-      0 14px 36px -6px rgba(84, 43, 25, 0.22),
-      0 4px 12px rgba(84, 43, 25, 0.09);
+      0 16px 40px -6px rgba(26, 11, 3, 0.36),
+      0 4px 12px rgba(26, 11, 3, 0.16);
     transform-origin: bottom center !important;
   }
 
@@ -11554,18 +11548,15 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   height: min(820px, 86vh);
   max-height: 88vh;
   border-radius: 20px;
-  border: 1.5px solid rgba(212, 175, 55, 0.55);
-  box-shadow: 
-    0 24px 70px rgba(12, 5, 2, 0.58),
-    0 4px 20px rgba(0, 0, 0, 0.25),
-    0 0 35px rgba(212, 175, 55, 0.18);
-  background: rgba(255, 253, 249, 0.98);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  border: 1.5px solid rgba(212, 175, 55, 0.65);
+  box-shadow:
+    0 24px 64px rgba(12, 5, 2, 0.52),
+    0 4px 20px rgba(0, 0, 0, 0.24);
+  background: #FFF9F0;
   margin: auto;
   pointer-events: auto;
   z-index: 10022 !important;
-  transition: width 0.28s cubic-bezier(0.16, 1, 0.3, 1), height 0.28s cubic-bezier(0.16, 1, 0.3, 1), border-radius 0.2s ease, box-shadow 0.28s ease;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
 }
 
 .aura-ai-panel-full .aura-ai-header {
@@ -11710,21 +11701,20 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   50% { transform: scale(1.15); opacity: 0.8; }
 }
 
-/* Header */
+/* Header — Signature Dark Espresso-Mahogany & Antique Gold */
 .aura-ai-header {
-  background: #542B19;
+  background: linear-gradient(135deg, #2b1408 0%, #1a0b03 100%);
   color: #FFF9F0;
   padding: 8px 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  border-bottom: 1px solid #C69A45;
+  border-bottom: 1.5px solid rgba(212, 175, 55, 0.6);
   user-select: none;
   touch-action: none;
   -webkit-user-select: none;
-  will-change: transform;
-  transition: background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background 0.18s ease, border-color 0.18s ease;
 }
 
 .aura-ai-header-draggable {
@@ -11739,7 +11729,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 .aura-ai-panel-drag-cue {
-  color: rgba(198, 154, 69, 0.55);
+  color: rgba(212, 175, 55, 0.65);
   display: flex;
   align-items: center;
   margin-right: -4px;
@@ -11747,7 +11737,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 .aura-ai-header:hover .aura-ai-panel-drag-cue {
-  color: #C69A45;
+  color: #e7c36a;
 }
 
 .aura-ai-header-left {
@@ -11760,45 +11750,46 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 .aura-ai-avatar {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 8px;
-  background: #702A20;
-  border: 1px solid #C69A45;
+  background: linear-gradient(135deg, #8c2b10 0%, #52170a 100%);
+  border: 1.2px solid #d4af37;
   color: #FFF9F0;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  transition: transform 0.18s ease, border-color 0.18s ease;
 }
 
-/* AI Panditji Mode Styles */
+/* AI Panditji Mode Styles — Imperial Maroon & Gold */
 .aura-ai-header-panditji,
 .aura-ai-chat-topbar.is-panditji {
-  background: #702A20 !important;
-  border-bottom: 1px solid #C69A45 !important;
+  background: linear-gradient(135deg, #5c1c12 0%, #2a0c06 100%) !important;
+  border-bottom: 1.5px solid #d4af37 !important;
 }
 
 .aura-ai-avatar-panditji {
-  background: #542B19 !important;
-  border: 1px solid #C69A45 !important;
-  color: #FFF9F0 !important;
+  background: linear-gradient(135deg, #d4af37 0%, #9a7014 100%) !important;
+  border: 1.2px solid #fce38a !important;
+  color: #1d0c05 !important;
 }
 
 .aura-ai-badge-panditji {
-  background: rgba(198, 154, 69, 0.2) !important;
-  color: #FFF9F0 !important;
-  border: 1px solid rgba(198, 154, 69, 0.55) !important;
+  background: rgba(212, 175, 55, 0.2) !important;
+  color: #fce38a !important;
+  border: 1px solid rgba(212, 175, 55, 0.55) !important;
 }
 
 .aura-ai-mode-bar {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   padding: 5px 8px;
-  background: #FFF9F0;
-  border-bottom: 1px solid #E9D9C5;
+  background: #210e05;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.32);
 }
 
 .aura-ai-mode-btn {
@@ -11807,21 +11798,22 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   align-items: center;
   justify-content: center;
   gap: 5px;
-  padding: 5px 8px;
+  padding: 6px 10px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   border-radius: 8px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: #887565;
+  border: 1px solid rgba(212, 175, 55, 0.16);
+  background: rgba(255, 249, 240, 0.04);
+  color: #cbb59d;
   cursor: pointer;
   position: relative;
-  transition: color 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.12s ease;
 }
 
 .aura-ai-mode-btn:hover {
-  background: rgba(198, 154, 69, 0.12);
-  color: #542B19;
+  background: rgba(212, 175, 55, 0.14);
+  color: #FFF9F0;
+  border-color: rgba(212, 175, 55, 0.4);
 }
 
 .aura-ai-mode-btn:active {
@@ -11829,17 +11821,14 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 }
 
 .aura-ai-mode-btn.active {
+  background: linear-gradient(135deg, #7c2718 0%, #4b150c 100%);
+  border-color: #d4af37;
   color: #FFF9F0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.32);
 }
 
 .aura-ai-mode-active-pill {
-  position: absolute;
-  inset: 0;
-  border-radius: 8px;
-  background: #542B19;
-  border: 1px solid #C69A45;
-  box-shadow: 0 1px 4px rgba(84, 43, 25, 0.18);
-  z-index: 1;
+  display: none;
 }
 
 .aura-ai-mode-bar-page {
@@ -13320,8 +13309,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
 /* Footer Input */
 .aura-ai-footer {
   padding: 7px 9px;
-  background: #FFFFFF;
-  border-top: 1px solid #E9D9C5;
+  background: #FFFDF8;
+  border-top: 1.5px solid #e5d1b6;
 }
 
 .aura-ai-input-box {
@@ -13329,15 +13318,15 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   align-items: center;
   gap: 6px;
   background: #FFF9F0;
-  border: 1px solid #E9D9C5;
-  border-radius: 10px;
+  border: 1.2px solid #dec6a7;
+  border-radius: 11px;
   padding: 3px 5px 3px 10px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .aura-ai-input-box:focus-within {
-  border-color: #C69A45;
-  box-shadow: 0 0 0 2px rgba(198, 154, 69, 0.18);
+  border-color: #d4af37;
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.2);
   background: #FFFFFF;
 }
 
@@ -13346,22 +13335,22 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   border: none;
   background: transparent;
   font-size: 12px;
-  color: #542B19;
+  color: #2b1408;
   outline: none;
 }
 
 .aura-ai-send-btn {
-  background: #702A20;
-  border: 1px solid #C69A45;
+  background: linear-gradient(135deg, #7c2718 0%, #4b150c 100%);
+  border: 1px solid #d4af37;
   color: #FFF9F0;
   width: 28px;
   height: 28px;
-  border-radius: 7px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.18s ease;
+  transition: transform 0.14s ease, background 0.18s ease;
 }
 
 .aura-ai-send-btn:hover:not(:disabled) {
@@ -13562,23 +13551,22 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3) > section#abou
   line-height: 1.4;
 }
 
-/* Center Chat in Page - Part 4 Design System */
+/* Center Chat in Page - Signature Dark Espresso & Gold Trim */
 .aura-ai-main-chat {
   background: #FFF9F0;
-  border: 1px solid #E9D9C5;
+  border: 1.5px solid rgba(212, 175, 55, 0.55);
   border-radius: 18px;
-  box-shadow: 0 12px 36px rgba(84, 43, 25, 0.1);
+  box-shadow: 0 14px 36px rgba(26, 11, 3, 0.14);
   display: flex;
   flex-direction: column;
   height: min(820px, 84vh);
   max-height: 88vh;
   overflow: hidden;
-  transition: all 0.24s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .aura-ai-chat-topbar {
-  background: #542B19;
-  border-bottom: 1px solid #C69A45;
+  background: linear-gradient(135deg, #2b1408 0%, #1a0b03 100%);
+  border-bottom: 1.5px solid rgba(212, 175, 55, 0.6);
   color: #FFF9F0;
   padding: 10px 14px;
   display: flex;
@@ -18694,21 +18682,38 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 }
 
 .aura-instant-window-in > .aura-ai-panel {
-  animation: auraInstantWindowIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: auraInstantWindowIn 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .aura-instant-fade-in {
-  animation: auraInstantFadeIn 0.18s ease-out both;
+  animation: auraInstantFadeIn 0.16s ease-out both;
+}
+
+/* GPU-Only Zero-Lag Slide/Fade Animation */
+@keyframes auraGpuSlideIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.aura-gpu-slide-in {
+  animation: auraGpuSlideIn 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
 }
 
 /* ==========================================================================
-   5. AURA AI + AI PANDITJI PREMIUM REDESIGN (Part 1 - Part 6)
-   Palette: Bg #FFF9F0 | Card #FFFFFF | Brown #542B19 | Maroon #702A20
-            Gold #C69A45 | Border #E9D9C5 | Secondary #887565
+   5. AURA AI + AI PANDITJI PREMIUM REDESIGN (Dark Espresso & Antique Gold)
+   Palette: Espresso #1d0c05/#2b1408 | Maroon #702A20 | Gold #d4af37/#e7c36a
+            Surface #FFF9F0/#FFFFFF | Border #E9D9C5
    ========================================================================== */
 
 .aura-ai-ios-grabber-wrap.is-panditji .aura-ai-ios-grabber {
-  background: rgba(198, 154, 69, 0.72);
+  background: rgba(212, 175, 55, 0.78);
 }
 
 .aura-ai-header-back-btn {
@@ -18719,18 +18724,18 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   padding: 0 7px 0 4px;
   border-radius: 7px;
   background: rgba(255, 249, 240, 0.1);
-  border: 1px solid rgba(233, 217, 197, 0.24);
+  border: 1px solid rgba(212, 175, 55, 0.35);
   color: #FFF9F0;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background-color 0.18s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.12s ease;
 }
 
 .aura-ai-header-back-btn:hover {
-  background: rgba(198, 154, 69, 0.24);
-  border-color: #C69A45;
+  background: rgba(212, 175, 55, 0.24);
+  border-color: #d4af37;
 }
 
 .aura-ai-header-back-btn:active {
@@ -18774,6 +18779,508 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   height: min(860px, 88vh);
 }
 
+/* ==========================================================================
+   AuraCommandDock (4-Option Dark Royal Segmented Bar + Expansion Sheet)
+   ========================================================================== */
+.aura-dock-root {
+  position: relative;
+  z-index: 30;
+}
+
+.aura-dock-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  padding: 6px 8px;
+  background: linear-gradient(180deg, #291308 0%, #1d0c05 100%);
+  border-bottom: 1.5px solid rgba(212, 175, 55, 0.42);
+}
+
+.aura-dock-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 5px 4px;
+  border-radius: 9px;
+  background: rgba(255, 249, 240, 0.06);
+  border: 1px solid rgba(212, 175, 55, 0.24);
+  color: #FFF9F0;
+  cursor: pointer;
+  transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.12s ease;
+}
+
+.aura-dock-tab:hover {
+  background: rgba(212, 175, 55, 0.14);
+  border-color: rgba(212, 175, 55, 0.6);
+}
+
+.aura-dock-tab:active {
+  transform: scale(0.97);
+}
+
+.aura-dock-tab.is-open {
+  background: linear-gradient(135deg, #7c2718 0%, #4b150c 100%);
+  border-color: #e7c36a;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.32);
+}
+
+.aura-dock-tab-top {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.aura-dock-tab-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #e7c36a;
+  flex-shrink: 0;
+}
+
+.aura-dock-tab.is-open .aura-dock-tab-ico {
+  color: #fce38a;
+}
+
+.aura-dock-tab-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #FFF9F0;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aura-dock-tab-check {
+  color: #34d399;
+  flex-shrink: 0;
+}
+
+.aura-dock-tab-caret {
+  color: rgba(231, 195, 106, 0.78);
+  flex-shrink: 0;
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.aura-dock-tab-caret.is-open {
+  transform: rotate(180deg);
+  color: #fce38a;
+}
+
+.aura-dock-tab-hint {
+  font-size: 9px;
+  font-weight: 600;
+  color: #d4b898;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.aura-dock-tab.is-open .aura-dock-tab-hint {
+  color: #f3d88b;
+}
+
+/* Bounded Floating Popover Sheet */
+.aura-dock-sheet {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 8px;
+  right: 8px;
+  z-index: 45;
+  max-height: min(62vh, 420px);
+  display: flex;
+  flex-direction: column;
+  background: #FFFDF8;
+  border: 1.5px solid #d4af37;
+  border-radius: 14px;
+  box-shadow: 0 18px 40px rgba(20, 8, 2, 0.36), 0 4px 12px rgba(20, 8, 2, 0.16);
+  overflow: hidden;
+  animation: auraGpuSlideIn 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+}
+
+.aura-dock-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 11px;
+  background: linear-gradient(135deg, #2b1408 0%, #1a0b03 100%);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.45);
+  color: #FFF9F0;
+}
+
+.aura-dock-sheet-head-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.aura-dock-sheet-head-ico {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(212, 175, 55, 0.18);
+  border: 1px solid rgba(212, 175, 55, 0.55);
+  color: #f3d88b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.aura-dock-sheet-head-meta {
+  min-width: 0;
+}
+
+.aura-dock-sheet-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #FFF9F0;
+  line-height: 1.2;
+}
+
+.aura-dock-sheet-sub {
+  font-size: 10px;
+  color: #e7c36a;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aura-dock-sheet-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  border-radius: 7px;
+  background: rgba(255, 249, 240, 0.1);
+  border: 1px solid rgba(212, 175, 55, 0.36);
+  color: #FFF9F0;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease;
+}
+
+.aura-dock-sheet-close:hover {
+  background: rgba(212, 175, 55, 0.25);
+}
+
+.aura-dock-sheet-body {
+  padding: 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  background: #FFF9F0;
+}
+
+.aura-dock-primary-cta {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 11px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #6e2316 0%, #3d1109 100%);
+  border: 1px solid #d4af37;
+  color: #FFF9F0;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(43, 20, 8, 0.18);
+  transition: transform 0.14s ease, filter 0.15s ease;
+}
+
+.aura-dock-primary-cta:hover {
+  filter: brightness(1.06);
+}
+
+.aura-dock-primary-cta:active {
+  transform: scale(0.985);
+}
+
+.aura-dock-primary-cta-left {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.aura-dock-primary-cta-ico {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: rgba(212, 175, 55, 0.2);
+  border: 1px solid rgba(212, 175, 55, 0.6);
+  color: #fce38a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.aura-dock-group-box {
+  background: #FFFFFF;
+  border: 1px solid #E9D9C5;
+  border-radius: 11px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aura-dock-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #542B19;
+}
+
+.aura-dock-active-sess {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #2b1408 0%, #1d0c05 100%);
+  border: 1px solid rgba(212, 175, 55, 0.5);
+  color: #FFF9F0;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.aura-dock-active-badge {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: #d4af37;
+  color: #1d0c05;
+  font-size: 9.5px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.aura-dock-sess-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #FFF9F0;
+  border: 1px solid #E9D9C5;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.aura-dock-sess-row:hover {
+  background: #FFFFFF;
+  border-color: #d4af37;
+}
+
+.aura-dock-tile {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 9px;
+  border-radius: 10px;
+  background: #FFFFFF;
+  border: 1px solid #E9D9C5;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, transform 0.14s ease, box-shadow 0.16s ease;
+}
+
+.aura-dock-tile:hover {
+  border-color: #d4af37;
+  box-shadow: 0 3px 10px rgba(84, 43, 25, 0.08);
+  transform: translateY(-1px);
+}
+
+.aura-dock-tile:active {
+  transform: scale(0.985);
+}
+
+.aura-dock-tile.is-selected {
+  border-color: #702A20;
+  background: #fff6ec;
+}
+
+.aura-dock-tile-ico {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: #FFF9F0;
+  border: 1px solid #E9D9C5;
+  color: #702A20;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.aura-dock-tile-ico.is-active {
+  background: linear-gradient(135deg, #2b1408 0%, #1d0c05 100%);
+  border-color: #d4af37;
+  color: #f3d88b;
+}
+
+.aura-dock-tile-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #2b1408;
+  line-height: 1.25;
+}
+
+.aura-dock-tile-desc {
+  font-size: 10px;
+  color: #7a6657;
+  line-height: 1.3;
+  margin-top: 1px;
+}
+
+.aura-dock-option-card {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  background: #FFFFFF;
+  border: 1px solid #E9D9C5;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.12s ease;
+}
+
+.aura-dock-option-card:hover {
+  border-color: #d4af37;
+}
+
+.aura-dock-option-card.is-active {
+  background: linear-gradient(135deg, #2b1408 0%, #1d0c05 100%);
+  border-color: #d4af37;
+}
+
+.aura-dock-option-card.is-active .aura-dock-tile-title {
+  color: #FFF9F0;
+}
+
+.aura-dock-option-card.is-active .aura-dock-tile-desc {
+  color: #e5d5c3;
+}
+
+.aura-dock-check-badge {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: #d4af37;
+  color: #1d0c05;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.aura-dock-kundali-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #2b1408 0%, #1d0c05 100%);
+  border: 1px solid #d4af37;
+}
+
+.aura-dock-kundali-edit,
+.aura-dock-kundali-del {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.aura-dock-kundali-edit {
+  background: rgba(212, 175, 55, 0.22);
+  border: 1px solid #d4af37;
+  color: #fce38a;
+}
+
+.aura-dock-kundali-del {
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(252, 165, 165, 0.5);
+  color: #fecaca;
+}
+
+.aura-dock-empty-note {
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #FFFFFF;
+  border: 1px dashed #d4af37;
+  font-size: 11px;
+  color: #542B19;
+  line-height: 1.4;
+}
+
+.aura-dock-chip-btn {
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: #FFFFFF;
+  border: 1px solid #E9D9C5;
+  color: #542B19;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.aura-dock-chip-btn:hover {
+  background: #2b1408;
+  border-color: #d4af37;
+  color: #FFF9F0;
+}
+
+.aura-dock-window-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #2b1408 0%, #1d0c05 100%);
+  border: 1px solid #d4af37;
+  color: #FFF9F0;
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 /* Part 2: Quick AI Assistant Welcome Card & Chips */
 .aura-quick-welcome-wrap {
   display: flex;
@@ -18785,28 +19292,28 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 
 .aura-quick-assist-card {
   background: #FFFFFF;
-  border: 1px solid #E9D9C5;
+  border: 1px solid #dec6a7;
   border-radius: 14px;
-  padding: 10px;
-  box-shadow: 0 2px 10px rgba(84, 43, 25, 0.05);
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(26, 11, 3, 0.08);
 }
 
 .aura-quick-assist-head {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 2px 2px 8px;
-  border-bottom: 1px solid #E9D9C5;
-  margin-bottom: 8px;
+  gap: 8px;
+  padding: 9px 11px;
+  background: linear-gradient(135deg, #2b1408 0%, #1a0b03 100%);
+  border-bottom: 1.5px solid #d4af37;
 }
 
 .aura-quick-assist-head-icon {
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
-  background: #FFF9F0;
-  border: 1px solid #E9D9C5;
-  color: #C69A45;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(212, 175, 55, 0.2);
+  border: 1px solid #d4af37;
+  color: #fce38a;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -18815,16 +19322,26 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 
 .aura-quick-assist-title {
   margin: 0;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 700;
-  color: #542B19;
-  line-height: 1.3;
+  color: #FFF9F0;
+  line-height: 1.25;
+}
+
+.aura-quick-assist-subtitle {
+  margin: 1px 0 0;
+  font-size: 10px;
+  font-weight: 500;
+  color: #e7c36a;
+  line-height: 1.2;
 }
 
 .aura-quick-assist-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  padding: 9px;
+  background: #FFFDF9;
 }
 
 .aura-quick-assist-row {
@@ -18833,20 +19350,20 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 8px 9px;
   background: #FFF9F0;
-  border: 1px solid #E9D9C5;
+  border: 1px solid #e6d4bd;
   border-radius: 10px;
-  color: #542B19;
+  color: #2b1408;
   text-align: left;
   cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.16s ease, border-color 0.16s ease;
 }
 
 .aura-quick-assist-row:hover {
   background: #FFFFFF;
-  border-color: #C69A45;
-  transform: translateX(2px);
+  border-color: #d4af37;
+  transform: translate3d(2px, 0, 0);
 }
 
 .aura-quick-assist-row:active {
@@ -18862,42 +19379,60 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 }
 
 .aura-quick-assist-row-icon {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  background: #FFFFFF;
-  border: 1px solid #E9D9C5;
-  color: #702A20;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #2b1408 0%, #1d0c05 100%);
+  border: 1px solid rgba(212, 175, 55, 0.65);
+  color: #f3d88b;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
+.aura-quick-assist-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
 .aura-quick-assist-row-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #542B19;
-  line-height: 1.3;
+  font-size: 11.8px;
+  font-weight: 700;
+  color: #2b1408;
+  line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.aura-quick-assist-row-detail {
+  font-size: 10px;
+  font-weight: 500;
+  color: #7d6859;
+  line-height: 1.25;
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .aura-quick-assist-row-arrow {
-  color: #887565;
+  color: #8c2b10;
   flex-shrink: 0;
-  transition: transform 0.2s ease, color 0.2s ease;
+  transition: transform 0.16s ease, color 0.16s ease;
 }
 
 .aura-quick-assist-row:hover .aura-quick-assist-row-arrow {
-  color: #702A20;
-  transform: translateX(2px);
+  color: #2b1408;
+  transform: translate3d(2px, 0, 0);
 }
 
 .aura-quick-assist-prompt {
   margin: 0;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11.8px;
+  font-weight: 700;
   color: #542B19;
   line-height: 1.4;
   padding: 2px 2px 0;
@@ -18914,22 +19449,26 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   align-items: center;
   gap: 5px;
   background: #FFFFFF;
-  border: 1px solid #E9D9C5;
+  border: 1px solid #dec6a7;
   border-radius: 10px;
   padding: 6px 10px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: #542B19;
+  font-size: 11px;
+  font-weight: 700;
+  color: #2b1408;
   text-align: left;
   cursor: pointer;
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.18s ease, background-color 0.18s ease;
+  transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease;
 }
 
 .aura-quick-suggest-chip:hover {
-  background: #FFF9F0;
-  border-color: #C69A45;
-  color: #702A20;
-  transform: translateY(-1px);
+  background: linear-gradient(135deg, #2b1408 0%, #1d0c05 100%);
+  border-color: #d4af37;
+  color: #FFF9F0;
+  transform: translate3d(0, -1px, 0);
+}
+
+.aura-quick-suggest-chip:hover svg {
+  color: #f3d88b;
 }
 
 .aura-quick-suggest-chip:active {
@@ -18940,10 +19479,10 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 .aura-suggest-accordion {
   margin-top: 4px;
   background: #FFFFFF;
-  border: 1px solid #E9D9C5;
+  border: 1px solid #dec6a7;
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 1px 4px rgba(84, 43, 25, 0.04);
+  box-shadow: 0 2px 8px rgba(43, 20, 8, 0.06);
 }
 
 .aura-suggest-accordion-trigger {
@@ -18953,34 +19492,34 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   justify-content: space-between;
   gap: 8px;
   padding: 8px 10px;
-  background: #FFF9F0;
+  background: linear-gradient(90deg, #f8efe1 0%, #fffaf2 100%);
   border: none;
-  color: #542B19;
+  color: #2b1408;
   cursor: pointer;
   text-align: left;
-  transition: background-color 0.18s ease;
+  transition: background-color 0.16s ease;
 }
 
 .aura-suggest-accordion-trigger:hover {
-  background: #f9efe1;
+  background: #f3e4cd;
 }
 
 .aura-suggest-accordion-heading {
   font-size: 11.5px;
   font-weight: 700;
-  color: #542B19;
+  color: #2b1408;
   line-height: 1.3;
 }
 
 .aura-suggest-accordion-chevron {
-  color: #887565;
+  color: #702A20;
   flex-shrink: 0;
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.18s ease;
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.16s ease;
 }
 
 .aura-suggest-accordion-chevron.is-open {
   transform: rotate(180deg);
-  color: #702A20;
+  color: #2b1408;
 }
 
 .aura-suggest-accordion-list {
@@ -19000,18 +19539,18 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   gap: 8px;
   padding: 7px 9px;
   background: #FFF9F0;
-  border: 1px solid #E9D9C5;
+  border: 1px solid #e6d4bd;
   border-radius: 9px;
-  color: #542B19;
+  color: #2b1408;
   text-align: left;
   cursor: pointer;
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.18s ease, background-color 0.18s ease;
+  transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.16s ease, background-color 0.16s ease;
 }
 
 .aura-suggest-row:hover {
   background: #FFFFFF;
-  border-color: #C69A45;
-  transform: translateX(2px);
+  border-color: #d4af37;
+  transform: translate3d(2px, 0, 0);
 }
 
 .aura-suggest-row:active {
@@ -19030,9 +19569,9 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  background: #FFFFFF;
-  border: 1px solid #E9D9C5;
-  color: #702A20;
+  background: #2b1408;
+  border: 1px solid #d4af37;
+  color: #f3d88b;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -19042,20 +19581,20 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 .aura-suggest-row-text {
   font-size: 11.5px;
   font-weight: 600;
-  color: #542B19;
+  color: #2b1408;
   line-height: 1.3;
   word-break: break-word;
 }
 
 .aura-suggest-row-arrow {
-  color: #887565;
+  color: #8c2b10;
   flex-shrink: 0;
 }
 
-/* Part 3 A - E: AI Panditji Workspace Controls & Active Kundli */
+/* Part 3 A - E: AI Panditji Workspace Controls & Active Kundli (Dark Royal Bar) */
 .aura-pandit-top-area {
-  background: #FFF9F0;
-  border-bottom: 1px solid #E9D9C5;
+  background: linear-gradient(180deg, #2b1408 0%, #1d0c05 100%);
+  border-bottom: 1.5px solid rgba(212, 175, 55, 0.5);
   padding: 7px 8px;
   display: flex;
   flex-direction: column;
@@ -19084,16 +19623,21 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   min-height: 32px;
   padding: 4px 6px;
   border-radius: 8px;
-  background: #FFFFFF;
-  border: 1px solid #E9D9C5;
-  color: #542B19;
+  background: rgba(255, 249, 240, 0.08);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  color: #FFF9F0;
   font-size: 10.5px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.18s ease, background-color 0.18s ease;
+  transition: transform 0.14s ease, border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.aura-pandit-ctrl-btn svg {
+  color: #e7c36a;
+  flex-shrink: 0;
 }
 
 .aura-pandit-ctrl-btn span {
@@ -19102,8 +19646,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 }
 
 .aura-pandit-ctrl-btn:hover {
-  border-color: #C69A45;
-  background: #FFF9F0;
+  border-color: #d4af37;
+  background: rgba(212, 175, 55, 0.16);
 }
 
 .aura-pandit-ctrl-btn:active {
@@ -19111,15 +19655,17 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 }
 
 .aura-pandit-ctrl-btn-primary {
-  background: #702A20;
-  border-color: #702A20;
+  background: linear-gradient(135deg, #7c2718 0%, #4b150c 100%);
+  border-color: #d4af37;
   color: #FFF9F0;
 }
 
+.aura-pandit-ctrl-btn-primary svg {
+  color: #fce38a;
+}
+
 .aura-pandit-ctrl-btn-primary:hover {
-  background: #542B19;
-  border-color: #C69A45;
-  color: #FFF9F0;
+  filter: brightness(1.08);
 }
 
 .aura-pandit-settings-toggle {
@@ -19130,17 +19676,18 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   gap: 6px;
   padding: 5px 8px;
   border-radius: 8px;
-  background: #FFFFFF;
-  border: 1px solid #E9D9C5;
-  color: #542B19;
+  background: rgba(255, 249, 240, 0.06);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  color: #e9d9c5;
   font-size: 10.5px;
   cursor: pointer;
-  transition: border-color 0.18s ease, background-color 0.18s ease;
+  transition: border-color 0.16s ease, background-color 0.16s ease;
 }
 
 .aura-pandit-settings-toggle:hover,
 .aura-pandit-settings-toggle.is-open {
-  border-color: #C69A45;
+  border-color: #d4af37;
+  background: rgba(212, 175, 55, 0.12);
 }
 
 .aura-pandit-settings-summary {
@@ -19151,12 +19698,17 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #887565;
+  color: #d4b898;
   font-weight: 500;
 }
 
+.aura-pandit-settings-summary svg {
+  color: #e7c36a;
+  flex-shrink: 0;
+}
+
 .aura-pandit-settings-summary strong {
-  color: #542B19;
+  color: #fce38a;
   font-weight: 700;
 }
 
@@ -19164,15 +19716,25 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   opacity: 0.55;
 }
 
+.aura-pandit-settings-caret {
+  color: #e7c36a;
+  flex-shrink: 0;
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.aura-pandit-settings-caret.is-open {
+  transform: rotate(180deg);
+}
+
 .aura-pandit-settings-drawer {
-  background: #FFFFFF;
-  border: 1px solid #E9D9C5;
+  background: #FFFDF8;
+  border: 1.5px solid #d4af37;
   border-radius: 10px;
   padding: 8px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  box-shadow: 0 6px 16px rgba(84, 43, 25, 0.08);
+  box-shadow: 0 10px 24px rgba(15, 6, 2, 0.28);
   overflow: hidden;
 }
 
@@ -19188,7 +19750,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   gap: 4px;
   font-size: 10px;
   font-weight: 700;
-  color: #887565;
+  color: #702A20;
   letter-spacing: 0.01em;
 }
 
@@ -19206,16 +19768,16 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   border-radius: 7px;
   background: #FFF9F0;
   border: 1px solid #E9D9C5;
-  color: #542B19;
+  color: #2b1408;
   font-size: 10.5px;
   font-weight: 600;
   cursor: pointer;
   max-width: 100%;
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  transition: transform 0.14s ease, background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
 }
 
 .aura-pandit-pill-btn:hover {
-  border-color: #C69A45;
+  border-color: #d4af37;
 }
 
 .aura-pandit-pill-btn:active {
@@ -19223,14 +19785,15 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 }
 
 .aura-pandit-pill-btn.is-active {
-  background: #542B19;
-  border-color: #542B19;
+  background: linear-gradient(135deg, #2b1408 0%, #1d0c05 100%);
+  border-color: #d4af37;
   color: #FFF9F0;
 }
 
 .aura-pandit-pill-tools {
-  border-color: #C69A45;
+  border-color: #d4af37;
   color: #702A20;
+  background: #fff7eb;
 }
 
 /* Part 3 G: Astrology Quick Topics */
@@ -19243,38 +19806,36 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 
 .aura-pandit-topic-chip {
   background: #FFFFFF;
-  border: 1px solid #E9D9C5;
+  border: 1px solid #dec6a7;
   border-radius: 9px;
   padding: 5px 10px;
   font-size: 11px;
-  font-weight: 600;
-  color: #542B19;
+  font-weight: 700;
+  color: #2b1408;
   cursor: pointer;
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.18s ease, background-color 0.18s ease;
+  transition: transform 0.14s ease, border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease;
 }
 
 .aura-pandit-topic-chip:hover {
-  background: #702A20;
-  border-color: #702A20;
+  background: linear-gradient(135deg, #7c2718 0%, #4b150c 100%);
+  border-color: #d4af37;
   color: #FFF9F0;
-  transform: translateY(-1px);
+  transform: translate3d(0, -1px, 0);
 }
 
 .aura-pandit-topic-chip:active {
   transform: scale(0.97);
 }
 
-/* Part 3 E: Active Kundli Card */
+/* Part 3 E: Active Kundli Card — Dark Espresso Header & Structured Grid */
 .aura-active-kundali-card {
   background: #FFFFFF;
-  border: 1px solid #E9D9C5;
-  border-left: 3px solid #C69A45;
+  border: 1px solid #d4af37;
   border-radius: 10px;
-  padding: 7px 9px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  box-shadow: 0 1px 4px rgba(84, 43, 25, 0.05);
+  box-shadow: 0 3px 10px rgba(15, 6, 2, 0.24);
 }
 
 .aura-active-kundali-header {
@@ -19283,6 +19844,9 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   justify-content: space-between;
   gap: 6px;
   flex-wrap: wrap;
+  padding: 5px 8px;
+  background: linear-gradient(135deg, #3a190a 0%, #240f05 100%);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.4);
 }
 
 .aura-active-kundali-badge-wrap {
@@ -19298,16 +19862,16 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   width: 18px;
   height: 18px;
   border-radius: 5px;
-  background: #702A20;
-  color: #FFF9F0;
+  background: #d4af37;
+  color: #1d0c05;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .aura-active-kundali-label {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
-  color: #542B19;
+  color: #FFF9F0;
 }
 
 .aura-active-kundali-actions {
@@ -19320,32 +19884,34 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 3px 7px;
+  padding: 2.5px 7px;
   border-radius: 6px;
   font-size: 10px;
   font-weight: 600;
   cursor: pointer;
-  border: 1px solid #E9D9C5;
-  background: #FFF9F0;
-  color: #542B19;
-  transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  background: rgba(255, 249, 240, 0.1);
+  color: #FFF9F0;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
 }
 
 .aura-active-kundali-btn-edit:hover {
-  border-color: #C69A45;
-  color: #702A20;
+  background: rgba(212, 175, 55, 0.25);
+  border-color: #e7c36a;
 }
 
 .aura-active-kundali-btn-del:hover {
-  background: #fef2f2;
+  background: rgba(220, 38, 38, 0.85);
   border-color: #fca5a5;
-  color: #b91c1c;
+  color: #ffffff;
 }
 
 .aura-active-kundali-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px 10px;
+  padding: 6px 8px;
+  background: #FFFDF9;
 }
 
 .aura-active-kundali-item {
@@ -19354,16 +19920,23 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   gap: 4px;
   min-width: 0;
   font-size: 10.5px;
-  color: #542B19;
+  color: #2b1408;
 }
 
 .aura-active-kundali-ico {
+  color: #8c2b10;
+  flex-shrink: 0;
+}
+
+.aura-active-kundali-key {
+  font-weight: 600;
   color: #887565;
   flex-shrink: 0;
 }
 
 .aura-active-kundali-val {
-  font-weight: 600;
+  font-weight: 700;
+  color: #2b1408;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -19372,20 +19945,20 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 /* Part 3 F: Product Recommendation Cards */
 .aura-rec-prod-card {
   background: #FFFFFF;
-  border: 1px solid #E9D9C5;
+  border: 1px solid #dec6a7;
   border-radius: 11px;
   padding: 8px;
   display: flex;
   flex-direction: column;
   gap: 7px;
-  box-shadow: 0 1px 4px rgba(84, 43, 25, 0.05);
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 2px 6px rgba(43, 20, 8, 0.06);
+  transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .aura-rec-prod-card:hover {
-  transform: translateY(-1px);
-  border-color: #C69A45;
-  box-shadow: 0 4px 12px rgba(84, 43, 25, 0.09);
+  transform: translate3d(0, -1px, 0);
+  border-color: #d4af37;
+  box-shadow: 0 6px 14px rgba(43, 20, 8, 0.1);
 }
 
 .aura-rec-prod-card:active {
@@ -19452,7 +20025,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   margin: 0;
   font-size: 12px;
   font-weight: 700;
-  color: #542B19;
+  color: #2b1408;
   line-height: 1.3;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -19543,7 +20116,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   cursor: pointer;
   text-decoration: none;
   white-space: nowrap;
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.18s ease, border-color 0.18s ease;
+  transition: transform 0.14s ease, background-color 0.16s ease, border-color 0.16s ease;
 }
 
 .aura-rec-btn:active:not(:disabled) {
@@ -19558,18 +20131,18 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 .aura-rec-btn-view {
   background: #FFF9F0;
   border: 1px solid #E9D9C5;
-  color: #542B19;
+  color: #2b1408;
 }
 
 .aura-rec-btn-view:hover {
-  border-color: #C69A45;
+  border-color: #d4af37;
   color: #702A20;
 }
 
 .aura-rec-btn-buy {
   background: #FFFFFF;
-  border: 1px solid #C69A45;
-  color: #542B19;
+  border: 1px solid #d4af37;
+  color: #2b1408;
 }
 
 .aura-rec-btn-buy:hover:not(:disabled) {
@@ -19578,14 +20151,13 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 }
 
 .aura-rec-btn-add {
-  background: #702A20;
-  border: 1px solid #702A20;
+  background: linear-gradient(135deg, #7c2718 0%, #4b150c 100%);
+  border: 1px solid #d4af37;
   color: #FFF9F0;
 }
 
 .aura-rec-btn-add:hover:not(:disabled) {
-  background: #542B19;
-  border-color: #542B19;
+  filter: brightness(1.08);
 }
 
 .aura-rec-btn-add.is-added {
@@ -19596,9 +20168,9 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 /* Birth Details Drawer */
 .aura-birth-form-drawer {
   background: #FFFFFF;
-  border-bottom: 1px solid #C69A45;
+  border-bottom: 1.5px solid #d4af37;
   padding: 10px 12px;
-  box-shadow: 0 6px 18px rgba(84, 43, 25, 0.08);
+  box-shadow: 0 8px 20px rgba(26, 11, 3, 0.14);
   position: relative;
   z-index: 25;
   overflow: hidden;
@@ -19620,7 +20192,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   gap: 6px;
   font-size: 11.5px;
   font-weight: 700;
-  color: #542B19;
+  color: #2b1408;
 }
 
 .aura-birth-form-close {
@@ -19645,7 +20217,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   display: block;
   font-size: 10px;
   font-weight: 700;
-  color: #542B19;
+  color: #2b1408;
   margin-bottom: 2px;
 }
 
@@ -19656,31 +20228,31 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   border-radius: 7px;
   font-size: 11.5px;
   background: #FFF9F0;
-  color: #542B19;
+  color: #2b1408;
   outline: none;
   box-sizing: border-box;
 }
 
 .aura-birth-form-input:focus {
-  border-color: #C69A45;
+  border-color: #d4af37;
   background: #FFFFFF;
 }
 
 .aura-birth-form-submit {
   width: 100%;
   padding: 7px 12px;
-  background: #702A20;
+  background: linear-gradient(135deg, #7c2718 0%, #4b150c 100%);
   color: #FFF9F0;
-  border: 1px solid #C69A45;
+  border: 1px solid #d4af37;
   border-radius: 8px;
   font-size: 11.5px;
   font-weight: 700;
   cursor: pointer;
-  transition: background-color 0.18s ease, transform 0.18s ease;
+  transition: filter 0.16s ease, transform 0.12s ease;
 }
 
 .aura-birth-form-submit:hover {
-  background: #542B19;
+  filter: brightness(1.08);
 }
 
 /* Kundali Direct Ask Chips */
@@ -19696,7 +20268,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   gap: 4px;
   font-size: 10.5px;
   font-weight: 700;
-  color: #542B19;
+  color: #2b1408;
   margin-bottom: 5px;
 }
 
@@ -19710,7 +20282,7 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #542B19;
+  color: #2b1408;
   font-size: 12px;
   font-weight: 600;
 }
@@ -19747,18 +20319,18 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   gap: 4px;
   padding: 4px 8px;
   border-radius: 7px;
-  border: 1px solid #E9D9C5;
+  border: 1px solid #dec6a7;
   background: #FFFFFF;
-  color: #542B19;
+  color: #2b1408;
   font-size: 10.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.18s ease, background-color 0.18s ease;
+  transition: transform 0.14s ease, border-color 0.16s ease, background-color 0.16s ease;
 }
 
 .aura-ai-msg-action-btn:hover:not(:disabled) {
   background: #FFF9F0;
-  border-color: #C69A45;
+  border-color: #d4af37;
   color: #702A20;
 }
 
@@ -19767,10 +20339,16 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 }
 
 .aura-ai-msg-action-continue {
-  background: #FFF9F0;
-  border-color: #C69A45;
-  color: #702A20;
+  background: linear-gradient(135deg, #2b1408 0%, #1d0c05 100%);
+  border-color: #d4af37;
+  color: #FFF9F0;
   font-weight: 700;
+}
+
+.aura-ai-msg-action-continue:hover:not(:disabled) {
+  background: linear-gradient(135deg, #7c2718 0%, #4b150c 100%);
+  border-color: #e7c36a;
+  color: #FFF9F0;
 }
 
 .aura-ai-msg-action-continue.is-busy {
@@ -19780,8 +20358,8 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 
 .aura-ai-msg-action-share {
   background: #FFFFFF;
-  border-color: #E9D9C5;
-  color: #542B19;
+  border-color: #dec6a7;
+  color: #2b1408;
 }
 
 .aura-ai-jump-bottom-btn {
@@ -19794,18 +20372,18 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   gap: 5px;
   padding: 6px 12px;
   border-radius: 10px;
-  background: #542B19;
+  background: linear-gradient(135deg, #2b1408 0%, #1d0c05 100%);
   color: #FFF9F0;
   font-size: 11px;
   font-weight: 600;
-  border: 1px solid #C69A45;
-  box-shadow: 0 4px 12px rgba(84, 43, 25, 0.25);
+  border: 1px solid #d4af37;
+  box-shadow: 0 4px 12px rgba(26, 11, 3, 0.32);
   cursor: pointer;
-  transition: transform 0.18s ease, background-color 0.18s ease;
+  transition: transform 0.16s ease, filter 0.16s ease;
 }
 
 .aura-ai-jump-bottom-btn:hover {
-  background: #702A20;
+  filter: brightness(1.1);
 }
 
 .aura-ai-msg-user .aura-ai-msg-actions-bar,
@@ -19814,6 +20392,24 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 }
 
 @media (max-width: 480px) {
+  .aura-dock-bar {
+    gap: 4px;
+    padding: 5px 6px;
+  }
+  .aura-dock-tab {
+    padding: 4px 2px;
+    min-height: 40px;
+  }
+  .aura-dock-tab-label {
+    font-size: 10px;
+  }
+  .aura-dock-tab-hint {
+    font-size: 8.5px;
+  }
+  .aura-dock-sheet {
+    left: 5px;
+    right: 5px;
+  }
   .aura-pandit-kundli-controls {
     gap: 3px;
   }
@@ -19868,6 +20464,12 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .aura-gpu-slide-in,
+  .aura-dock-sheet,
+  .aura-instant-window-in > .aura-ai-panel,
+  .aura-instant-fade-in {
+    animation: none !important;
+  }
   .aura-quick-assist-row,
   .aura-quick-suggest-chip,
   .aura-suggest-accordion-chevron,
@@ -19875,6 +20477,10 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
   .aura-pandit-ctrl-btn,
   .aura-pandit-pill-btn,
   .aura-pandit-topic-chip,
+  .aura-pandit-settings-caret,
+  .aura-dock-tab,
+  .aura-dock-tab-caret,
+  .aura-dock-tile,
   .aura-rec-prod-card,
   .aura-rec-btn,
   .aura-ai-msg-action-btn {

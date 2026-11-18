@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronDown,
   ChevronRight,
@@ -11,8 +10,6 @@ import {
   ShoppingBag,
   Compass
 } from "lucide-react";
-
-const PANEL_EASE = [0.16, 1, 0.3, 1];
 
 const QUICK_AI_DEFAULT_SUGGESTIONS = [
   { label: "1-14 मुखी रुद्राक्ष व कीमत", query: "1-14 मुखी रुद्राक्ष की जानकारी और कीमत बताओ", icon: Sparkles },
@@ -115,69 +112,55 @@ export function AuraSuggestedActionsAccordion({
           setIsOpen((prev) => !prev);
         }}
         aria-expanded={isOpen}
-        className="aura-suggest-accordion-trigger"
+        className={`aura-suggest-accordion-trigger ${isOpen ? "is-open" : ""}`}
       >
         <span className="aura-suggest-accordion-heading">
           {!isPandit && (
-            <Search size={12} strokeWidth={2.2} className="shrink-0 text-[#702A20] hidden" aria-hidden="true" />
+            <Search size={12} strokeWidth={2.2} className="shrink-0 text-[#E7C36A] hidden" aria-hidden="true" />
           )}
           <span>{headingText}</span>
         </span>
-        <motion.span
-          animate={{ rotate: isOpen ? 180 : 0 }}
-          transition={{ duration: 0.2, ease: PANEL_EASE }}
-          className="aura-suggest-accordion-chevron"
+        <ChevronDown
+          size={14}
+          strokeWidth={2.3}
+          className={`aura-suggest-accordion-chevron ${isOpen ? "is-open" : ""}`}
           aria-hidden="true"
-        >
-          <ChevronDown size={14} strokeWidth={2.2} />
-        </motion.span>
+        />
       </button>
 
-      <AnimatePresence initial={false}>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2, ease: PANEL_EASE }}
-            className="overflow-hidden"
-          >
-            <div className="aura-suggest-accordion-list">
-              {items.map((item, idx) => {
-                const Icon = item.icon || Sparkles;
-                return (
-                  <motion.button
-                    key={`${item.label}-${idx}`}
-                    type="button"
-                    whileTap={{ scale: 0.985 }}
-                    transition={{ duration: 0.18, ease: PANEL_EASE }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (typeof onSelectSuggestion === "function") {
-                        onSelectSuggestion(item.query || item.label);
-                      }
-                    }}
-                    className="aura-suggest-row"
-                  >
-                    <span className="aura-suggest-row-left">
-                      <span className="aura-suggest-row-icon" aria-hidden="true">
-                        <Icon size={13} strokeWidth={2.1} />
-                      </span>
-                      <span className="aura-suggest-row-text">{item.label}</span>
-                    </span>
-                    <ChevronRight
-                      size={13}
-                      strokeWidth={2.2}
-                      className="aura-suggest-row-arrow"
-                      aria-hidden="true"
-                    />
-                  </motion.button>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {isOpen && (
+        <div className="aura-suggest-accordion-list aura-gpu-slide-in">
+          {items.map((item, idx) => {
+            const Icon = item.icon || Sparkles;
+            return (
+              <button
+                key={`${item.label}-${idx}`}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (typeof onSelectSuggestion === "function") {
+                    onSelectSuggestion(item.query || item.label);
+                  }
+                }}
+                className="aura-suggest-row"
+              >
+                <span className="aura-suggest-row-left">
+                  <span className="aura-suggest-row-icon" aria-hidden="true">
+                    <Icon size={13} strokeWidth={2.1} />
+                  </span>
+                  <span className="aura-suggest-row-text">{item.label}</span>
+                </span>
+                <ChevronRight
+                  size={13}
+                  strokeWidth={2.2}
+                  className="aura-suggest-row-arrow"
+                  aria-hidden="true"
+                />
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

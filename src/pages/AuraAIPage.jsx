@@ -29,7 +29,6 @@ import {
   Minimize2,
   X
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import { Shell } from "../components/Shell";
 import { auraAiClient } from "../lib/auraAiClient";
 import { parseAuraAiPayload, customerSafeAiText, isAuraResponseIncomplete, smartMergeContinuation } from "../lib/auraAiResponse";
@@ -1262,13 +1261,6 @@ export function AuraAIPage() {
                 onClick={() => setMode("standard")}
                 className={`aura-ai-mode-btn ${mode === "standard" ? "active" : ""}`}
               >
-                {mode === "standard" && (
-                  <motion.div
-                    layoutId="aura-page-mode-pill"
-                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                    className="aura-ai-mode-active-pill"
-                  />
-                )}
                 <span className="aura-ai-mode-btn-label">
                   <Sparkles size={12} strokeWidth={2.1} /> Quick AI
                 </span>
@@ -1280,13 +1272,6 @@ export function AuraAIPage() {
                 onClick={() => setMode("panditji")}
                 className={`aura-ai-mode-btn ${mode === "panditji" ? "active" : ""}`}
               >
-                {mode === "panditji" && (
-                  <motion.div
-                    layoutId="aura-page-mode-pill"
-                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                    className="aura-ai-mode-active-pill"
-                  />
-                )}
                 <span className="aura-ai-mode-btn-label">
                   <span>ॐ</span> AI Panditji
                 </span>
@@ -1410,15 +1395,8 @@ export function AuraAIPage() {
             )}
 
             {/* Interactive Kundli Birth Details Form Card */}
-            <AnimatePresence>
-              {showBirthForm && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0, y: -6 }}
-                  animate={{ opacity: 1, height: "auto", y: 0 }}
-                  exit={{ opacity: 0, height: 0, y: -6 }}
-                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                  className="aura-birth-form-drawer"
-                >
+            {showBirthForm && (
+              <div className="aura-birth-form-drawer aura-gpu-slide-in">
                   <div className="aura-birth-form-head">
                     <div className="aura-birth-form-title">
                       <span>ॐ</span>
@@ -1502,19 +1480,16 @@ export function AuraAIPage() {
                       </button>
                     </div>
                   </form>
-                </motion.div>
-              )}
-            </AnimatePresence>
+              </div>
+            )}
 
             {/* Refresh Toast Banner */}
-            <AnimatePresence>
-              {showRefreshToast && (
-                <div className="aura-ai-refresh-toast" style={{ top: '65px' }}>
-                  <Sparkles size={13} className="aura-refresh-spinner" />
-                  <span>Nayi Vedic Consultation shuru ho rahi hai...</span>
-                </div>
-              )}
-            </AnimatePresence>
+            {showRefreshToast && (
+              <div className="aura-ai-refresh-toast aura-gpu-slide-in" style={{ top: '65px' }}>
+                <Sparkles size={13} className="aura-refresh-spinner" />
+                <span>Nayi Vedic Consultation shuru ho rahi hai...</span>
+              </div>
+            )}
 
             {/* Messages Thread with Full History Display & Smooth Refresh Transitions */}
             <div 
@@ -1561,11 +1536,8 @@ export function AuraAIPage() {
                       </div>
                     )}
 
-                    <motion.div 
+                    <div 
                       id={m.id} 
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                       className={`aura-ai-page-msg ${m.sender === "user" ? "user-msg" : "ai-msg"}`}
                     >
                       {m.sender === "ai" && (
@@ -1844,7 +1816,7 @@ export function AuraAIPage() {
                           )}
                         </div>
                       </div>
-                    </motion.div>
+                    </div>
                   </React.Fragment>
                 );
               })}

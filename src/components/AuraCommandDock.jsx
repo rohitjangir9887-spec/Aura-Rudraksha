@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   MessagesSquare,
   Compass,
@@ -23,7 +22,7 @@ import {
   PieChart,
   ScrollText,
   MessageCircle,
-  Zap,
+  Lightbulb,
   Maximize2,
   Minimize2,
   Notebook,
@@ -33,8 +32,6 @@ import {
   ShieldCheck,
   CheckCircle2
 } from "lucide-react";
-
-const PANEL_EASE = [0.16, 1, 0.3, 1];
 
 export function AuraCommandDock({
   scope = "floating", // "floating" | "page"
@@ -85,7 +82,7 @@ export function AuraCommandDock({
     };
   }, [activeTab]);
 
-  // Reset active tab smoothly when switching modes if tab id changed
+  // Reset active tab cleanly when switching modes if tab id changed
   useEffect(() => {
     if (mode === "standard" && activeTab === "style") {
       setActiveTab(null);
@@ -103,12 +100,14 @@ export function AuraCommandDock({
         {
           id: "chats",
           label: "चैट",
+          hint: `${savedSessions.length || 1} सत्र`,
           subtitle: "नया चैट, सक्रिय सत्र व इतिहास",
           icon: MessagesSquare
         },
         {
           id: "kundali",
           label: "कुंडली",
+          hint: hasKundali ? "सक्रिय" : "सेट करें",
           subtitle: "जन्म विवरण, सेव कुंडली व बदलाव",
           icon: Compass,
           hasIndicator: hasKundali
@@ -116,12 +115,14 @@ export function AuraCommandDock({
         {
           id: "style",
           label: "अंदाज़",
+          hint: panditPrefs.responseStyle === "balanced" ? "सरल" : "विस्तृत",
           subtitle: "उत्तर शैली व चार्ट/ग्राफ प्रारूप",
           icon: SlidersHorizontal
         },
         {
           id: "tools",
           label: "टूल्स",
+          hint: "4 टूल्स",
           subtitle: "मिलान, अंक ज्योतिष, पंचांग व कोष",
           icon: Sparkles
         }
@@ -130,18 +131,21 @@ export function AuraCommandDock({
         {
           id: "chats",
           label: "चैट",
+          hint: "इतिहास",
           subtitle: "नया चैट, इतिहास व नोट्स",
           icon: MessagesSquare
         },
         {
           id: "prompts",
           label: "सुझाव",
+          hint: "त्वरित",
           subtitle: "ऑर्डर ट्रैक, कूपन व रुद्राक्ष प्रश्न",
-          icon: Zap
+          icon: Lightbulb
         },
         {
           id: "kundali",
           label: "कुंडली",
+          hint: hasKundali ? "सक्रिय" : "फ्री",
           subtitle: "पंडित जी व जन्म कुंडली विवरण",
           icon: Compass,
           hasIndicator: hasKundali
@@ -149,6 +153,7 @@ export function AuraCommandDock({
         {
           id: "tools",
           label: "टूल्स",
+          hint: "वैदिक",
           subtitle: "वैदिक टूल्स व 1-21 मुखी कोष",
           icon: Sparkles
         }
@@ -260,563 +265,443 @@ export function AuraCommandDock({
   const otherSessions = savedSessions.filter((s) => s.id !== conversationId).slice(0, 5);
 
   return (
-    <div ref={dockRef} className="relative z-20 shrink-0 select-none">
-      {/* Single-Line 4-Option Bar */}
+    <div ref={dockRef} className="aura-dock-root" data-scope={scope}>
+      {/* Single-Line 4-Option Dark Royal Bar */}
       <div
         role="tablist"
         aria-label="Aura AI Options"
-        className="grid grid-cols-4 gap-1.5 px-2.5 py-1.5 bg-[#FFF9F0] border-b border-[#E9D9C5]"
+        className="aura-dock-bar"
       >
         {dockItems.map((item) => {
           const Icon = item.icon;
           const isOpen = activeTab === item.id;
           return (
-            <motion.button
+            <button
               key={item.id}
               type="button"
               role="tab"
               aria-selected={isOpen}
               aria-expanded={isOpen}
               onClick={() => setActiveTab((prev) => (prev === item.id ? null : item.id))}
-              whileTap={{ scale: 0.97 }}
-              transition={{ duration: 0.18, ease: PANEL_EASE }}
-              className={`relative min-h-[36px] sm:min-h-[38px] px-1.5 sm:px-2.5 py-1.5 rounded-[10px] flex items-center justify-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-semibold whitespace-nowrap overflow-hidden transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C69A45] ${
-                isOpen
-                  ? "text-white border border-[#702A20]"
-                  : "text-[#542B19] bg-white border border-[#E9D9C5] hover:border-[#C69A45] hover:bg-[#FFF9F0]"
-              }`}
+              className={`aura-dock-tab ${isOpen ? "is-open" : ""}`}
             >
-              {isOpen && (
-                <motion.span
-                  layoutId={`aura-dock-active-bg-${scope}`}
-                  transition={{ duration: 0.2, ease: PANEL_EASE }}
-                  className="absolute inset-0 rounded-[9px] bg-[#702A20] shadow-[0_2px_6px_rgba(84,43,25,0.18)]"
-                  aria-hidden="true"
-                />
-              )}
-              <span className="relative z-10 inline-flex items-center gap-1 min-w-0">
-                <Icon size={13} className="shrink-0" strokeWidth={2.1} />
-                <span className="truncate">{item.label}</span>
+              <span className="aura-dock-tab-top">
+                <span className="aura-dock-tab-ico" aria-hidden="true">
+                  <Icon size={13} strokeWidth={2.2} />
+                </span>
+                <span className="aura-dock-tab-label">{item.label}</span>
                 {item.hasIndicator && !isOpen && (
                   <CheckCircle2
-                    size={11}
-                    className="shrink-0 text-[#C69A45]"
+                    size={10}
+                    className="aura-dock-tab-check"
                     aria-label="सक्रिय कुंडली लोड है"
                   />
                 )}
-                <motion.span
-                  animate={{ rotate: isOpen ? 180 : 0 }}
-                  transition={{ duration: 0.2, ease: PANEL_EASE }}
-                  className="inline-flex shrink-0 opacity-75"
+                <ChevronDown
+                  size={11}
+                  strokeWidth={2.3}
+                  className={`aura-dock-tab-caret ${isOpen ? "is-open" : ""}`}
                   aria-hidden="true"
-                >
-                  <ChevronDown size={11} strokeWidth={2.2} />
-                </motion.span>
+                />
               </span>
-            </motion.button>
+              <span className="aura-dock-tab-hint">{item.hint}</span>
+            </button>
           );
         })}
       </div>
 
-      {/* Animated Feature Expansion Sheet (Bounded inside viewport) */}
-      <AnimatePresence>
-        {activeTab && activeItemMeta && (
-          <motion.div
-            key="aura-command-sheet"
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.2, ease: PANEL_EASE }}
-            role="tabpanel"
-            aria-label={activeItemMeta.label}
-            className="absolute left-1.5 right-1.5 sm:left-2 sm:right-2 top-full mt-1 bg-white rounded-xl border border-[#E9D9C5] shadow-[0_14px_32px_-8px_rgba(84,43,25,0.2)] max-h-[min(390px,56vh)] overflow-y-auto z-30"
-          >
-            {/* Sheet Header with Feature Context */}
-            <div className="sticky top-0 z-10 flex items-center justify-between gap-2.5 px-3 py-2 bg-[#FFF9F0]/95 backdrop-blur-sm border-b border-[#E9D9C5]">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="w-7 h-7 rounded-lg bg-[#702A20]/10 text-[#702A20] flex items-center justify-center shrink-0">
-                  {React.createElement(activeItemMeta.icon, { size: 14, strokeWidth: 2.1 })}
-                </span>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-[#542B19] truncate">
-                    {activeItemMeta.label}
-                  </div>
-                  <div className="text-[10.5px] text-[#887565] truncate">
-                    {activeItemMeta.subtitle}
-                  </div>
-                </div>
+      {/* Zero-Lag GPU Slide-Fade Expansion Sheet (Bounded inside viewport) */}
+      {activeTab && activeItemMeta && (
+        <div
+          key={`aura-command-sheet-${activeTab}`}
+          role="tabpanel"
+          aria-label={activeItemMeta.label}
+          className="aura-dock-sheet"
+        >
+          {/* Dark Espresso Sheet Header */}
+          <div className="aura-dock-sheet-head">
+            <div className="aura-dock-sheet-head-left">
+              <span className="aura-dock-sheet-head-ico" aria-hidden="true">
+                {React.createElement(activeItemMeta.icon, { size: 14, strokeWidth: 2.2 })}
+              </span>
+              <div className="aura-dock-sheet-head-meta">
+                <div className="aura-dock-sheet-title">{activeItemMeta.label}</div>
+                <div className="aura-dock-sheet-sub">{activeItemMeta.subtitle}</div>
               </div>
-              <button
-                type="button"
-                onClick={() => setActiveTab(null)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-[#E9D9C5] text-[11px] font-semibold text-[#542B19] hover:border-[#C69A45] hover:bg-[#FFF9F0] transition-colors whitespace-nowrap shrink-0"
-                aria-label="मेनू बंद करें"
-              >
-                <X size={12} />
-                <span>बंद करें</span>
-              </button>
             </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab(null)}
+              className="aura-dock-sheet-close"
+              aria-label="मेनू बंद करें"
+            >
+              <X size={12} strokeWidth={2.4} />
+              <span>बंद करें</span>
+            </button>
+          </div>
 
-            <div className="p-3 space-y-2.5">
-              {/* PANEL 1: CHATS & SESSIONS */}
-              {activeTab === "chats" && (
-                <>
-                  <motion.button
-                    type="button"
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.02, duration: 0.18, ease: PANEL_EASE }}
-                    whileTap={{ scale: 0.985 }}
-                    onClick={() => closeAndRun(onNewChat)}
-                    className="w-full flex items-center justify-between gap-3 p-2.5 rounded-xl bg-[#702A20] hover:bg-[#542B19] text-white shadow-sm transition-colors text-left"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
-                        <Plus size={16} strokeWidth={2.4} />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold">नया चैट शुरू करें (New Chat)</div>
-                        <div className="text-[10.5px] text-[#FFF9F0]/85 truncate">
-                          नई बातचीत शुरू करें; पिछली चैट सुरक्षित रहेगी
-                        </div>
+          <div className="aura-dock-sheet-body">
+            {/* PANEL 1: CHATS & SESSIONS */}
+            {activeTab === "chats" && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => closeAndRun(onNewChat)}
+                  className="aura-dock-primary-cta"
+                >
+                  <div className="aura-dock-primary-cta-left">
+                    <span className="aura-dock-primary-cta-ico">
+                      <Plus size={16} strokeWidth={2.4} />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-[#FFF9F0]">नया चैट शुरू करें (New Chat)</div>
+                      <div className="text-[10.5px] text-[#E9D9C5] truncate">
+                        नई बातचीत शुरू करें; पिछली चैट सुरक्षित रहेगी
                       </div>
-                    </div>
-                    <ChevronRight size={15} className="shrink-0 opacity-85" />
-                  </motion.button>
-
-                  {isPandit && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.04, duration: 0.18, ease: PANEL_EASE }}
-                      className="rounded-xl border border-[#E9D9C5] bg-[#FFF9F0] p-2.5 space-y-1.5"
-                    >
-                      <div className="flex items-center justify-between text-[11px] font-bold text-[#542B19]">
-                        <span>चैट सत्र (Active & Saved Chats)</span>
-                        <span className="tabular-nums text-[10px] font-semibold text-[#887565]">
-                          {otherSessions.length + 1} सत्र
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-white border border-[#C69A45] text-xs font-semibold text-[#542B19]">
-                        <span className="truncate">सक्रिय चैट (वर्तमान बातचीत)</span>
-                        <span className="text-[10px] font-bold text-[#702A20] shrink-0">चालू</span>
-                      </div>
-
-                      {otherSessions.length > 0 && (
-                        <div className="space-y-1 max-h-36 overflow-y-auto pr-0.5">
-                          {otherSessions.map((sess, idx) => (
-                            <motion.button
-                              key={sess.id}
-                              type="button"
-                              initial={{ opacity: 0, x: -4 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: 0.05 + idx * 0.025, duration: 0.18, ease: PANEL_EASE }}
-                              whileTap={{ scale: 0.985 }}
-                              onClick={() => closeAndRun(() => onSelectSession?.(sess.id))}
-                              className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white border border-[#E9D9C5] hover:border-[#C69A45] hover:bg-[#FFF9F0] text-left transition-colors"
-                            >
-                              <span className="text-[11.5px] font-medium text-[#542B19] truncate">
-                                {sess.title || "पंडित जी परामर्श"}
-                              </span>
-                              <span className="text-[10px] font-semibold text-[#702A20] shrink-0 whitespace-nowrap">
-                                खोलें →
-                              </span>
-                            </motion.button>
-                          ))}
-                        </div>
-                      )}
-                    </motion.div>
-                  )}
-
-                  <motion.div
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.06, duration: 0.18, ease: PANEL_EASE }}
-                    className="grid grid-cols-2 gap-2"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => closeAndRun(onOpenHistory)}
-                      className="flex items-start gap-2 p-2.5 rounded-xl bg-white border border-[#E9D9C5] hover:border-[#C69A45] hover:bg-[#FFF9F0] text-left transition-colors"
-                    >
-                      <span className="w-7 h-7 rounded-lg bg-[#FFF9F0] border border-[#E9D9C5] text-[#702A20] flex items-center justify-center shrink-0">
-                        <History size={14} />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="text-[11.5px] font-bold text-[#542B19] truncate">चैट इतिहास</div>
-                        <div className="text-[10px] text-[#887565] leading-snug">सभी पुरानी चैट्स देखें</div>
-                      </div>
-                    </button>
-
-                    {onOpenNotes ? (
-                      <button
-                        type="button"
-                        onClick={() => closeAndRun(onOpenNotes)}
-                        className="flex items-start gap-2 p-2.5 rounded-xl bg-white border border-[#E9D9C5] hover:border-[#C69A45] hover:bg-[#FFF9F0] text-left transition-colors"
-                      >
-                        <span className="w-7 h-7 rounded-lg bg-[#FFF9F0] border border-[#E9D9C5] text-[#702A20] flex items-center justify-center shrink-0">
-                          <Notebook size={14} />
-                        </span>
-                        <div className="min-w-0">
-                          <div className="text-[11.5px] font-bold text-[#542B19] truncate tabular-nums">
-                            नोट्स {notesCount > 0 ? `(${notesCount})` : ""}
-                          </div>
-                          <div className="text-[10px] text-[#887565] leading-snug">आध्यात्मिक डायरी</div>
-                        </div>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => closeAndRun(onOpenSavedKundalis)}
-                        className="flex items-start gap-2 p-2.5 rounded-xl bg-white border border-[#E9D9C5] hover:border-[#C69A45] hover:bg-[#FFF9F0] text-left transition-colors"
-                      >
-                        <span className="w-7 h-7 rounded-lg bg-[#FFF9F0] border border-[#E9D9C5] text-[#702A20] flex items-center justify-center shrink-0">
-                          <Bookmark size={14} />
-                        </span>
-                        <div className="min-w-0">
-                          <div className="text-[11.5px] font-bold text-[#542B19] truncate">सेव कुंडलियां</div>
-                          <div className="text-[10px] text-[#887565] leading-snug">प्रोफ़ाइल बदलें</div>
-                        </div>
-                      </button>
-                    )}
-                  </motion.div>
-                </>
-              )}
-
-              {/* PANEL 2: KUNDALI PROFILE & FORM */}
-              {activeTab === "kundali" && (
-                <>
-                  {hasKundali ? (
-                    <motion.div
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.02, duration: 0.18, ease: PANEL_EASE }}
-                      className="rounded-xl border border-[#C69A45] bg-[#FFF9F0] p-3 flex items-center justify-between gap-2.5"
-                    >
-                      <div className="min-w-0">
-                        <div className="text-[10.5px] font-bold text-[#702A20]">
-                          सक्रिय कुंडली प्रोफ़ाइल
-                        </div>
-                        <div className="text-xs font-bold text-[#542B19] truncate mt-0.5">
-                          {activeBirthDetails.name || "Devotee"}
-                        </div>
-                        <div className="text-[11px] text-[#887565] tabular-nums truncate">
-                          {activeBirthDetails.dob}
-                          {activeBirthDetails.birthTime ? ` · ${activeBirthDetails.birthTime}` : ""}
-                          {activeBirthDetails.birthPlace ? ` · ${activeBirthDetails.birthPlace}` : ""}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => closeAndRun(onEditBirthDetails)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-[#C69A45] text-[#542B19] text-[11px] font-bold hover:bg-[#FFF9F0] transition-colors whitespace-nowrap"
-                        >
-                          <Pencil size={11} />
-                          <span>बदलें</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => closeAndRun(onClearBirthDetails)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#FFF1F2] border border-[#FECDD3] text-[#9F1239] text-[11px] font-bold hover:bg-[#FFE4E6] transition-colors whitespace-nowrap"
-                        >
-                          <Trash2 size={11} />
-                          <span>हटाएं</span>
-                        </button>
-                      </div>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.02, duration: 0.18, ease: PANEL_EASE }}
-                      className="rounded-xl border border-dashed border-[#E9D9C5] bg-[#FFF9F0] px-3 py-2.5 text-[11px] text-[#887565]"
-                    >
-                      कोई सक्रिय कुंडली चयनित नहीं है — सटीक लग्न, ग्रह-दशा व रुद्राक्ष चयन के लिए जन्म विवरण जोड़ें।
-                    </motion.div>
-                  )}
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <motion.button
-                      type="button"
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.04, duration: 0.18, ease: PANEL_EASE }}
-                      whileTap={{ scale: 0.985 }}
-                      onClick={() => closeAndRun(() => {
-                        if (!isPandit && onSwitchMode) onSwitchMode("panditji");
-                        onToggleBirthForm?.();
-                      })}
-                      className={`flex items-start gap-2.5 p-2.5 rounded-xl border text-left transition-colors ${
-                        showBirthForm
-                          ? "bg-[#FFF9F0] border-[#C69A45]"
-                          : "bg-white border-[#E9D9C5] hover:border-[#C69A45] hover:bg-[#FFF9F0]"
-                      }`}
-                    >
-                      <span className="w-8 h-8 rounded-lg bg-[#702A20]/10 text-[#702A20] flex items-center justify-center shrink-0">
-                        <FileText size={15} />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-[#542B19]">
-                          {showBirthForm ? "कुंडली फॉर्म बंद करें" : "नया कुंडली फॉर्म भरें"}
-                        </div>
-                        <div className="text-[10.5px] text-[#887565] leading-snug mt-0.5">
-                          नाम, जन्म तिथि, समय व स्थान डालकर संपूर्ण विश्लेषण पाएं
-                        </div>
-                      </div>
-                    </motion.button>
-
-                    <motion.button
-                      type="button"
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.06, duration: 0.18, ease: PANEL_EASE }}
-                      whileTap={{ scale: 0.985 }}
-                      onClick={() => closeAndRun(() => {
-                        if (!isPandit && onSwitchMode) onSwitchMode("panditji");
-                        onOpenSavedKundalis?.();
-                      })}
-                      className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white border border-[#E9D9C5] hover:border-[#C69A45] hover:bg-[#FFF9F0] text-left transition-colors"
-                    >
-                      <span className="w-8 h-8 rounded-lg bg-[#FFF9F0] border border-[#E9D9C5] text-[#702A20] flex items-center justify-center shrink-0">
-                        <Bookmark size={15} />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-[#542B19]">सुरक्षित कुंडलियां</div>
-                        <div className="text-[10.5px] text-[#887565] leading-snug mt-0.5">
-                          पहले से सेव की गई कुंडलियों में से 1-क्लिक में चुनें
-                        </div>
-                      </div>
-                    </motion.button>
-                  </div>
-                </>
-              )}
-
-              {/* PANEL 3: STYLE & GRAPH VIEW */}
-              {activeTab === "style" && (
-                <>
-                  <div className="space-y-1.5">
-                    <div className="text-[11px] font-bold text-[#542B19]">
-                      उत्तर का अंदाज़ (Response Style)
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {styleOptions.map((opt, idx) => {
-                        const Icon = opt.icon;
-                        const active = panditPrefs.responseStyle === opt.id;
-                        return (
-                          <motion.button
-                            key={opt.id}
-                            type="button"
-                            initial={{ opacity: 0, y: 4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: idx * 0.03, duration: 0.18, ease: PANEL_EASE }}
-                            whileTap={{ scale: 0.985 }}
-                            onClick={() => {
-                              onChangePanditPref?.({ responseStyle: opt.id });
-                            }}
-                            className={`flex items-start justify-between gap-2 p-2.5 rounded-xl border text-left transition-colors ${
-                              active
-                                ? "bg-[#FFF9F0] border-[#C69A45] shadow-[0_2px_6px_rgba(84,43,25,0.08)]"
-                                : "bg-white border-[#E9D9C5] hover:border-[#C69A45]"
-                            }`}
-                          >
-                            <div className="flex items-start gap-2 min-w-0">
-                              <span
-                                className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                                  active ? "bg-[#702A20] text-white" : "bg-[#FFF9F0] border border-[#E9D9C5] text-[#702A20]"
-                                }`}
-                              >
-                                <Icon size={14} />
-                              </span>
-                              <div className="min-w-0">
-                                <div className="text-xs font-bold text-[#542B19]">{opt.title}</div>
-                                <div className="text-[10.5px] text-[#887565] leading-snug mt-0.5">
-                                  {opt.desc}
-                                </div>
-                              </div>
-                            </div>
-                            {active && (
-                              <span className="w-5 h-5 rounded-full bg-[#702A20] text-white flex items-center justify-center shrink-0">
-                                <Check size={11} strokeWidth={2.6} />
-                              </span>
-                            )}
-                          </motion.button>
-                        );
-                      })}
                     </div>
                   </div>
+                  <ChevronRight size={15} className="shrink-0 text-[#F3D88B]" />
+                </button>
 
-                  <div className="space-y-1.5 pt-1.5 border-t border-[#E9D9C5]">
-                    <div className="text-[11px] font-bold text-[#542B19]">
-                      ग्राफ और चार्ट प्रारूप (Visual Graph View)
+                {isPandit && (
+                  <div className="aura-dock-group-box">
+                    <div className="aura-dock-group-head">
+                      <span>चैट सत्र (Active & Saved Chats)</span>
+                      <span className="tabular-nums text-[10px] font-bold text-[#702A20]">
+                        {otherSessions.length + 1} सत्र
+                      </span>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {chartOptions.map((opt, idx) => {
-                        const Icon = opt.icon;
-                        const active = panditPrefs.chartStyle === opt.id;
-                        return (
-                          <motion.button
-                            key={opt.id}
-                            type="button"
-                            initial={{ opacity: 0, y: 4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.04 + idx * 0.025, duration: 0.18, ease: PANEL_EASE }}
-                            whileTap={{ scale: 0.985 }}
-                            onClick={() => {
-                              onChangePanditPref?.({ chartStyle: opt.id });
-                            }}
-                            className={`flex items-start justify-between gap-2 p-2.5 rounded-xl border text-left transition-colors ${
-                              active
-                                ? "bg-[#FFF9F0] border-[#C69A45] shadow-[0_2px_6px_rgba(84,43,25,0.08)]"
-                                : "bg-white border-[#E9D9C5] hover:border-[#C69A45]"
-                            }`}
-                          >
-                            <div className="flex items-start gap-2 min-w-0">
-                              <span
-                                className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                                  active ? "bg-[#702A20] text-white" : "bg-[#FFF9F0] border border-[#E9D9C5] text-[#702A20]"
-                                }`}
-                              >
-                                <Icon size={13} />
-                              </span>
-                              <div className="min-w-0">
-                                <div className="text-[11.5px] font-bold text-[#542B19] truncate">
-                                  {opt.title}
-                                </div>
-                                <div className="text-[10px] text-[#887565] leading-snug mt-0.5">
-                                  {opt.desc}
-                                </div>
-                              </div>
-                            </div>
-                            {active && (
-                              <span className="w-4 h-4 rounded-full bg-[#702A20] text-white flex items-center justify-center shrink-0 mt-0.5">
-                                <Check size={10} strokeWidth={2.6} />
-                              </span>
-                            )}
-                          </motion.button>
-                        );
-                      })}
+
+                    <div className="aura-dock-active-sess">
+                      <span className="truncate">सक्रिय चैट (वर्तमान बातचीत)</span>
+                      <span className="aura-dock-active-badge">चालू</span>
                     </div>
-                  </div>
-                </>
-              )}
 
-              {/* PANEL 2 ALT (STANDARD MODE): QUICK PROMPTS */}
-              {activeTab === "prompts" && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {standardQuickPrompts.map((item, idx) => {
-                    const Icon = item.icon;
-                    return (
-                      <motion.button
-                        key={item.title}
-                        type="button"
-                        initial={{ opacity: 0, y: 4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.03, duration: 0.18, ease: PANEL_EASE }}
-                        whileTap={{ scale: 0.985 }}
-                        onClick={() => closeAndRun(() => onSendQuickPrompt?.(item.prompt))}
-                        className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white border border-[#E9D9C5] hover:border-[#C69A45] hover:bg-[#FFF9F0] text-left transition-colors"
-                      >
-                        <span className="w-8 h-8 rounded-lg bg-[#FFF9F0] border border-[#E9D9C5] text-[#702A20] flex items-center justify-center shrink-0">
-                          <Icon size={15} />
-                        </span>
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold text-[#542B19] truncate">{item.title}</div>
-                          <div className="text-[10.5px] text-[#887565] leading-snug mt-0.5">
-                            {item.desc}
-                          </div>
-                        </div>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* PANEL 4: VEDIC TOOLS & SUGGESTIONS */}
-              {activeTab === "tools" && (
-                <>
-                  <div className="grid grid-cols-2 gap-2">
-                    {vedicToolCards.map((tool, idx) => {
-                      const Icon = tool.icon;
-                      return (
-                        <motion.button
-                          key={tool.tab}
-                          type="button"
-                          initial={{ opacity: 0, y: 4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: idx * 0.03, duration: 0.18, ease: PANEL_EASE }}
-                          whileTap={{ scale: 0.985 }}
-                          onClick={() => closeAndRun(() => onOpenVedicTool?.(tool.tab))}
-                          className="flex items-start gap-2 p-2.5 rounded-xl bg-white border border-[#E9D9C5] hover:border-[#C69A45] hover:bg-[#FFF9F0] text-left transition-colors"
-                        >
-                          <span className="w-8 h-8 rounded-lg bg-[#702A20] text-white flex items-center justify-center shrink-0">
-                            <Icon size={14} />
-                          </span>
-                          <div className="min-w-0">
-                            <div className="text-[11.5px] font-bold text-[#542B19] truncate">
-                              {tool.title}
-                            </div>
-                            <div className="text-[10px] text-[#887565] leading-snug mt-0.5">
-                              {tool.desc}
-                            </div>
-                          </div>
-                        </motion.button>
-                      );
-                    })}
-                  </div>
-
-                  {dynamicSuggestions.length > 0 && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.1, duration: 0.18, ease: PANEL_EASE }}
-                      className="pt-2 border-t border-[#E9D9C5] space-y-1.5"
-                    >
-                      <div className="text-[11px] font-bold text-[#542B19]">
-                        त्वरित प्रश्न (Suggested Questions)
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {dynamicSuggestions.slice(0, 4).map((sug, sIdx) => (
+                    {otherSessions.length > 0 && (
+                      <div className="space-y-1 max-h-36 overflow-y-auto pr-0.5">
+                        {otherSessions.map((sess) => (
                           <button
-                            key={sIdx}
+                            key={sess.id}
                             type="button"
-                            onClick={() => closeAndRun(() => onSendQuickPrompt?.(sug.query))}
-                            className="px-2.5 py-1.5 rounded-lg bg-[#FFF9F0] border border-[#E9D9C5] hover:border-[#C69A45] text-[11px] font-semibold text-[#542B19] transition-colors whitespace-nowrap"
+                            onClick={() => closeAndRun(() => onSelectSession?.(sess.id))}
+                            className="aura-dock-sess-row"
                           >
-                            {sug.label}
+                            <span className="text-[11.5px] font-semibold text-[#2b1408] truncate">
+                              {sess.title || "पंडित जी परामर्श"}
+                            </span>
+                            <span className="text-[10px] font-bold text-[#702A20] shrink-0 whitespace-nowrap">
+                              खोलें →
+                            </span>
                           </button>
                         ))}
                       </div>
-                    </motion.div>
-                  )}
+                    )}
+                  </div>
+                )}
 
-                  {onToggleFullWindow && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.12, duration: 0.18, ease: PANEL_EASE }}
-                      className="pt-1.5 border-t border-[#E9D9C5] flex items-center justify-between"
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => closeAndRun(onOpenHistory)}
+                    className="aura-dock-tile"
+                  >
+                    <span className="aura-dock-tile-ico">
+                      <History size={14} strokeWidth={2.2} />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="aura-dock-tile-title">चैट इतिहास</div>
+                      <div className="aura-dock-tile-desc">सभी पुरानी चैट्स देखें</div>
+                    </div>
+                  </button>
+
+                  {onOpenNotes ? (
+                    <button
+                      type="button"
+                      onClick={() => closeAndRun(onOpenNotes)}
+                      className="aura-dock-tile"
                     >
-                      <span className="text-[11px] font-medium text-[#887565]">
-                        विंडो आकार (Window View)
+                      <span className="aura-dock-tile-ico">
+                        <Notebook size={14} strokeWidth={2.2} />
                       </span>
+                      <div className="min-w-0">
+                        <div className="aura-dock-tile-title tabular-nums">
+                          नोट्स {notesCount > 0 ? `(${notesCount})` : ""}
+                        </div>
+                        <div className="aura-dock-tile-desc">आध्यात्मिक डायरी</div>
+                      </div>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => closeAndRun(onOpenSavedKundalis)}
+                      className="aura-dock-tile"
+                    >
+                      <span className="aura-dock-tile-ico">
+                        <Bookmark size={14} strokeWidth={2.2} />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="aura-dock-tile-title">सेव कुंडलियां</div>
+                        <div className="aura-dock-tile-desc">प्रोफ़ाइल बदलें</div>
+                      </div>
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* PANEL 2: KUNDALI PROFILE & FORM */}
+            {activeTab === "kundali" && (
+              <>
+                {hasKundali ? (
+                  <div className="aura-dock-kundali-banner">
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-bold uppercase tracking-wide text-[#F2D28B]">
+                        ॐ सक्रिय कुंडली प्रोफ़ाइल
+                      </div>
+                      <div className="text-xs font-bold text-[#FFF9F0] truncate mt-0.5">
+                        {activeBirthDetails.name || "Devotee"}
+                      </div>
+                      <div className="text-[11px] text-[#E9D9C5] tabular-nums truncate">
+                        {activeBirthDetails.dob}
+                        {activeBirthDetails.birthTime ? ` · ${activeBirthDetails.birthTime}` : ""}
+                        {activeBirthDetails.birthPlace ? ` · ${activeBirthDetails.birthPlace}` : ""}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         type="button"
-                        onClick={() => closeAndRun(onToggleFullWindow)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#E9D9C5] hover:border-[#C69A45] text-[11px] font-bold text-[#542B19] transition-colors whitespace-nowrap"
+                        onClick={() => closeAndRun(onEditBirthDetails)}
+                        className="aura-dock-kundali-edit"
                       >
-                        {isFullWindow ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-                        <span>{isFullWindow ? "कॉम्पैक्ट विंडो" : "फुल विंडो खोलें"}</span>
+                        <Pencil size={11} />
+                        <span>बदलें</span>
                       </button>
-                    </motion.div>
-                  )}
-                </>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                      <button
+                        type="button"
+                        onClick={() => closeAndRun(onClearBirthDetails)}
+                        className="aura-dock-kundali-del"
+                      >
+                        <Trash2 size={11} />
+                        <span>हटाएं</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="aura-dock-empty-note">
+                    कोई सक्रिय कुंडली चयनित नहीं है — सटीक लग्न, ग्रह-दशा व रुद्राक्ष चयन के लिए जन्म विवरण जोड़ें।
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => closeAndRun(() => {
+                      if (!isPandit && onSwitchMode) onSwitchMode("panditji");
+                      onToggleBirthForm?.();
+                    })}
+                    className={`aura-dock-tile ${showBirthForm ? "is-selected" : ""}`}
+                  >
+                    <span className="aura-dock-tile-ico">
+                      <FileText size={15} strokeWidth={2.2} />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="aura-dock-tile-title">
+                        {showBirthForm ? "कुंडली फॉर्म बंद करें" : "नया कुंडली फॉर्म भरें"}
+                      </div>
+                      <div className="aura-dock-tile-desc">
+                        नाम, जन्म तिथि, समय व स्थान डालकर संपूर्ण विश्लेषण पाएं
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => closeAndRun(() => {
+                      if (!isPandit && onSwitchMode) onSwitchMode("panditji");
+                      onOpenSavedKundalis?.();
+                    })}
+                    className="aura-dock-tile"
+                  >
+                    <span className="aura-dock-tile-ico">
+                      <Bookmark size={15} strokeWidth={2.2} />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="aura-dock-tile-title">सुरक्षित कुंडलियां</div>
+                      <div className="aura-dock-tile-desc">
+                        पहले से सेव की गई कुंडलियों में से 1-क्लिक में चुनें
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* PANEL 3: STYLE & GRAPH VIEW */}
+            {activeTab === "style" && (
+              <>
+                <div className="space-y-1.5">
+                  <div className="text-[11px] font-bold text-[#3b1b08]">
+                    उत्तर का अंदाज़ (Response Style)
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {styleOptions.map((opt) => {
+                      const Icon = opt.icon;
+                      const active = panditPrefs.responseStyle === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => onChangePanditPref?.({ responseStyle: opt.id })}
+                          className={`aura-dock-option-card ${active ? "is-active" : ""}`}
+                        >
+                          <div className="flex items-start gap-2 min-w-0">
+                            <span className={`aura-dock-tile-ico ${active ? "is-active" : ""}`}>
+                              <Icon size={14} strokeWidth={2.2} />
+                            </span>
+                            <div className="min-w-0">
+                              <div className="aura-dock-tile-title">{opt.title}</div>
+                              <div className="aura-dock-tile-desc">{opt.desc}</div>
+                            </div>
+                          </div>
+                          {active && (
+                            <span className="aura-dock-check-badge">
+                              <Check size={11} strokeWidth={2.8} />
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 pt-2 border-t border-[#E9D9C5]">
+                  <div className="text-[11px] font-bold text-[#3b1b08]">
+                    ग्राफ और चार्ट प्रारूप (Visual Graph View)
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {chartOptions.map((opt) => {
+                      const Icon = opt.icon;
+                      const active = panditPrefs.chartStyle === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => onChangePanditPref?.({ chartStyle: opt.id })}
+                          className={`aura-dock-option-card ${active ? "is-active" : ""}`}
+                        >
+                          <div className="flex items-start gap-2 min-w-0">
+                            <span className={`aura-dock-tile-ico ${active ? "is-active" : ""}`}>
+                              <Icon size={13} strokeWidth={2.2} />
+                            </span>
+                            <div className="min-w-0">
+                              <div className="aura-dock-tile-title truncate">{opt.title}</div>
+                              <div className="aura-dock-tile-desc">{opt.desc}</div>
+                            </div>
+                          </div>
+                          {active && (
+                            <span className="aura-dock-check-badge">
+                              <Check size={10} strokeWidth={2.8} />
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* PANEL 2 ALT (STANDARD MODE): QUICK PROMPTS */}
+            {activeTab === "prompts" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {standardQuickPrompts.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.title}
+                      type="button"
+                      onClick={() => closeAndRun(() => onSendQuickPrompt?.(item.prompt))}
+                      className="aura-dock-tile"
+                    >
+                      <span className="aura-dock-tile-ico">
+                        <Icon size={15} strokeWidth={2.2} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="aura-dock-tile-title truncate">{item.title}</div>
+                        <div className="aura-dock-tile-desc">{item.desc}</div>
+                      </div>
+                      <ChevronRight size={14} className="shrink-0 text-[#887565] self-center" />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* PANEL 4: VEDIC TOOLS & SUGGESTIONS */}
+            {activeTab === "tools" && (
+              <>
+                <div className="grid grid-cols-2 gap-2">
+                  {vedicToolCards.map((tool) => {
+                    const Icon = tool.icon;
+                    return (
+                      <button
+                        key={tool.tab}
+                        type="button"
+                        onClick={() => closeAndRun(() => onOpenVedicTool?.(tool.tab))}
+                        className="aura-dock-tile"
+                      >
+                        <span className="aura-dock-tile-ico is-active">
+                          <Icon size={14} strokeWidth={2.2} />
+                        </span>
+                        <div className="min-w-0">
+                          <div className="aura-dock-tile-title truncate">{tool.title}</div>
+                          <div className="aura-dock-tile-desc">{tool.desc}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {dynamicSuggestions.length > 0 && (
+                  <div className="pt-2 border-t border-[#E9D9C5] space-y-1.5">
+                    <div className="text-[11px] font-bold text-[#3b1b08]">
+                      त्वरित प्रश्न (Suggested Questions)
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {dynamicSuggestions.slice(0, 4).map((sug, sIdx) => (
+                        <button
+                          key={sIdx}
+                          type="button"
+                          onClick={() => closeAndRun(() => onSendQuickPrompt?.(sug.query))}
+                          className="aura-dock-chip-btn"
+                        >
+                          {sug.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {onToggleFullWindow && (
+                  <div className="pt-2 border-t border-[#E9D9C5] flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-semibold text-[#542B19]">
+                      विंडो आकार (Window View)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => closeAndRun(onToggleFullWindow)}
+                      className="aura-dock-window-btn"
+                    >
+                      {isFullWindow ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+                      <span>{isFullWindow ? "कॉम्पैक्ट विंडो" : "फुल विंडो खोलें"}</span>
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

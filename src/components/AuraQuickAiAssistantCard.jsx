@@ -1,5 +1,4 @@
 import React from "react";
-import { motion } from "framer-motion";
 import {
   ShoppingBag,
   Compass,
@@ -15,30 +14,35 @@ const ASSISTANCE_ROWS = [
   {
     id: "buy_rudraksha",
     label: "असली नेपाली रुद्राक्ष खरीदें",
+    detail: "सिद्ध 1–21 मुखी नेपाल व इंडोनेशिया संग्रह",
     prompt: "असली नेपाली रुद्राक्ष खरीदें — कृपया सिद्ध 1 से 14 मुखी कलेक्शन व कीमत दिखाएं",
     icon: ShoppingBag
   },
   {
     id: "dharan_vidhi",
     label: "धारण विधि / मंत्र / राशि अनुसार चयन",
+    detail: "शुद्धिकरण, प्राण-प्रतिष्ठा, बीज मंत्र व शुभ दिन",
     prompt: "रुद्राक्ष धारण विधि, बीज मंत्र और राशि अनुसार सही रुद्राक्ष चयन बताएं",
     icon: Compass
   },
   {
     id: "track_order",
     label: "ऑर्डर ट्रैक करें",
+    detail: "लाइव डिस्पैच व डिलीवरी स्टेटस तुरंत जानें",
     prompt: "मेरा ऑर्डर ट्रैक करें (Track My Order)",
     icon: Package
   },
   {
     id: "lab_cert",
     label: "लैब सर्टिफिकेट / X-Ray प्रमाणिकता",
+    detail: "100% सरकारी लैब टेस्टेड व X-Ray वेरीफाइड",
     prompt: "रुद्राक्ष लैब सर्टिफिकेट व X-Ray प्रमाणिकता की जानकारी दें",
     icon: ShieldCheck
   },
   {
     id: "live_price",
     label: "लाइव कीमत / स्टॉक / कूपन",
+    detail: "ताज़ा मूल्य, उपलब्ध स्टॉक व डिस्काउंट कोड्स",
     prompt: "लाइव कीमत, स्टॉक और आज के एक्टिव डिस्काउंट कूपन बताएं",
     icon: Tag
   }
@@ -83,18 +87,19 @@ export function AuraQuickAiAssistantCard({ onSendPrompt }) {
           <span className="aura-quick-assist-head-icon" aria-hidden="true">
             <Sparkles size={14} strokeWidth={2.2} />
           </span>
-          <h4 className="aura-quick-assist-title">मैं आपकी कैसे सहायता कर सकता हूँ?</h4>
+          <div className="min-w-0">
+            <h4 className="aura-quick-assist-title">मैं आपकी कैसे सहायता कर सकता हूँ?</h4>
+            <p className="aura-quick-assist-subtitle">असली रुद्राक्ष, वैदिक परामर्श व ऑर्डर सहायता</p>
+          </div>
         </div>
 
         <div className="aura-quick-assist-list">
           {ASSISTANCE_ROWS.map((row) => {
             const Icon = row.icon;
             return (
-              <motion.button
+              <button
                 key={row.id}
                 type="button"
-                whileTap={{ scale: 0.985 }}
-                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                 onClick={(e) => handleSelect(e, row.prompt)}
                 className="aura-quick-assist-row group"
               >
@@ -102,7 +107,10 @@ export function AuraQuickAiAssistantCard({ onSendPrompt }) {
                   <span className="aura-quick-assist-row-icon" aria-hidden="true">
                     <Icon size={14} strokeWidth={2.1} />
                   </span>
-                  <span className="aura-quick-assist-row-label">{row.label}</span>
+                  <span className="aura-quick-assist-row-text">
+                    <span className="aura-quick-assist-row-label">{row.label}</span>
+                    <span className="aura-quick-assist-row-detail">{row.detail}</span>
+                  </span>
                 </span>
                 <ChevronRight
                   size={15}
@@ -110,7 +118,7 @@ export function AuraQuickAiAssistantCard({ onSendPrompt }) {
                   className="aura-quick-assist-row-arrow"
                   aria-hidden="true"
                 />
-              </motion.button>
+              </button>
             );
           })}
         </div>
@@ -126,17 +134,15 @@ export function AuraQuickAiAssistantCard({ onSendPrompt }) {
         {QUICK_SUGGESTION_CHIPS.map((chip) => {
           const Icon = chip.icon;
           return (
-            <motion.button
+            <button
               key={chip.label}
               type="button"
-              whileTap={{ scale: 0.97 }}
-              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
               onClick={(e) => handleSelect(e, chip.prompt)}
               className="aura-quick-suggest-chip"
             >
-              <Icon size={12} strokeWidth={2.2} className="shrink-0 text-[#702A20]" aria-hidden="true" />
+              <Icon size={12} strokeWidth={2.2} className="shrink-0 text-[#8c2b10]" aria-hidden="true" />
               <span>{chip.label}</span>
-            </motion.button>
+            </button>
           );
         })}
       </div>

@@ -28,7 +28,6 @@ import {
   Copy,
   Share2
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import { auraAiClient } from "../lib/auraAiClient";
 import { parseAuraAiPayload, customerSafeAiText, isAuraResponseIncomplete, smartMergeContinuation } from "../lib/auraAiResponse";
 import { auraChatStore, getDateDividerLabel, formatMessageTime } from "../lib/auraChatStore";
@@ -1819,14 +1818,12 @@ export function AuraAIFloating() {
               </div>
 
               {/* Toast when refreshing consultation */}
-              <AnimatePresence>
-                {showRefreshToast && (
-                  <div className="aura-ai-refresh-toast">
-                    <Sparkles size={13} />
-                    <span>नया परामर्श तैयार हो रहा है...</span>
-                  </div>
-                )}
-              </AnimatePresence>
+              {showRefreshToast && (
+                <div className="aura-ai-refresh-toast aura-gpu-slide-in">
+                  <Sparkles size={13} />
+                  <span>नया परामर्श तैयार हो रहा है...</span>
+                </div>
+              )}
 
               {/* Mode Selector Bar */}
               <div className="aura-ai-mode-bar" role="tablist" aria-label="AI Mode">
@@ -1848,13 +1845,6 @@ export function AuraAIFloating() {
                   role="tab"
                   aria-selected={mode === "standard"}
                 >
-                  {mode === "standard" && (
-                    <motion.div
-                      layoutId="aura-floating-mode-pill"
-                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                      className="aura-ai-mode-active-pill"
-                    />
-                  )}
                   <span className="aura-ai-mode-btn-label">
                     <Sparkles size={12} strokeWidth={2.1} /> Quick AI
                   </span>
@@ -1877,13 +1867,6 @@ export function AuraAIFloating() {
                   role="tab"
                   aria-selected={mode === "panditji"}
                 >
-                  {mode === "panditji" && (
-                    <motion.div
-                      layoutId="aura-floating-mode-pill"
-                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                      className="aura-ai-mode-active-pill"
-                    />
-                  )}
                   <span className="aura-ai-mode-btn-label">
                     <span>ॐ</span> AI Panditji
                   </span>
@@ -2031,15 +2014,8 @@ export function AuraAIFloating() {
               )}
 
               {/* Interactive Kundli Birth Details Form Card */}
-              <AnimatePresence>
-                {showBirthForm && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0, y: -4 }}
-                    animate={{ opacity: 1, height: "auto", y: 0 }}
-                    exit={{ opacity: 0, height: 0, y: -4 }}
-                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                    className="aura-birth-form-drawer"
-                  >
+              {showBirthForm && (
+                <div className="aura-birth-form-drawer aura-gpu-slide-in">
                     <div className="aura-birth-form-head">
                       <div className="aura-birth-form-title">
                         <span>ॐ</span>
@@ -2145,9 +2121,8 @@ export function AuraAIFloating() {
                         पंडित जी को कुंडली भेजें (Analyze Kundli)
                       </button>
                     </form>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                </div>
+              )}
 
               {/* Messages Body with Date & Time dividers & Smooth Refresh Transitions */}
               <div 
@@ -2194,11 +2169,8 @@ export function AuraAIFloating() {
                         </div>
                       )}
 
-                      <motion.div
+                      <div
                         id={m.id}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                         className={`aura-ai-msg ${m.sender === "user" ? "aura-ai-msg-user" : "aura-ai-msg-ai"}`}
                       >
                         {m.sender === "ai" && (
@@ -2553,11 +2525,9 @@ export function AuraAIFloating() {
                             m.quickReplies.length > 0 && (
                             <div className="aura-ai-quick-chips">
                               {m.quickReplies.map((q, qi) => (
-                                <motion.button
+                                <button
                                   key={qi}
                                   type="button"
-                                  whileTap={{ scale: 0.97 }}
-                                  transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleSend(q);
@@ -2565,7 +2535,7 @@ export function AuraAIFloating() {
                                   className="aura-ai-chip-btn"
                                 >
                                   {q}
-                                </motion.button>
+                                </button>
                               ))}
                             </div>
                           )}
@@ -2657,18 +2627,13 @@ export function AuraAIFloating() {
                             )}
                           </div>
                         </div>
-                      </motion.div>
+                      </div>
                     </React.Fragment>
                   );
                 })}
 
                 {loading && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                    className="aura-ai-msg aura-ai-msg-ai"
-                  >
+                  <div className="aura-ai-msg aura-ai-msg-ai aura-gpu-slide-in">
                     <div className="aura-ai-msg-avatar">
                       {mode === "panditji" ? <span className="text-[11px] font-bold leading-none">ॐ</span> : <Sparkles size={12} />}
                     </div>
@@ -2687,7 +2652,7 @@ export function AuraAIFloating() {
                         )}
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 )}
                 <div ref={messagesEndRef} />
               </div>

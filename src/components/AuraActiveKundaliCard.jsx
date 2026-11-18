@@ -1,5 +1,4 @@
 import React from "react";
-import { motion } from "framer-motion";
 import { Calendar, Clock, MapPin, Pencil, Trash2, User } from "lucide-react";
 
 export function AuraActiveKundaliCard({
@@ -17,11 +16,8 @@ export function AuraActiveKundaliCard({
   const place = activeBirthDetails.birthPlace || activeBirthDetails.place || "—";
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -4 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-      className="aura-active-kundali-card"
+    <div
+      className="aura-active-kundali-card aura-gpu-slide-in"
       role="region"
       aria-label="Active Kundli Profile"
     >
@@ -55,22 +51,26 @@ export function AuraActiveKundaliCard({
 
       <div className="aura-active-kundali-grid">
         <div className="aura-active-kundali-item">
-          <User size={12} strokeWidth={2} className="aura-active-kundali-ico" aria-hidden="true" />
+          <User size={12} strokeWidth={2.1} className="aura-active-kundali-ico" aria-hidden="true" />
+          <span className="aura-active-kundali-key">नाम:</span>
           <span className="aura-active-kundali-val" title={name}>{name}</span>
         </div>
         <div className="aura-active-kundali-item">
-          <Calendar size={12} strokeWidth={2} className="aura-active-kundali-ico" aria-hidden="true" />
+          <Calendar size={12} strokeWidth={2.1} className="aura-active-kundali-ico" aria-hidden="true" />
+          <span className="aura-active-kundali-key">तिथि:</span>
           <span className="aura-active-kundali-val tabular-nums">{dob}</span>
         </div>
         <div className="aura-active-kundali-item">
-          <Clock size={12} strokeWidth={2} className="aura-active-kundali-ico" aria-hidden="true" />
+          <Clock size={12} strokeWidth={2.1} className="aura-active-kundali-ico" aria-hidden="true" />
+          <span className="aura-active-kundali-key">समय:</span>
           <span className="aura-active-kundali-val tabular-nums">{time}</span>
         </div>
         <div className="aura-active-kundali-item">
-          <MapPin size={12} strokeWidth={2} className="aura-active-kundali-ico" aria-hidden="true" />
+          <MapPin size={12} strokeWidth={2.1} className="aura-active-kundali-ico" aria-hidden="true" />
+          <span className="aura-active-kundali-key">स्थान:</span>
           <span className="aura-active-kundali-val" title={place}>{place}</span>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
