@@ -1,3 +1,4 @@
+import { finishCheckout, isConfirmedCod, paymentConfirmed } from "../lib/checkoutCompletion";
 import React, { useEffect, useState, useRef } from "react";
 import { useSearchParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { Shell } from "../components/Shell";
@@ -126,7 +127,6 @@ export function PaymentResult() {
       sessionStorage.removeItem("aura_pending_txnid");
       sessionStorage.removeItem("aura_pending_orderId");
       sessionStorage.removeItem("aura_pending_timestamp");
-      sessionStorage.removeItem("aura_buy_now_intent");
       sessionStorage.removeItem("aura_just_confirmed_redirect_home");
     } catch (_) {}
   };
@@ -186,12 +186,7 @@ export function PaymentResult() {
     if (verifyAttempted.current) return;
 
     if (initialOrder) {
-      const isInitialConfirmed =
-        initialOrder.paymentStatus === "Paid" ||
-        initialOrder.paymentStatus === "COD" ||
-        (initialOrder.paymentMethod || "").toLowerCase().includes("cod") ||
-        (initialOrder.paymentMode || "").toLowerCase() === "cod";
-      if (isInitialConfirmed && initialOrder.status !== "Cancelled") {
+      if (paymentConfirmed(initialOrder)) {
         try {
           const oId = initialOrder.orderNumber || initialOrder.id || initialOrder._id || orderId;
           const gTok = initialOrder.guestToken || guestToken;
@@ -203,8 +198,7 @@ export function PaymentResult() {
               localStorage.setItem(`aura_order_token_${oId}`, gTok);
             }
           }
-          sessionStorage.removeItem("aura_buy_now_intent");
-          clearRef.current?.();
+          finishCheckout(sessionStorage, orderId || oId, clearRef.current);
           trackMetaPurchase(initialOrder);
         } catch (_) {}
         setLoading(false);
@@ -220,23 +214,13 @@ export function PaymentResult() {
       }
       try {
         let res = await db.verifyPayment(orderId || txnid, txnid || orderId, guestToken);
-        const checkIsPaidOrCod = (ord) => {
-          if (!ord) return false;
-          if (ord.paymentStatus === "Paid") return true;
-          const isCod =
-            ord.paymentStatus === "COD" ||
-            (ord.paymentMethod || "").toLowerCase().includes("cod") ||
-            (ord.paymentMode || "").toLowerCase() === "cod";
-          return isCod && ord.status !== "Cancelled";
-        };
-
         // If query param indicated success or processing, but server state transition is mid-flight, poll quickly
-        if (!checkIsPaidOrCod(res?.data) && (status === "success" || status === "processing")) {
+        if (!paymentConfirmed(res?.data) && (status === "success" || status === "processing")) {
           const delays = [500, 1000]; // drastically reduced wait times
           for (const delay of delays) {
             await new Promise((r) => setTimeout(r, delay));
             res = await db.verifyPayment(orderId || txnid, txnid || orderId, guestToken);
-            if (checkIsPaidOrCod(res?.data)) break;
+            if (paymentConfirmed(res?.data)) break;
           }
         }
 
@@ -260,10 +244,9 @@ export function PaymentResult() {
             }
           }
           // Clear cart and fire Meta Pixel Purchase once verified as Paid or Confirmed COD
-          if (checkIsPaidOrCod(res.data)) {
+          if (paymentConfirmed(res.data)) {
             try {
-              sessionStorage.removeItem("aura_buy_now_intent");
-              clearRef.current?.();
+              finishCheckout(sessionStorage, orderId || oId, clearRef.current);
               trackMetaPurchase(res.data);
             } catch (_) {}
           }
@@ -289,15 +272,9 @@ export function PaymentResult() {
   }, []);
 
   // Authoritative server-verified payment, COD order, or confirmed gateway return
-  const isCodOrder =
-    order?.paymentStatus === "COD" ||
-    (order?.paymentMethod || "").toLowerCase().includes("cod") ||
-    (order?.paymentMode || "").toLowerCase() === "cod" ||
-    (searchParams.get("mode") || "").toLowerCase() === "cod";
-  const isVerifiedSuccess =
-    order?.paymentStatus === "Paid" || (isCodOrder && order?.status !== "Cancelled");
-  const isConfirmedBoundaryTarget =
-    isVerifiedSuccess || status === "success" || isCodOrder;
+  const isCodOrder = isConfirmedCod(order);
+  const isVerifiedSuccess = paymentConfirmed(order);
+  const isConfirmedBoundaryTarget = isVerifiedSuccess;
 
   // Safe navigation on Back button so user ALWAYS lands cleanly on Home ("/") from confirmation page
   const isConfirmedBoundaryRef = useRef(isConfirmedBoundaryTarget);
@@ -453,10 +430,9 @@ export function PaymentResult() {
             localStorage.setItem(`aura_order_txnid_${oId}`, tId);
           }
         }
-        if (res.data.paymentStatus === "Paid" || status === "success") {
+        if (paymentConfirmed(res.data)) {
           try {
-            sessionStorage.removeItem("aura_buy_now_intent");
-            clear();
+            finishCheckout(sessionStorage, orderId || oId, clear);
             trackMetaPurchase(res.data);
           } catch (_) {}
           emitToast("Payment confirmed successfully!", "success");

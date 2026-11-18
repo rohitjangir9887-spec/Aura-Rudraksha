@@ -248,7 +248,7 @@ export function isProductSlugHealthy(product) {
   const rawSlug = String(product.slug || "").trim().toLowerCase();
   if (!rawSlug) return false;
   const rawName = String(product.name || "").trim();
-  if (!rawName) return true;
+  if (!rawName || rawSlug === slugifyProductName(rawName)) return true;
 
   const nameKind = detectProductKind({ name: rawName, category: product.category, subCategory: product.subCategory });
   const slugKind = detectProductKind(rawSlug);
@@ -282,6 +282,7 @@ export function areProductAndTargetCompatible(product, targetRaw = "", strippedR
   const t = String(targetRaw || "").toLowerCase().trim();
   const s = String(strippedRaw || stripMarketingModifiers(t)).toLowerCase().trim();
   if (!t && !s) return true;
+  if (t && t === String(product.slug || "").toLowerCase() && isProductSlugHealthy(product)) return true;
 
   const pId = String(product.id || "").toLowerCase().trim();
   const pMongoId = String(product._id || "").toLowerCase().trim();

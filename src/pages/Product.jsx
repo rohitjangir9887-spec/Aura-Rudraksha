@@ -37,6 +37,10 @@ import "../components/RichTextEditor.css";
 
 export function Product() {
   const { id } = useParams();
+  return <ProductDetail key={id} id={id} />;
+}
+
+function ProductDetail({ id }) {
   const navigate = useNavigate();
   const { add, addBatch, buyNow, totals } = useCart();
   const shipThreshold = totals?.freeShippingThreshold ?? (db.getSettings()?.freeShippingThreshold ?? 0);
@@ -480,22 +484,21 @@ export function Product() {
     navigate('/checkout');
   };
 
+  const getProductShareUrl = () => {
+    const stableId = rawP?.id || rawP?._id || resolvedRouteId;
+    return new URL(`/product/${encodeURIComponent(stableId)}`, "https://aurarudraksha.bond").href;
+  };
+
   const handleWhatsAppOrder = () => {
     if (!p || isOutOfStock) return;
     const settings = db.getSettings();
     const supportPhone = settings.supportPhone || "+91 9672996531";
     const waCleanPhone = supportPhone.replace(/[^0-9]/g, "");
     const price = Number(p.price) || 0;
-    const productUrl = `https://aurarudraksha.bond/product/${resolvedRouteId}`;
+    const productUrl = getProductShareUrl();
     const message = `Namaste Aura Rudraksha,\n\nI would like to order:\n\n*Product:* ${p.name}\n*Variant:* ${selectedVariant || selectedSize}\n*Quantity:* ${qty}\n*Total Price:* ${money(price * qty)}\n*Link:* ${productUrl}\n\nPlease confirm availability and dispatch details.\n\nDhanyawad!`;
     const waUrl = `https://wa.me/${waCleanPhone}?text=${encodeURIComponent(message)}`;
     window.open(waUrl, "_blank");
-  };
-
-  const getProductShareUrl = () => {
-    if (!p) return typeof window !== "undefined" ? window.location.href : "https://aurarudraksha.bond";
-    const origin = typeof window !== "undefined" ? window.location.origin : "https://aurarudraksha.bond";
-    return `${origin}/product/${resolvedRouteId}`;
   };
 
   const handleCopyLink = async () => {

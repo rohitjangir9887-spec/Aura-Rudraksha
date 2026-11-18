@@ -154,6 +154,18 @@ export function VedicTools() {
           </p>
         </div>
 
+        <form action="https://trends.google.com/trends/explore" method="get" target="_blank" rel="noopener noreferrer"
+          style={{ padding: 18, marginBottom: 22, background: "#fffaf5", border: "1px solid #e5d5c5", borderRadius: 14 }}>
+          <label htmlFor="trend-query" style={{ display: "block", marginBottom: 8, fontWeight: 700 }}>
+            Google Trends पर भारत की खोज रुचि देखें
+          </label>
+          <input id="trend-query" type="search" name="q" required maxLength={120} defaultValue="रुद्राक्ष"
+            style={{ padding: 10, maxWidth: "100%" }} />
+          <input type="hidden" name="geo" value="IN" />
+          <input type="hidden" name="date" value="today 3-m" />
+          <button type="submit" className="primary-btn">पिछले 90 दिन देखें ↗</button>
+        </form>
+
         {/* 4 Tool Cards Grid */}
         <div style={{
           display: "grid",

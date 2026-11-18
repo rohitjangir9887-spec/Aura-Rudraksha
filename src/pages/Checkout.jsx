@@ -1,3 +1,4 @@
+import { rememberCheckout, finishCheckout } from "../lib/checkoutCompletion";
 import { getProductPrimaryImage, getProductGalleryImages } from "../lib/imageUtils";
 import { getProductRoute } from "../lib/routes";
 import { resolveCartProduct } from "../lib/productResolver";
@@ -319,10 +320,11 @@ export function Checkout() {
   const activeLines = buyNowLines || lines;
 
   // Real-time calculation for Buy Now items if distinct from cart
+  const [buyNowCoupon, setBuyNowCoupon] = useState(null);
   const [buyNowTotals, setBuyNowTotals] = useState(() => {
     try {
       if (buyNowLines && buyNowLines.length > 0 && db && typeof db.calculateCartSync === "function") {
-        const calc = db.calculateCartSync(buyNowLines, couponCode);
+        const calc = db.calculateCartSync(buyNowLines, null);
         return calc?.data || null;
       }
     } catch (_) {}
@@ -336,7 +338,7 @@ export function Checkout() {
     }
 
     let cancelled = false;
-    const activeCode = appliedCoupon?.code || couponCode || "";
+    const activeCode = buyNowCoupon;
 
     try {
       if (typeof db.calculateCartSync === "function") {
@@ -360,9 +362,9 @@ export function Checkout() {
     return () => {
       cancelled = true;
     };
-  }, [buyNowLines, appliedCoupon, couponCode]);
+  }, [buyNowLines, buyNowCoupon]);
 
-  const activeTotals = buyNowTotals || cartTotals;
+  const activeTotals = buyNowLines ? buyNowTotals : cartTotals;
 
   // Effective checkout lines: Return empty array if cart is empty
   const effectiveLines = useMemo(() => {
@@ -457,8 +459,7 @@ export function Checkout() {
           sessionStorage.removeItem("aura_pending_orderId");
           sessionStorage.removeItem("aura_pending_txnid");
           sessionStorage.removeItem("aura_pending_timestamp");
-          sessionStorage.removeItem("aura_buy_now_intent");
-          try { clear(); } catch (_) {}
+          finishCheckout(sessionStorage, pendingOrderId, clear);
           const gQuery = pendingGuestToken ? `&guestToken=${encodeURIComponent(pendingGuestToken)}` : "";
           navigate(`/payment-result?status=success&orderId=${encodeURIComponent(pendingOrderId)}&txnid=${encodeURIComponent(pendingTxnid || "")}${gQuery}`, { replace: true });
           return;
@@ -877,10 +878,13 @@ export function Checkout() {
     setValidatingCoupon(true);
 
     try {
-      const res = await applyCoupon(code, activeLines);
+      const res = buyNowLines
+        ? await db.validateCartCoupon(code, buyNowLines)
+        : await applyCoupon(code);
       if (res.valid) {
-        if (buyNowLines && res.totals) {
-          setBuyNowTotals(res.totals);
+        if (buyNowLines) {
+          setBuyNowCoupon(code);
+          if (res.totals) setBuyNowTotals(res.totals);
         }
         triggerHaptic("success");
         setCouponInput("");
@@ -909,7 +913,12 @@ export function Checkout() {
 
   const handleRemoveCoupon = () => {
     triggerHaptic("light");
-    removeCoupon();
+    if (buyNowLines) {
+      setBuyNowCoupon(false);
+      setBuyNowTotals(db.calculateCartSync(buyNowLines, false)?.data || null);
+    } else {
+      removeCoupon();
+    }
     setCouponInput("");
     setCouponError("");
     setCouponSuccessMsg("");
@@ -1056,7 +1065,7 @@ export function Checkout() {
       phone: addressObj.phone,
       address: fullAddressString,
       shippingAddress: addressObj,
-      couponCode: (buyNowLines ? buyNowTotals?.appliedCoupon?.code : appliedCoupon?.code) || couponCode || "",
+      couponCode: buyNowLines ? (buyNowTotals?.appliedCoupon?.code || "") : (appliedCoupon?.code || couponCode || ""),
       items: linesToProcess.flatMap(l => Array.from({ length: l.qty || 1 }, () => l.id)),
       lines: linesToProcess,
       snapshotItems: snapshotItems,
@@ -1090,7 +1099,8 @@ export function Checkout() {
         const createdGuestToken = savedOrder?.guestToken || sessionStorage.getItem("aura_guest_token") || "";
 
         try {
-          sessionStorage.removeItem("aura_buy_now_intent");
+          rememberCheckout(sessionStorage, createdOrderId, buyNowIntentStr);
+          finishCheckout(sessionStorage, createdOrderId, clear);
           sessionStorage.removeItem("aura_pending_orderId");
           sessionStorage.removeItem("aura_pending_txnid");
           sessionStorage.removeItem("aura_pending_timestamp");
@@ -1108,11 +1118,6 @@ export function Checkout() {
           replace: true,
           state: { order: savedOrder }
         });
-        setTimeout(() => {
-          try {
-            clear();
-          } catch (_) {}
-        }, 0);
         return;
       } catch (err) {
         triggerHaptic("warning");
@@ -1132,6 +1137,7 @@ export function Checkout() {
         const createdTxnid = res.data.txnid || res.data.params?.txnid || "";
         const createdGuestToken = res.data.guestToken || "";
         try {
+          rememberCheckout(sessionStorage, createdOrderId, buyNowIntentStr);
           if (createdGuestToken) {
             sessionStorage.setItem("aura_guest_token", createdGuestToken);
             localStorage.setItem("aura_guest_token", createdGuestToken);
@@ -1360,7 +1366,7 @@ export function Checkout() {
             totalMrp={totalMrp}
             subtotal={subtotal}
             productSavings={productSavings}
-            appliedCoupon={buyNowLines ? (buyNowTotals?.appliedCoupon ?? appliedCoupon) : appliedCoupon}
+            appliedCoupon={buyNowLines ? buyNowTotals?.appliedCoupon : appliedCoupon}
             couponDiscount={couponDiscount}
             shippingFee={shippingFee}
             finalTotal={finalTotal}

@@ -102,22 +102,6 @@ function filterValidCatalogLines(sanitizedLines) {
 
 function readStoredCart(user) {
   try {
-    if (typeof window !== "undefined") {
-      // One-time cleanup of phantom cart items previously caused by Buy Now / default mala prefill
-      const cleanedFlag = localStorage.getItem("aura_cart_clean_v3");
-      if (cleanedFlag !== "1") {
-        localStorage.setItem("aura_cart_clean_v3", "1");
-        try {
-          sessionStorage.removeItem("aura_buy_now_intent");
-          Object.keys(localStorage).forEach((k) => {
-            if (k.startsWith("aura-cart-") || k === "aura_cart_lines") {
-              localStorage.removeItem(k);
-            }
-          });
-        } catch (_) {}
-        return [];
-      }
-    }
     const key = getUserCartStorageKey(user);
     const raw = JSON.parse(localStorage.getItem(key) || "[]");
     const sanitized = sanitizeLines(raw);
@@ -683,18 +667,6 @@ export function CartProvider({ children }) {
     const clear = () => {
       persistLines([]);
       persistCouponCode("");
-      try {
-        sessionStorage.removeItem("aura_buy_now_intent");
-        sessionStorage.removeItem("aura_cart_lines");
-        localStorage.removeItem("aura-cart-guest");
-        localStorage.removeItem("aura_cart_lines");
-        localStorage.removeItem("aura_cart_coupon");
-        Object.keys(localStorage).forEach((k) => {
-          if (k.startsWith("aura-cart-") || k.startsWith("aura-applied-coupon-code-")) {
-            localStorage.removeItem(k);
-          }
-        });
-      } catch (_) {}
     };
 
     const refreshTotals = () => fetchAuthoritativeTotals(lines, couponCode);
