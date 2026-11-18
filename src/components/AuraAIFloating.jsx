@@ -115,44 +115,17 @@ export function AuraAIFloating() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Universal Touch & Screen Unlocker: Guarantees main UI and product clicks work 100% with zero touch lock
-  const unlockScreenAndTouch = useCallback(() => {
-    if (typeof document !== "undefined") {
-      try {
-        if (document.body.style.overflow) document.body.style.overflow = "";
-        if (document.body.style.position) document.body.style.position = "";
-        if (document.body.style.pointerEvents) document.body.style.pointerEvents = "";
-        if (document.body.style.touchAction) document.body.style.touchAction = "";
-        if (document.documentElement.style.overflow) document.documentElement.style.overflow = "";
-        if (document.documentElement.style.pointerEvents) document.documentElement.style.pointerEvents = "";
-        if (document.documentElement.style.touchAction) document.documentElement.style.touchAction = "";
-        const rootEl = document.getElementById("root");
-        if (rootEl && rootEl.style.pointerEvents) {
-          rootEl.style.pointerEvents = "";
-        }
-      } catch (_) {}
-    }
-  }, []);
-
   // Keep pill state in sync with assistant thinking & answer ready states
   useEffect(() => {
-    if (loading) {
-      setPillState("thinking");
-    } else if (pillState === "thinking") {
-      setPillState("ready");
-      const readyTimer = setTimeout(() => {
-        setPillState("default");
-      }, 3000);
-      return () => clearTimeout(readyTimer);
-    }
-  }, [loading, pillState]);
+    if (loading) setPillState("thinking");
+    else setPillState(previous => previous === "thinking" ? "ready" : previous);
+  }, [loading]);
 
-  // Cleanly unlock screen styles whenever chat closes or mode changes
   useEffect(() => {
-    if (!isOpen || !isFullWindow) {
-      unlockScreenAndTouch();
-    }
-  }, [isOpen, isFullWindow, unlockScreenAndTouch]);
+    if (pillState !== "ready") return;
+    const timer = setTimeout(() => setPillState("default"), 3000);
+    return () => clearTimeout(timer);
+  }, [pillState]);
 
   // Listen for link navigation events from AI messages to close drawer smoothly & unlock touch
   useEffect(() => {
@@ -165,11 +138,11 @@ export function AuraAIFloating() {
       setShowNotepad(false);
       setShowBirthForm(false);
       setOrderModalProduct(null);
-      unlockScreenAndTouch();
+
     };
     window.addEventListener("aura-ai-navigate", handleNavigate);
     return () => window.removeEventListener("aura-ai-navigate", handleNavigate);
-  }, [setIsOpen, unlockScreenAndTouch]);
+  }, [setIsOpen]);
   const [conversationId, setConversationId] = useState(() => auraChatStore.getConversationId());
   const [showChatHistoryModal, setShowChatHistoryModal] = useState(false);
   const [showSavedKundaliModal, setShowSavedKundaliModal] = useState(false);
@@ -507,9 +480,9 @@ export function AuraAIFloating() {
       setShowNotepad(false);
       setShowBirthForm(false);
       setOrderModalProduct(null);
-      unlockScreenAndTouch();
+
     }
-  }, [location.pathname, unlockScreenAndTouch, stopBackgroundAiExecution]);
+  }, [location.pathname, stopBackgroundAiExecution]);
   const messagesEndRef = useRef(null);
   const undoTimerRef = useRef(null);
 
@@ -529,9 +502,9 @@ export function AuraAIFloating() {
       setShowNotepad(false);
       setShowBirthForm(false);
       setOrderModalProduct(null);
-      unlockScreenAndTouch();
+
     }
-  }, [location.pathname, location.search, unlockScreenAndTouch, stopBackgroundAiExecution]);
+  }, [location.pathname, location.search, stopBackgroundAiExecution]);
 
   // Dedicated clean close handler - stops any active background AI stream immediately so UI never hangs
   const handleCloseChat = useCallback((e) => {
@@ -558,47 +531,39 @@ export function AuraAIFloating() {
     setShowNotepad(false);
     setShowBirthForm(false);
     setOrderModalProduct(null);
-    unlockScreenAndTouch();
-  }, [unlockScreenAndTouch, stopBackgroundAiExecution]);
+
+  }, [stopBackgroundAiExecution]);
 
   // Ensure all streams and timers abort cleanly if floating assistant unmounts
   useEffect(() => {
     return () => {
       stopBackgroundAiExecution();
-      unlockScreenAndTouch();
+
     };
-  }, [stopBackgroundAiExecution, unlockScreenAndTouch]);
+  }, [stopBackgroundAiExecution]);
 
   // Cleanly handle Escape key, route transitions, and browser back
   useEffect(() => {
     if (!isOpen) {
-      unlockScreenAndTouch();
+
       return;
     }
-
-    const handleKeyDown = (e) => {
-      if (e.key === "Escape") {
-        handleCloseChat();
-      }
-    };
 
     const handlePopState = () => {
       handleCloseChat();
     };
 
-    window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("popstate", handlePopState);
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("popstate", handlePopState);
-      unlockScreenAndTouch();
+
     };
-  }, [isOpen, handleCloseChat, unlockScreenAndTouch]);
+  }, [isOpen, handleCloseChat]);
 
   // When chat window is open in full-window modal, clicking outside the window on the website closes it
   useEffect(() => {
     if (!isOpen) {
-      unlockScreenAndTouch();
+
       return;
     }
 
@@ -642,9 +607,9 @@ export function AuraAIFloating() {
     document.addEventListener("click", handleOutsideInteraction, { passive: true });
     return () => {
       document.removeEventListener("click", handleOutsideInteraction);
-      unlockScreenAndTouch();
+
     };
-  }, [isOpen, isFullWindow, handleCloseChat, unlockScreenAndTouch, showSavedKundaliModal, showChatHistoryModal, orderModalProduct, showNotepad]);
+  }, [isOpen, isFullWindow, handleCloseChat, showSavedKundaliModal, showChatHistoryModal, orderModalProduct, showNotepad]);
 
   // Load server settings
   useEffect(() => {
@@ -1492,7 +1457,7 @@ export function AuraAIFloating() {
     setIsFullWindow(false);
     auraChatStore.setFloatingDismissed(true);
     setIsDismissed(true);
-    unlockScreenAndTouch();
+
     setShowUndoToast(true);
     if (undoTimerRef.current) {
       clearTimeout(undoTimerRef.current);
@@ -1685,6 +1650,8 @@ export function AuraAIFloating() {
         >
             <div
               id="aura-ai-floating-panel"
+              role="dialog"
+              aria-label="Aura Assistant"
               className={`aura-ai-panel ${isFullWindow ? "aura-ai-panel-full" : "aura-ai-panel-compact"}`}
               style={{ transformOrigin: isFullWindow ? "center center" : "bottom left", pointerEvents: "auto" }}
               onClick={(e) => e.stopPropagation()}
@@ -2431,7 +2398,7 @@ export function AuraAIFloating() {
                                       onNavigate={() => {
                                         setIsOpen(false);
                                         setIsFullWindow(false);
-                                        unlockScreenAndTouch();
+
                                       }}
                                       onBuy={(prod) => {
                                         triggerHaptic("light");

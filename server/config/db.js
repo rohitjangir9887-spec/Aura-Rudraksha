@@ -170,7 +170,7 @@ export function isMemoryMongoActive() {
 
 export async function getOrStartMemoryMongo() {
   const isVercelServerless = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.AWS_LAMBDA_FUNCTION_NAME);
-  if (isVercelServerless) return null;
+  if (isVercelServerless || process.env.NODE_ENV === "production") return null;
   if (!memoryServerInstance) {
     try {
       const { MongoMemoryServer } = await import("mongodb-memory-server");
@@ -408,7 +408,7 @@ export async function getDbDiagnostics() {
   const readyStateText = readyStateNames[readyStateNum] || "Unknown";
   const isConnected = readyStateNum === 1;
   let pingMs = null;
-  let collectionNames = [];
+  let collectionNames = null;
   let serverVersion = null;
 
   if (isConnected && mongoose.connection?.db) {
@@ -419,7 +419,7 @@ export async function getDbDiagnostics() {
       const adminDb = mongoose.connection.db.admin();
       const serverInfo = await adminDb.serverInfo().catch(() => null);
       if (serverInfo?.version) serverVersion = serverInfo.version;
-      const cols = await mongoose.connection.db.listCollections().toArray().catch(() => []);
+      const cols = await mongoose.connection.db.listCollections().toArray();
       collectionNames = cols.map(c => c.name);
     } catch (err) {
       recordConnectionError(err, "ping:error");
@@ -442,19 +442,19 @@ export async function getDbDiagnostics() {
     isConnected,
     connected: isConnected,
     readyState: { code: readyStateNum, label: readyStateText },
-    host: mongoose.connection?.host || "127.0.0.1",
-    port: mongoose.connection?.port || 27017,
-    databaseName: mongoose.connection?.name || "aurarudraksha",
-    lastConnected: cached?.lastConnected || new Date().toISOString(),
-    lastAttempt: cached?.lastAttempt || new Date().toISOString(),
-    lastSync: cached?.lastConnected || new Date().toISOString(),
+    host: mongoose.connection?.host || null,
+    port: mongoose.connection?.port || null,
+    databaseName: mongoose.connection?.name || null,
+    lastConnected: cached?.lastConnected || null,
+    lastAttempt: cached?.lastAttempt || null,
+    lastSync: cached?.lastConnected || null,
     pingMs,
-    serverVersion: serverVersion || (isConnected ? "7.0.14" : null),
-    collectionsCount: collectionNames.length,
-    collections: collectionNames,
+    serverVersion,
+    collectionsCount: collectionNames?.length ?? null,
+    collections: collectionNames ?? [],
     uriConfigured,
     uriScheme,
-    maskedUri: getMaskedMongoUri() || "mongodb://127.0.0.1:27017/aurarudraksha",
+    maskedUri: getMaskedMongoUri() || null,
     isIpWhitelistError: isConnected ? false : Boolean(cached?.isIpWhitelistError),
     lastErrors: isConnected ? [] : getDbErrorLogs(5),
     totalErrorsLogged: isConnected ? 0 : (cached?.errorLogs || []).length,

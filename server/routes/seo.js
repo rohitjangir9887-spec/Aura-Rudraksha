@@ -1,11 +1,12 @@
 import express from "express";
+import { requireAdmin } from "../middleware/auth.js";
 import {
   generateSitemapXml,
   generateMerchantFeedXml,
   generateRobotsTxt,
   getPublicProductsForSeo
 } from "../services/seoService.js";
-import { getIndexNowKey, submitToIndexNow } from "../services/indexNowService.js";
+import { getIndexNowKey, getSiteBaseUrl, submitToIndexNow } from "../services/indexNowService.js";
 import { connectDB, isDbConnected } from "../config/db.js";
 import { Product } from "../models/Product.js";
 
@@ -151,10 +152,10 @@ router.get("/api/seo/status", async (req, res) => {
   }
 });
 
-router.post("/api/seo/ping", async (req, res) => {
+router.post("/api/seo/ping", requireAdmin, async (req, res) => {
   try {
     const products = await getPublicProductsForSeo();
-    const baseUrl = "https://aurarudraksha.bond";
+    const baseUrl = getSiteBaseUrl(req);
     const urls = [
       `${baseUrl}/`,
       `${baseUrl}/shop`,
@@ -174,12 +175,14 @@ router.post("/api/seo/ping", async (req, res) => {
         if (slugOrId) urls.push(`${baseUrl}/product/${slugOrId}`);
       }
     }
-    submitToIndexNow(urls, req).catch(() => {});
-    return res.json({
-      success: true,
-      urlCount: urls.length,
-      message: "Submitted live URLs to IndexNow (Bing, Yandex, Brave/Seznam ecosystem) and refreshed sitemap."
-    });
+    const result = await submitToIndexNow(urls, req);
+    if (!result.success) {
+      return res.status(502).json({ success: false, message: "IndexNow did not accept the submission. Please retry." });
+    }
+    const urlCount = result.submittedCount || 0;
+    return res.json({ success: true, urlCount, message: urlCount
+      ? `IndexNow accepted ${urlCount} URLs for processing.`
+      : "These URLs were already submitted recently." });
   } catch (err) {
     return res.status(500).json({ success: false, error: err?.message || "SEO ping failed" });
   }

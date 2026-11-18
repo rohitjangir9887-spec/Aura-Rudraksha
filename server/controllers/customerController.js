@@ -76,20 +76,12 @@ export async function saveCustomer(req, res, next) {
       joined: now
     };
 
-    if (!Array.isArray(inMemoryStore.customers)) inMemoryStore.customers = [];
-    const idx = inMemoryStore.customers.findIndex(c => c.id === id || (email && c.email === email) || (phone && c.phone === phone));
-    if (idx !== -1) {
-      Object.assign(inMemoryStore.customers[idx], data, { lastSeen: now });
-    } else {
-      inMemoryStore.customers.push(customerPayload);
-    }
-
     if (!isDbConnected()) {
       await connectDB().catch(() => {});
     }
 
     if (!isDbConnected()) {
-      return res.json({ success: true, data: customerPayload });
+      return res.status(503).json({ success: false, message: "Database unavailable. Customer was not saved." });
     }
 
     let query = { id };

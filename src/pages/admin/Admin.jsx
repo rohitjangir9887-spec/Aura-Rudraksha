@@ -61,7 +61,7 @@ export function Admin() {
     const nextSettings = { ...storeSettings, [key]: nextVal };
     setStoreSettings(nextSettings);
     try {
-      await db.saveSettings(nextSettings);
+      await db.saveSettings({ [key]: nextVal });
       emitToast(`${label} turned ${nextVal ? "ON (Active)" : "OFF (Disabled)"}`, "success");
     } catch (err) {
       setStoreSettings(storeSettings);
@@ -387,6 +387,10 @@ export function Admin() {
 
   const [topProducts, setTopProducts] = useState(() => (db.getProducts() || []).slice(0, 5));
   const [dbStatus, setDbStatus] = useState("unknown");
+  const handleDbStatusChange = useCallback((diag) => {
+    setDbStatus(diag.isConnected ? "connected" : "disconnected");
+  }, []);
+
   const [refreshing, setRefreshing] = useState(false);
   const [fetchError, setFetchError] = useState(null);
   const mountedRef = useRef(true);
@@ -653,11 +657,7 @@ export function Admin() {
 
         {/* MongoDB Connection Status & Troubleshooting Component */}
         <div style={{ marginBottom: '20px' }}>
-          <AdminMongoStatus onStatusChange={(diag) => {
-            if (diag?.isConnected !== undefined) {
-              setDbStatus(diag.isConnected ? "connected" : "disconnected");
-            }
-          }} />
+          <AdminMongoStatus onStatusChange={handleDbStatusChange} />
         </div>
 
         {/* QUICK PAYMENT MODE CONTROL: CASH ON DELIVERY (COD) & ONLINE PAYMENT ON/OFF */}

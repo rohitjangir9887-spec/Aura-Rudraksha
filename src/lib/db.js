@@ -259,14 +259,14 @@ async function apiRequest(endpoint, options = {}) {
       }
 
       const res = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
         signal: controller.signal,
         headers: {
           "Content-Type": "application/json",
           ...(options.noCache ? { "Cache-Control": "no-cache" } : {}),
           ...(token ? { "Authorization": `Bearer ${token}` } : {}),
           ...(options.headers || {})
-        },
-        ...options
+        }
       });
 
       clearTimeout(timeoutId);
@@ -652,7 +652,15 @@ export function loadCacheFromLocalStorage() {
     const cachedSettings = localStorage.getItem("aura_settings_cache");
     if (cachedSettings) {
       const parsed = JSON.parse(cachedSettings);
-      if (parsed && typeof parsed === "object") storeCache.settings = { ...storeCache.settings, ...parsed };
+      if (parsed && typeof parsed === "object") {
+        const credentials = ["imagekitPrivateKey", "metaCapiAccessToken", "pcloudAccessToken", "pcloudRefreshToken"];
+        if (credentials.some(key => key in parsed)) {
+          for (const key of credentials) delete parsed[key];
+          safeLocalStorageSet("aura_settings_cache", parsed);
+          localStorage.removeItem("aura_cross_tab_signal");
+        }
+        storeCache.settings = { ...storeCache.settings, ...parsed };
+      }
     }
     const cachedReviewSettings = localStorage.getItem("aura_review_settings_cache");
     if (cachedReviewSettings) {
@@ -1094,6 +1102,8 @@ export const db = {
       message: res?.message || ""
     };
   },
+
+  submitSearchUrls: () => apiRequest("/seo/ping", { method: "POST", requiresAuth: true }),
 
   // Full Database Diagnostics & Error Logs (Admin)
   getDbDiagnostics: async () => {
@@ -4102,9 +4112,20 @@ export const db = {
   // STORE SETTINGS & POLICIES
   getSettings: () => storeCache.settings,
   saveSettings: async (settings) => {
+    const res = await apiRequest("/settings", {
+      method: "PUT",
+      body: JSON.stringify(settings),
+      requiresAuth: true,
+      noCache: true
+    });
+    if (!res?.success || !res.data) {
+      throw new Error(res?.message || "Failed to save settings. Database is unavailable.");
+    }
     lastMutationTime = Date.now();
-    // Optimistically update in-memory settings immediately so Home UI and Admin never flicker or revert
-    storeCache.settings = { ...storeCache.settings, ...settings };
+    storeCache.settings = { ...storeCache.settings, ...res.data };
+    for (const key of ["metaCapiAccessToken", "pcloudAccessToken", "pcloudRefreshToken", "imagekitPrivateKey"]) {
+      delete storeCache.settings[key];
+    }
     if (Array.isArray(settings?.homeProductLayout?.live) && settings.homeProductLayout.live.length > 0) {
       const liveIds = settings.homeProductLayout.live.map(String);
       const liveIdxMap = new Map(liveIds.map((id, idx) => [id, idx + 1]));
@@ -4121,22 +4142,6 @@ export const db = {
         localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
       } catch (_) {}
     }
-    try {
-      localStorage.setItem("aura_settings_cache", JSON.stringify(storeCache.settings));
-    } catch (_) {}
-
-    const res = await apiRequest("/settings", {
-      method: "PUT",
-      body: JSON.stringify(settings),
-      requiresAuth: true,
-      noCache: true
-    });
-    if (!res?.success) {
-      throw new Error(res?.message || "Failed to save settings. Database is unavailable.");
-    }
-    lastMutationTime = Date.now();
-    const saved = res.data || settings;
-    storeCache.settings = { ...storeCache.settings, ... settings, ...saved };
     try {
       localStorage.setItem("aura_settings_cache", JSON.stringify(storeCache.settings));
       localStorage.setItem("aura_last_fetch_time", String(Date.now()));

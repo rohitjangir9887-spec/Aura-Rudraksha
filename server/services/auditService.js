@@ -25,7 +25,7 @@ export async function logAuditEvent({
   const sanitizeForAudit = (obj) => {
     if (!obj || typeof obj !== "object") return obj;
     const clone = Array.isArray(obj) ? [...obj] : { ...obj };
-    const sensitiveKeys = ["imagekitPrivateKey", "pcloudAccessToken", "pcloudRefreshToken", "password", "hash", "salt"];
+    const sensitiveKeys = ["imagekitPrivateKey", "pcloudAccessToken", "pcloudRefreshToken", "metaCapiAccessToken", "password", "hash", "salt"];
     for (const key of Object.keys(clone)) {
       if (sensitiveKeys.includes(key)) {
         clone[key] = "[REDACTED]";
