@@ -856,7 +856,7 @@ export function HomeProductShowcase({ products = [], isLoading = false, override
 
       {/* Product Grid */}
       <div className="product-grid swipeable">
-        {(isLoading || (!products || products.length === 0)) ? (
+        {isLoading ? (
           Array.from({ length: 8 }).map((_, i) => <ProductCardSkeleton key={i} />)
         ) : displayedProducts.length === 0 ? (
           <div style={{ 
