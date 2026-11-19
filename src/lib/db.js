@@ -296,7 +296,8 @@ async function apiRequest(endpoint, options = {}) {
         return {
           success: false,
           status: res.status,
-          message: data.message || `Server error (${res.status}): ${res.statusText || "Request failed"}`
+          errorCode: data?.status,
+          message: data?.message || `Server error (${res.status}): ${res.statusText || "Request failed"}`
         };
       }
       return data;
@@ -1051,6 +1052,17 @@ if (typeof window !== "undefined" && !isInitialized) {
 // ----------------------------------------------------
 // UNIFIED DATABASE OBJECT CONNECTED TO MONGODB API
 // ----------------------------------------------------
+async function requestCouponValidation(endpoint, payload) {
+  const result = await apiRequest(endpoint, { method: "POST", body: JSON.stringify(payload) });
+  if (result?.success === true && typeof result.valid === "boolean") return result;
+  return {
+    success: false,
+    valid: false,
+    status: result?.errorCode || (result?.status === 400 ? "INVALID" : "VALIDATION_UNAVAILABLE"),
+    message: result?.message || "Could not verify this coupon. Please try again."
+  };
+}
+
 export const db = {
   isBackendSynced: () => isBackendSynced(),
   onStoreUpdate: (callback) => onStoreUpdate(callback),
@@ -3381,137 +3393,11 @@ export const db = {
     return db.calculateCartSync(lines, couponCode);
   },
 
-  validateCartCoupon: async (code, lines = []) => {
-    try {
-      const res = await apiRequest("/cart/validate-coupon", {
-        method: "POST",
-        body: JSON.stringify({ code, lines })
-      });
-      if (res?.success) {
-        if (res.totals && res.totals.subtotal === 0 && (lines || []).length > 0) {
-          const syncCalc = db.calculateCartSync(lines, code);
-          if (syncCalc?.data) {
-            res.totals = syncCalc.data;
-          }
-        }
-        return res;
-      }
-    } catch (_) {}
+  validateCartCoupon: (code, lines = []) =>
+    requestCouponValidation("/cart/validate-coupon", { code, lines }),
 
-    const clean = (code || "").trim().toUpperCase();
-    let coup = (storeCache.coupons || []).find(c => (c.code || "").trim().toUpperCase() === clean);
-    if (!coup && storeCache.activeOffer && storeCache.activeOffer.enabled !== false && storeCache.activeOffer.status === "Active") {
-      const offerCode = String(storeCache.activeOffer.couponCode || "").trim().toUpperCase();
-      if (offerCode && offerCode === clean) {
-        const isPct = String(storeCache.activeOffer.discountType || "").toLowerCase() === "percentage";
-        coup = {
-          id: storeCache.activeOffer.id || "OFFER-CENTRAL-1",
-          code: clean,
-          discount: Number(storeCache.activeOffer.discountValue) || (isPct ? 10 : 200),
-          type: isPct ? "percentage" : "fixed",
-          status: "Active",
-          expiry: storeCache.activeOffer.neverExpires ? null : (storeCache.activeOffer.expiresAt || storeCache.activeOffer.expiry),
-          minAmount: 0,
-          targetType: storeCache.activeOffer.targetType || "all",
-          selectedProducts: storeCache.activeOffer.applicableProducts || storeCache.activeOffer.selectedProducts || [],
-          excludedProducts: storeCache.activeOffer.excludedProducts || []
-        };
-      }
-    }
-    if (!coup) {
-      return {
-        success: false,
-        valid: false,
-        status: "INVALID",
-        message: `Coupon '${clean}' is invalid or does not exist.`
-      };
-    }
-
-    const isExp = coup.expiry && new Date(coup.expiry).getTime() < Date.now();
-    const isDisabled = coup.status === "Inactive" || coup.status === "Disabled" || coup.active === false;
-    if (isDisabled || isExp) {
-      return {
-        success: false,
-        valid: false,
-        status: isExp ? "EXPIRED" : "INVALID",
-        message: `Coupon '${clean}' is ${isExp ? "expired" : "disabled"}.`
-      };
-    }
-
-    // Compute cart subtotal reliably from resolved catalog products when inline price is omitted
-    const syncCalc = db.calculateCartSync(lines, clean);
-    const subtotal = Number(syncCalc?.data?.subtotal ?? lines.reduce((sum, l) => sum + ((l.price || l.product?.price || 0) * (l.qty || 1)), 0));
-    const minSpend = Number(coup.minAmount || coup.minOrderValue || coup.minOrder || 0);
-
-    if (minSpend > 0 && subtotal < minSpend) {
-      return {
-        success: false,
-        valid: false,
-        status: "NOT_ELIGIBLE",
-        message: `Minimum shopping amount of ₹${minSpend.toLocaleString()} required to apply '${clean}'. (Your current subtotal: ₹${subtotal.toLocaleString()})`
-      };
-    }
-
-    // Check item eligibility
-    const selIds = (coup.selectedProducts || []).map(String);
-    const excIds = (coup.excludedProducts || []).map(String);
-    const targetType = coup.targetType || "all";
-
-    if (lines.length > 0) {
-      const eligibleItems = lines.filter(l => {
-        const rawPId = String(l.productId || l.product?.id || l.product?._id || "").trim();
-        const rawId = String(l.id || "").trim();
-        const ids = [rawPId, rawId, rawPId.replace(/-indo$|_indo$/i, ""), rawId.replace(/-indo$|_indo$/i, "")].filter(Boolean);
-        if (excIds.length > 0 && ids.some(mid => excIds.includes(mid))) return false;
-        if (targetType === "selected" && selIds.length > 0 && !ids.some(mid => selIds.includes(mid))) return false;
-        return true;
-      });
-
-      if (eligibleItems.length === 0) {
-        return {
-          success: false,
-          valid: false,
-          status: "NOT_ELIGIBLE",
-          message: `Coupon '${clean}' is not applicable to the items in your cart.`
-        };
-      }
-    }
-
-    return {
-      success: true,
-      valid: true,
-      status: "APPLIED",
-      message: `Coupon '${clean}' applied successfully!`,
-      data: syncCalc?.data?.appliedCoupon || coup,
-      totals: syncCalc?.data || null
-    };
-  },
-
-  validateCoupon: async (code, subtotal = 0) => {
-    try {
-      const res = await apiRequest("/coupons/validate", {
-        method: "POST",
-        body: JSON.stringify({ code, subtotal })
-      });
-      if (res?.success) return res;
-    } catch (_) {}
-
-    const clean = (code || "").trim().toUpperCase();
-    const coup = storeCache.coupons.find(c => c.code.toUpperCase() === clean);
-    if (coup) {
-      return {
-        success: true,
-        valid: true,
-        message: `Coupon '${clean}' applied!`,
-        data: coup
-      };
-    }
-    return {
-      success: false,
-      valid: false,
-      message: `Coupon '${clean}' is invalid.`
-    };
-  },
+  validateCoupon: (code, subtotal = 0) =>
+    requestCouponValidation("/coupons/validate", { code, subtotal }),
 
   saveCoupon: async (c) => {
     const isUpdate = Boolean(c.id && !String(c.id).startsWith("temp_"));
