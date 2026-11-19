@@ -420,49 +420,22 @@ export function CartProvider({ children }) {
       setLoadingTotals(true);
       const res = await db.validateCartCoupon(cleanCode, targetLines);
 
-      if (res?.success) {
-        // Save coupon code in state and localStorage
+      if (res.success && res.valid) {
         persistCouponCode(cleanCode);
-        
-        if (res.totals && (res.totals.subtotal > 0 || targetLines.length === 0)) {
-          setTotals(res.totals);
-        } else {
-          // Trigger full calculation with new coupon
-          await fetchAuthoritativeTotals(targetLines, cleanCode);
-        }
-
-        if (res.valid) {
-          triggerHaptic("success");
-        } else {
-          triggerHaptic("warning");
-        }
-
-        return {
-          success: res.valid,
-          valid: res.valid,
-          status: res.status || (res.valid ? "APPLIED" : "INVALID"),
-          message: res.message || (res.valid ? `Coupon '${cleanCode}' applied!` : "Coupon condition not met"),
-          data: res.data,
-          totals: res.totals || null
-        };
-      } else {
-        triggerHaptic("warning");
-        // Even if server returns false or 400 (e.g. EXPIRED or NOT_ELIGIBLE), maintain coupon status properly
-        const status = res?.status || "INVALID";
-        if (status === "EXPIRED" || status === "NOT_ELIGIBLE") {
-          persistCouponCode(cleanCode);
-        }
-        await fetchAuthoritativeTotals(targetLines, cleanCode);
-
-        return {
-          success: false,
-          valid: false,
-          status: status,
-          message: res?.message || `Coupon '${cleanCode}' could not be applied.`,
-          data: res?.data,
-          totals: res?.totals || null
-        };
+        if (res.totals) setTotals(res.totals);
+        else await fetchAuthoritativeTotals(targetLines, cleanCode);
+        triggerHaptic("success");
+        return res;
       }
+
+      // A rejected replacement must leave the existing coupon and its totals together.
+      if (cleanCode === couponCode && res.status !== "VALIDATION_UNAVAILABLE") {
+        persistCouponCode("");
+        if (res.totals && !res.totals.appliedCoupon) setTotals(res.totals);
+        else await fetchAuthoritativeTotals(targetLines, "");
+      }
+      triggerHaptic("warning");
+      return { ...res, success: false, valid: false };
     } catch (err) {
       // A network/API failure is not proof that the coupon is valid; retain the
       // previously applied coupon and do not persist an unverified code.

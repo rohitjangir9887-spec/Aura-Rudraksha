@@ -53,7 +53,7 @@ export function Screen2MobileCheckout({
     const result = await db.validateCoupon(code, subtotal);
     if (result && result.valid) {
       setAppliedCoupon(code);
-      setCouponDiscount(result.discountAmount || 0);
+      setCouponDiscount(result.data?.discountAmount ?? result.discountAmount ?? 0);
       emitToast(result.message || `Coupon '${code}' applied!`, "success");
     } else {
       emitToast(result?.message || `Coupon '${code}' is invalid or inactive.`, "error");
