@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { Customer } from "../models/Customer.js";
 import { Order } from "../models/Order.js";
 import { isDbConnected, connectDB } from "../config/db.js";
+import { isAdminUser } from "../middleware/auth.js";
 import { pickFields } from "../utils/sanitize.js";
 import { normalizePhoneNumber, buildPhoneQueryVariants, extractRaw10DigitPhone } from "../utils/phoneUtils.js";
 
@@ -66,7 +67,7 @@ export async function saveCustomer(req, res, next) {
     const phone = (data.phone || "").trim();
     const now = new Date().toISOString();
 
-    const id = req.body.id || ("CUS-" + crypto.randomBytes(4).toString("hex").toUpperCase());
+    const id = pickFields(req.body, { id: "string" }).id || ("CUS-" + crypto.randomBytes(4).toString("hex").toUpperCase());
     const customerPayload = {
       ...data,
       id,
@@ -76,20 +77,8 @@ export async function saveCustomer(req, res, next) {
       joined: now
     };
 
-    if (!Array.isArray(inMemoryStore.customers)) inMemoryStore.customers = [];
-    const idx = inMemoryStore.customers.findIndex(c => c.id === id || (email && c.email === email) || (phone && c.phone === phone));
-    if (idx !== -1) {
-      Object.assign(inMemoryStore.customers[idx], data, { lastSeen: now });
-    } else {
-      inMemoryStore.customers.push(customerPayload);
-    }
-
     if (!isDbConnected()) {
-      await connectDB().catch(() => {});
-    }
-
-    if (!isDbConnected()) {
-      return res.json({ success: true, data: customerPayload });
+      return res.status(503).json({ success: false, message: "Database unavailable. Please try again shortly." });
     }
 
     let query = { id };
@@ -124,20 +113,18 @@ export async function recordCustomerOrder({ authUserId, email, phone, name, addr
     if (authUserId) {
       existingCust = await Customer.findOne({ authUserId });
     }
-    if (!existingCust && cleanEmail) {
-      existingCust = await Customer.findOne({ email: cleanEmail });
+    const guestOnly = { authUserId: { $in: [null, "", "guest"] }, role: { $ne: "admin" } };
+    if (!existingCust && !authUserId && cleanEmail) {
+      existingCust = await Customer.findOne({ ...guestOnly, email: cleanEmail });
     }
-    if (!existingCust && rawPhone) {
+    if (!existingCust && !authUserId && rawPhone) {
       const phoneQueries = buildPhoneQueryVariants(rawPhone, ["phone"]);
       if (phoneQueries.length > 0) {
-        existingCust = await Customer.findOne({ $or: phoneQueries });
+        existingCust = await Customer.findOne({ ...guestOnly, $or: phoneQueries });
       }
     }
 
     if (existingCust) {
-      if (authUserId && !existingCust.authUserId) {
-        existingCust.authUserId = authUserId;
-      }
       existingCust.totalOrders = (existingCust.totalOrders || 0) + 1;
       existingCust.totalSpent = (existingCust.totalSpent || 0) + (amount || 0);
       existingCust.lastOrderDate = now;
@@ -181,7 +168,7 @@ export async function recordCustomerOrder({ authUserId, email, phone, name, addr
         isDefault: true
       }] : [];
       const created = await Customer.create({
-        id: "CUS-" + Math.floor(1000 + Math.random() * 9000),
+        id: "CUS-" + crypto.randomBytes(4).toString("hex").toUpperCase(),
         authUserId: authUserId || undefined,
         name: cleanName,
         email: cleanEmail,
@@ -235,18 +222,8 @@ export async function updateCustomer(req, res, next) {
 export async function getCustomerMe(req, res, next) {
   try {
     const authUserId = req.user.authUserId;
-    const allowedEmails = [];
-    if (process.env.INITIAL_ADMIN_EMAIL) {
-      allowedEmails.push(process.env.INITIAL_ADMIN_EMAIL.trim().toLowerCase());
-    }
-    const initialAdminPhone = (process.env.INITIAL_ADMIN_PHONE || "").trim();
+    const { isInitialAdmin } = isAdminUser(req.user);
     const userEmail = (req.user.email || "").trim().toLowerCase();
-    const cleanUserPhone = (req.user.phone || "").replace(/[^0-9]/g, "");
-    const cleanAdminPhone = initialAdminPhone.replace(/[^0-9]/g, "");
-    const isInitialAdmin = Boolean(
-      (userEmail && allowedEmails.length > 0 && allowedEmails.includes(userEmail)) ||
-      (cleanUserPhone && cleanAdminPhone && cleanUserPhone === cleanAdminPhone)
-    );
     const now = new Date().toISOString();
 
     const googleName = (req.user.name || "").trim();
@@ -266,42 +243,29 @@ export async function getCustomerMe(req, res, next) {
 
     if (customer) {
       // Check if bootstrap updates are needed
-      let needsSave = false;
       const updates = {
         lastLoginAt: new Date(),
         lastSeen: now
       };
 
-      let currentRole = customer.role || "customer";
-      if (isInitialAdmin && currentRole !== "admin") {
-        updates.role = "admin";
-        currentRole = "admin";
-        needsSave = true;
-      } else if (!isInitialAdmin && currentRole === "admin") {
-        updates.role = "customer";
-        currentRole = "customer";
-        needsSave = true;
-      }
+      const currentRole = isInitialAdmin ? "admin" : (customer.role || "customer");
 
       let currentEmail = customer.email;
       if (req.user.email && !currentEmail) {
         updates.email = req.user.email;
         currentEmail = req.user.email;
-        needsSave = true;
       }
 
       let currentName = customer.name;
       if (googleName && (!currentName || currentName === "Customer" || currentName === "Aura Devotee")) {
         updates.name = googleName;
         currentName = googleName;
-        needsSave = true;
       }
 
       let currentAvatar = customer.avatar;
       if (googleAvatar && !currentAvatar) {
         updates.avatar = googleAvatar;
         currentAvatar = googleAvatar;
-        needsSave = true;
       }
 
       // Asynchronously update MongoDB in background without blocking customer render
@@ -332,21 +296,27 @@ export async function getCustomerMe(req, res, next) {
         const phoneVariants = buildPhoneQueryVariants(userPhone, ["phone"]);
         query.push(...phoneVariants);
       }
-      const guestCustomer = await Customer.findOne({ $or: query });
+      const guestFilter = {
+        $or: query,
+        authUserId: { $in: [null, "", "guest"] },
+        role: { $ne: "admin" }
+      };
+      let guestCustomer = await Customer.findOne(guestFilter);
       if (guestCustomer) {
-        guestCustomer.authUserId = authUserId;
-        if (isInitialAdmin) {
-          guestCustomer.role = "admin";
-        }
+        const profileUpdates = { authUserId, lastLoginAt: new Date(), lastSeen: now };
         if (googleName && (!guestCustomer.name || guestCustomer.name === "Customer" || guestCustomer.name === "Aura Devotee")) {
-          guestCustomer.name = googleName;
+          profileUpdates.name = googleName;
         }
         if (googleAvatar && !guestCustomer.avatar) {
-          guestCustomer.avatar = googleAvatar;
+          profileUpdates.avatar = googleAvatar;
         }
-        guestCustomer.lastLoginAt = new Date();
-        guestCustomer.lastSeen = now;
-        await guestCustomer.save();
+        guestCustomer = await Customer.findOneAndUpdate(
+          { ...guestFilter, _id: guestCustomer._id },
+          { $set: profileUpdates },
+          { returnDocument: "after" }
+        );
+      }
+      if (guestCustomer) {
 
         // Link previous guest orders placed with this verified email/phone in background
         setImmediate(() => {
@@ -371,7 +341,7 @@ export async function getCustomerMe(req, res, next) {
           }
         });
 
-        return res.json({ success: true, data: guestCustomer.toObject ? guestCustomer.toObject() : guestCustomer });
+        return res.json({ success: true, data: { ...guestCustomer.toObject(), role: isInitialAdmin ? "admin" : "customer" } });
       }
     }
 
@@ -381,7 +351,7 @@ export async function getCustomerMe(req, res, next) {
     const newCust = await Customer.create({
       id,
       authUserId,
-      role: isInitialAdmin ? "admin" : "customer",
+      role: "customer",
       name: resolvedName,
       email: userEmail || "",
       phone: userPhone ? (normalizePhoneNumber(userPhone) || userPhone) : "",
@@ -418,7 +388,7 @@ export async function getCustomerMe(req, res, next) {
       });
     }
 
-    return res.json({ success: true, data: newCust.toObject ? newCust.toObject() : newCust });
+    return res.json({ success: true, data: { ...newCust.toObject(), role: isInitialAdmin ? "admin" : "customer" } });
   } catch (err) {
     next(err);
   }
@@ -479,14 +449,12 @@ async function findCustomerForAuthUser(user) {
       const phoneVars = buildPhoneQueryVariants(phone, ["phone"]);
       orCond.push(...phoneVars);
     }
-    customer = await Customer.findOne({ $or: orCond });
-    if (customer) {
-      customer.authUserId = authUserId;
-      if (email && !customer.email) customer.email = email;
-      if (phone && !customer.phone) customer.phone = phone;
-      await customer.save();
-      return customer;
-    }
+    customer = await Customer.findOneAndUpdate(
+      { $or: orCond, authUserId: { $in: [null, "", "guest"] }, role: { $ne: "admin" } },
+      { $set: { authUserId } },
+      { returnDocument: "after" }
+    );
+    if (customer) return customer;
   }
 
   // Create new customer if record does not exist

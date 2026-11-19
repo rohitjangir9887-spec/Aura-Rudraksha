@@ -6,21 +6,21 @@ import { createServer as createViteServer } from "vite";
 import { createApp } from "./server/app.js";
 import { connectDB } from "./server/config/db.js";
 import { reconcileAllOrders } from "./server/services/orderReconciliationService.js";
-import { injectSeoIntoHtml } from "./server/services/seoService.js";
+import { renderSsrHtml } from "./server/services/seoService.js";
 import { buildStoreRagIndex } from "./server/services/ragService.js";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-async function safeInjectSeo(html: string, reqPath: string, req: express.Request): Promise<string> {
+async function safeInjectSeo(html: string, reqPath: string, req: express.Request): Promise<{ html: string; status: number }> {
   try {
     return await Promise.race([
-      injectSeoIntoHtml(html, reqPath, req),
-      new Promise<string>((resolve) => setTimeout(() => resolve(html), 2500))
+      renderSsrHtml(reqPath, req, html),
+      new Promise<{ html: string; status: number }>((resolve) => setTimeout(() => resolve({ html, status: 200 }), 2500))
     ]);
   } catch (err: any) {
     console.warn("[SEO Injection Fallback Notice]:", err?.message || err);
-    return html;
+    return { html, status: 200 };
   }
 }
 
@@ -58,10 +58,10 @@ async function startServer() {
         let transformedHtml = await vite.transformIndexHtml(req.originalUrl || req.url, rawTemplate);
         // Remove @vite/client in no-HMR preview environments so the browser never tries to open a WebSocket to port 24678
         transformedHtml = transformedHtml.replace(/<script\s+type=["']module["']\s+src=["']\/@vite\/client["']><\/script>\s*/gi, "");
-        const finalHtml = await safeInjectSeo(transformedHtml, req.path, req);
+        const { html, status } = await safeInjectSeo(transformedHtml, req.path, req);
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
-        return res.status(200).send(finalHtml);
+        return res.status(status).send(html);
       } catch (err: any) {
         console.warn("[Dev HTML Render Notice]:", err?.message || err);
         return next();
@@ -114,10 +114,10 @@ async function startServer() {
             "utf-8"
           );
         }
-        const finalHtml = await safeInjectSeo(cachedDistHtml, req.path, req);
+        const { html, status } = await safeInjectSeo(cachedDistHtml, req.path, req);
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
-        return res.status(200).send(finalHtml);
+        return res.status(status).send(html);
       } catch (err) {
         console.warn("[Prod SEO HTML Fallback Notice]:", err);
         const distHtmlPath = path.join(distPath, "index.html");

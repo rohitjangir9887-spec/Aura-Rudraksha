@@ -163,27 +163,31 @@ export function isValidMongoUri(rawUri) {
 }
 
 let memoryServerInstance = null;
+let memoryServerStart = null;
 
 export function isMemoryMongoActive() {
   return Boolean(memoryServerInstance && !getMongoUri());
 }
 
 export async function getOrStartMemoryMongo() {
-  const isVercelServerless = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.AWS_LAMBDA_FUNCTION_NAME);
-  if (isVercelServerless) return null;
-  if (!memoryServerInstance) {
-    try {
-      const { MongoMemoryServer } = await import("mongodb-memory-server");
-      memoryServerInstance = await MongoMemoryServer.create({ instance: { dbName: "aurarudraksha" } });
-      const memUri = memoryServerInstance.getUri();
-      console.log("⚡ [MongoDB] Resilient Local MongoDB Engine initialized:", memUri);
-      return memUri;
-    } catch (err) {
-      console.warn("⚠️ [MongoDB] Could not start MongoMemoryServer fallback:", err?.message);
-      return null;
-    }
+  if (isVercelServerless || process.env.NODE_ENV === "production" || getMongoUri()) return null;
+  if (memoryServerInstance) return memoryServerInstance.getUri();
+  if (!memoryServerStart) {
+    memoryServerStart = import("mongodb-memory-server")
+      .then(({ MongoMemoryServer }) => MongoMemoryServer.create({ instance: { dbName: "aurarudraksha" } }))
+      .then(instance => {
+        memoryServerInstance = instance;
+        return instance.getUri();
+      })
+      .catch(err => {
+        console.warn("⚠️ [MongoDB] Could not start MongoMemoryServer:", err?.message);
+        return null;
+      })
+      .finally(() => {
+        memoryServerStart = null;
+      });
   }
-  return memoryServerInstance.getUri();
+  return memoryServerStart;
 }
 
 export function getMongoUri() {
@@ -226,10 +230,7 @@ export async function connectDB(options = {}) {
   const configuredUri = getMongoUri();
   cached.lastAttempt = new Date().toISOString();
 
-  let targetUri = configuredUri;
-  if (!targetUri) {
-    targetUri = await getOrStartMemoryMongo();
-  }
+  const targetUri = configuredUri || await getOrStartMemoryMongo();
 
   if (!targetUri) {
     const raw = sanitizeMongoUriString(process.env.MONGODB_URI || "");
@@ -321,38 +322,13 @@ export async function connectDB(options = {}) {
                                 String(err?.message || "").toLowerCase().includes("timed out");
           if (isIpWhitelist) {
             cached.isIpWhitelistError = true;
-            console.warn("⚠️ [MongoDB Atlas IP Whitelist Warning]: Atlas cluster unreachable. If using MongoDB Atlas, make sure 0.0.0.0/0 is added to IP Whitelist in Atlas Security -> Network Access.");
+            console.warn("⚠️ [MongoDB] Atlas unreachable. Check the deployment’s network access and database configuration.");
           }
           const isLastAttempt = attempt >= maxAttempts;
           if (!isLastAttempt) {
             console.warn(`⚠️ [MongoDB] Connection attempt ${attempt}/${maxAttempts} notice: ${err?.message || err}. Retrying in 500ms...`);
             await new Promise(r => setTimeout(r, 500));
           } else {
-            // If primary targetUri failed and memory server is supported, fallback to memory mongo
-            if (!isVercelServerless) {
-              const memUri = await getOrStartMemoryMongo().catch(() => null);
-              if (memUri && targetUri !== memUri) {
-                console.log("⚡ [MongoDB] Activated local resilient MongoDB engine fallback to keep store online.");
-                targetUri = memUri;
-                try {
-                  const memInstance = await mongoose.connect(targetUri, opts);
-                  cached.conn = memInstance;
-                  cached.lastConnected = new Date().toISOString();
-                  cached.lastFailedAttempt = null;
-                  cached.isIpWhitelistError = false;
-                  cached.errorLogs = [];
-                  if (!isTestRunner && !global.__db_init_triggered) {
-                    global.__db_init_triggered = true;
-                    import("../services/dbInitService.js").then(({ ensureDatabaseInitialized }) => {
-                      ensureDatabaseInitialized()
-                        .then(() => warmCatalogCacheFromDb())
-                        .catch(e => console.warn("⚠️ [DB Init Error]:", e?.message));
-                    }).catch(() => {});
-                  }
-                  return memInstance;
-                } catch (_) {}
-              }
-            }
             throw err;
           }
         }
@@ -367,9 +343,6 @@ export async function connectDB(options = {}) {
         cached.lastFailedAttempt = Date.now();
         recordConnectionError(error, "connect:handshake_failed");
         console.warn("⚠️ [MongoDB] Connection handshake notice:", error.message);
-        if (error.message?.includes("whitelist") || error.name === "MongooseServerSelectionError" || error.name === "MongoNetworkTimeoutError") {
-          console.warn("🔒 [MongoDB Atlas Reminder]: Please whitelist 0.0.0.0/0 (Allow from anywhere) in MongoDB Atlas -> Security -> Network Access -> Add IP Address to allow connections from cloud hosting / Vercel.");
-        }
         if (!isVercelServerless) {
           scheduleBackgroundReconnect(5000);
         }

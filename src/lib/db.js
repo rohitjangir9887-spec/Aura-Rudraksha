@@ -254,7 +254,7 @@ async function apiRequest(endpoint, options = {}) {
       let token = "";
       if (options.requiresAuth) {
         token = await authClient.getToken(false, true).catch(() => "");
-      } else {
+      } else if (!options.anonymous) {
         token = await authClient.getToken(false, false).catch(() => "");
       }
 
@@ -653,7 +653,16 @@ export function loadCacheFromLocalStorage() {
     const cachedSettings = localStorage.getItem("aura_settings_cache");
     if (cachedSettings) {
       const parsed = JSON.parse(cachedSettings);
-      if (parsed && typeof parsed === "object") storeCache.settings = { ...storeCache.settings, ...parsed };
+      if (parsed && typeof parsed === "object") {
+        delete parsed.imagekitPrivateKey;
+        delete parsed.pcloudAccessToken;
+        delete parsed.pcloudRefreshToken;
+        delete parsed.metaCapiAccessToken;
+        storeCache.settings = { ...storeCache.settings, ...parsed };
+        try {
+          localStorage.setItem("aura_settings_cache", JSON.stringify(parsed));
+        } catch (_) {}
+      }
     }
     const cachedReviewSettings = localStorage.getItem("aura_review_settings_cache");
     if (cachedReviewSettings) {
@@ -710,7 +719,7 @@ export function invalidateLocalProductCache() {
 export async function revalidateProducts(force = false) {
   if (typeof window === "undefined") return storeCache.products;
 
-  const shouldForce = force || !hasFetchedFreshData;
+  const shouldForce = force;
 
   if (shouldForce) {
     lastProductFetchTime = 0;
@@ -727,8 +736,8 @@ export async function revalidateProducts(force = false) {
 
   inFlightProductsPromise = (async () => {
     try {
-      const url = shouldForce ? `/products?_t=${requestStartTime}` : "/products";
-      const res = await apiRequest(url, shouldForce ? { noCache: true } : {});
+      const url = shouldForce ? `/products/public/catalog?_t=${requestStartTime}` : "/products/public/catalog";
+      const res = await apiRequest(url, { anonymous: true, credentials: "omit", noCache: shouldForce });
       if (res?.success && Array.isArray(res.data) && !res.isFallback) {
         // Ignore stale background response if an admin mutation occurred while this GET was in flight
         if (!force && lastMutationTime > requestStartTime) {
@@ -2101,7 +2110,10 @@ export const db = {
     const rawTerm = String(queryOrOrderId || "").trim();
     const rawPhone = String(phone || "").replace(/\D/g, "");
     try {
-      const res = await apiRequest(`/orders/public/track?query=${encodeURIComponent(rawTerm)}&phone=${encodeURIComponent(rawPhone)}`);
+      const res = await apiRequest("/orders/public/track", {
+        method: "POST",
+        body: JSON.stringify({ orderId: rawTerm, phone: rawPhone })
+      });
       if (res?.success && res.data) {
         return res;
       }
@@ -3987,49 +3999,35 @@ export const db = {
 
   // STORE SETTINGS & POLICIES
   getSettings: () => storeCache.settings,
+  fetchAdminSettings: async () => {
+    const res = await apiRequest("/settings/admin", { requiresAuth: true, noCache: true });
+    if (!res?.success || !res.data) throw new Error(res?.message || "Failed to load store settings.");
+    return res.data;
+  },
   saveSettings: async (settings) => {
-    lastMutationTime = Date.now();
-    // Optimistically update in-memory settings immediately so Home UI and Admin never flicker or revert
-    storeCache.settings = { ...storeCache.settings, ...settings };
-    if (Array.isArray(settings?.homeProductLayout?.live) && settings.homeProductLayout.live.length > 0) {
-      const liveIds = settings.homeProductLayout.live.map(String);
-      const liveIdxMap = new Map(liveIds.map((id, idx) => [id, idx + 1]));
-      storeCache.products = (storeCache.products || []).map(p => {
-        const pid = String(p.id || p._id || "");
-        if (liveIdxMap.has(pid)) {
-          const ord = liveIdxMap.get(pid);
-          return { ...p, homeOrder: ord, sortOrder: ord, displayOrder: ord, showOnHome: true };
-        }
-        return p;
-      });
-      invalidateEnrichedProductsCache();
-      try {
-        localStorage.setItem("aura_products_cache", JSON.stringify(storeCache.products));
-      } catch (_) {}
-    }
-    try {
-      localStorage.setItem("aura_settings_cache", JSON.stringify(storeCache.settings));
-    } catch (_) {}
-
     const res = await apiRequest("/settings", {
       method: "PUT",
       body: JSON.stringify(settings),
       requiresAuth: true,
       noCache: true
     });
-    if (!res?.success) {
+    if (!res?.success || !res.data) {
       throw new Error(res?.message || "Failed to save settings. Database is unavailable.");
     }
+
     lastMutationTime = Date.now();
-    const saved = res.data || settings;
-    storeCache.settings = { ...storeCache.settings, ... settings, ...saved };
+    const saved = res.data;
+    storeCache.settings = { ...storeCache.settings, ...saved };
+    if (Array.isArray(settings?.homeProductLayout?.live) && Array.isArray(saved.homeProductLayout?.live)) {
+      invalidateEnrichedProductsCache();
+    }
     try {
       localStorage.setItem("aura_settings_cache", JSON.stringify(storeCache.settings));
       localStorage.setItem("aura_last_fetch_time", String(Date.now()));
     } catch (_) {}
     emitStoreUpdate("settings:saved", storeCache.settings);
     emitStoreUpdate("products:synced", storeCache.products);
-    return storeCache.settings;
+    return saved;
   },
 
   getPolicies: () => {

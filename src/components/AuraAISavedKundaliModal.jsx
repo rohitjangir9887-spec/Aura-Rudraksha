@@ -141,6 +141,7 @@ export function AuraAISavedKundaliModal({ isOpen, onClose, onSelectKundali, onSe
             <button
               type="button"
               onClick={onClose}
+              aria-label="सेव कुंडली बंद करें"
               className="p-1 rounded-full hover:bg-white/10 transition-colors text-amber-100"
             >
               <X size={16} />

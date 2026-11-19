@@ -1,7 +1,6 @@
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { cert } from 'firebase-admin/app';
-import mongoose from "mongoose";
 import { Customer } from "../models/Customer.js";
 import fs from "fs";
 import path from "path";
@@ -16,7 +15,7 @@ import path from "path";
 let firebaseProjectId = process.env.FIREBASE_PROJECT_ID || "serene-catfish-flkqp";
 try {
   const configPath = path.resolve(process.cwd(), "firebase-applet-config.json");
-  if (fs.existsSync(configPath)) {
+  if (!process.env.FIREBASE_PROJECT_ID && fs.existsSync(configPath)) {
     const raw = JSON.parse(fs.readFileSync(configPath, "utf8"));
     if (raw.projectId) {
       firebaseProjectId = raw.projectId;
@@ -78,107 +77,49 @@ async function verifyTokenFast(token) {
   if (cached && cached.expiresAt > now) {
     return cached.decoded;
   }
-  try {
-    const decodedToken = await getAuth().verifyIdToken(token);
-    const expMs = (decodedToken.exp ? decodedToken.exp * 1000 : now + TOKEN_CACHE_TTL_MS);
-    const cacheTtl = Math.min(now + TOKEN_CACHE_TTL_MS, expMs);
-    verifiedTokenCache.set(token, { decoded: decodedToken, expiresAt: cacheTtl });
-    if (verifiedTokenCache.size > 1000) {
-      for (const [k, v] of verifiedTokenCache.entries()) {
-        if (v.expiresAt <= now) verifiedTokenCache.delete(k);
-      }
-    }
-    return decodedToken;
-  } catch (err) {
-    // Resilient fallback when Firebase Admin service account is absent or has network timeouts in preview
-    try {
-      const parts = token.split(".");
-      if (parts.length === 3) {
-        const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf8"));
-        if (payload && (payload.user_id || payload.sub || payload.uid)) {
-          const expMs = (payload.exp ? payload.exp * 1000 : now + TOKEN_CACHE_TTL_MS);
-          const decoded = {
-            uid: payload.user_id || payload.sub || payload.uid,
-            email: payload.email || "",
-            phone_number: payload.phone_number || "",
-            name: payload.name || "",
-            picture: payload.picture || ""
-          };
-          verifiedTokenCache.set(token, { decoded, expiresAt: expMs });
-          return decoded;
-        }
-      }
-    } catch (_) {}
-    throw err;
+  const decoded = await getAuth().verifyIdToken(token);
+  const expiresAt = Math.min(now + TOKEN_CACHE_TTL_MS, decoded.exp * 1000);
+  if (verifiedTokenCache.size >= 1000) {
+    verifiedTokenCache.delete(verifiedTokenCache.keys().next().value);
   }
+  verifiedTokenCache.set(token, { decoded, expiresAt });
+  return decoded;
+}
+
+async function readVerifiedUser(req) {
+  const token = req.headers.authorization?.match(/^Bearer (\S+)$/i)?.[1];
+  if (!token) return null;
+
+  const decoded = await verifyTokenFast(token);
+  return {
+    authUserId: decoded.uid,
+    email: decoded.email_verified === true ? decoded.email || "" : "",
+    emailVerified: decoded.email_verified === true,
+    phone: decoded.phone_number || "",
+    name: decoded.name || "",
+    picture: decoded.picture || ""
+  };
 }
 
 export async function requireAuth(req, res, next) {
   try {
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.split(" ")[1];
-      if (token && (token.startsWith("admin_") || token === "preview-admin")) {
-        req.user = {
-          authUserId: "admin_master_1",
-          email: "rohitjangir9887@gmail.com",
-          phone: "9672996531",
-          name: "Aura Admin",
-          role: "admin"
-        };
-        return next();
-      }
-
-      if (token && token !== "null" && token !== "undefined" && token !== "demo-token" && token !== "demo-token-123") {
-        try {
-          // Fast cached Firebase ID Token Verification
-          const decodedToken = await verifyTokenFast(token);
-          req.user = {
-            authUserId: decodedToken.uid,
-            email: decodedToken.email || "",
-            phone: decodedToken.phone_number || "",
-            name: decodedToken.name || (decodedToken.firebase && decodedToken.firebase.identities && decodedToken.firebase.identities["google.com"] ? decodedToken.name : "") || "",
-            picture: decodedToken.picture || ""
-          };
-          return next();
-        } catch (err) {
-          console.warn("[Auth] Firebase token verification failed:", err?.message || err);
-        }
-      }
-    }
-
-    return res.status(401).json({ success: false, message: "Authentication required" });
-  } catch (error) {
-    console.error("Auth Error:", error?.message || error);
-    res.status(401).json({ success: false, message: "Invalid or expired session token" });
+    req.user = await readVerifiedUser(req);
+  } catch {
+    req.user = null;
   }
+  if (!req.user) {
+    return res.status(401).json({ success: false, message: "Authentication required" });
+  }
+  return next();
 }
 
 export async function optionalAuth(req, res, next) {
   try {
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.split(" ")[1];
-      if (token && token !== "null" && token !== "undefined" && token !== "demo-token" && token !== "demo-token-123" && token !== "preview-admin") {
-        try {
-          const decodedToken = await verifyTokenFast(token);
-          req.user = {
-            authUserId: decodedToken.uid,
-            email: decodedToken.email || "",
-            phone: decodedToken.phone_number || "",
-            name: decodedToken.name || (decodedToken.firebase && decodedToken.firebase.identities && decodedToken.firebase.identities["google.com"] ? decodedToken.name : "") || "",
-            picture: decodedToken.picture || ""
-          };
-        } catch (tokenErr) {
-          // If verifyIdToken failed, strictly nullify user identity
-          req.user = null;
-        }
-      }
-    }
-  } catch (_) {
+    req.user = await readVerifiedUser(req);
+  } catch {
     req.user = null;
   }
-  next();
+  return next();
 }
 
 // ---------------------------------------------------------------------------
@@ -205,11 +146,10 @@ export function isAdminUser(user) {
   const initialAdminPhone = (process.env.INITIAL_ADMIN_PHONE || "9672996531").trim();
 
   const userEmail = (user && user.email ? user.email.trim().toLowerCase() : "");
-  const matchesEmail = Boolean(userEmail && allowedEmails.length > 0 && allowedEmails.includes(userEmail));
-  const rawPhone = (user && (user.phone || user.phone_number || "")) || "";
-  const cleanUserPhone = rawPhone.replace(/[^0-9]/g, "");
-  const cleanAdminPhone = initialAdminPhone.replace(/[^0-9]/g, "");
-  const matchesPhone = Boolean(cleanUserPhone && (cleanUserPhone === cleanAdminPhone || cleanUserPhone.endsWith("9672996531")));
+  const matchesEmail = Boolean(user?.emailVerified === true && allowedEmails.includes(userEmail));
+  const configuredDigits = initialAdminPhone.replace(/[^0-9]/g, "");
+  const expectedPhone = configuredDigits.length === 10 ? `+91${configuredDigits}` : `+${configuredDigits}`;
+  const matchesPhone = Boolean(configuredDigits && user?.phone === expectedPhone);
 
   return { matchesEmail, matchesPhone, isInitialAdmin: matchesEmail || matchesPhone };
 }
@@ -225,56 +165,14 @@ export async function hasAdminRole(authUserId) {
 }
 
 export async function requireAdmin(req, res, next) {
-  if (!req.user) {
-    return requireAuth(req, res, async () => {
-      checkAdmin(req, res, next);
-    });
-  }
-  checkAdmin(req, res, next);
-}
-
-async function checkAdmin(req, res, next) {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ success: false, message: "Authentication required" });
-    }
-
-    const authUserId = req.user.authUserId;
+  return requireAuth(req, res, async () => {
     const { isInitialAdmin } = isAdminUser(req.user);
-
-    const dbAdminRole = await hasAdminRole(authUserId);
-    const hasAdminAccess = isInitialAdmin || dbAdminRole || req.user.role === "admin";
-
-    if (!hasAdminAccess) {
-      return res.status(403).json({ 
-        success: false, 
-        message: "Access Denied: Admin authorization required."
-      });
+    if (isInitialAdmin || await hasAdminRole(req.user.authUserId)) {
+      return next();
     }
-
-    if (mongoose.connection.readyState === 1 && isInitialAdmin) {
-      try {
-        let customer = await Customer.findOne({ authUserId }).catch(() => null);
-        if (customer) {
-          if (customer.role !== "admin") {
-            customer.role = "admin";
-            await customer.save().catch(() => {});
-          }
-        } else {
-          await Customer.create({
-            authUserId,
-            email: req.user.email || process.env.INITIAL_ADMIN_EMAIL || "",
-            phone: req.user.phone || process.env.INITIAL_ADMIN_PHONE || "",
-            name: req.user.name || "Aura Admin",
-            role: "admin"
-          }).catch(() => {});
-        }
-      } catch (_) {}
-    }
-
-    return next();
-  } catch (error) {
-    console.error("Admin Check Error:", error?.message || error);
-    return res.status(500).json({ success: false, message: "Authorization service error" });
-  }
+    return res.status(403).json({
+      success: false,
+      message: "Access Denied: Admin authorization required."
+    });
+  });
 }

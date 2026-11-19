@@ -1,6 +1,7 @@
 import express from "express";
 import {
   getSettings,
+  getAdminSettings,
   saveSettings,
   getPolicies,
   savePolicies
@@ -12,6 +13,8 @@ const router = express.Router();
 router.route("/")
   .get(getSettings)
   .put(requireAdmin, saveSettings);
+
+router.get("/admin", requireAdmin, getAdminSettings);
 
 router.route("/policies")
   .get(getPolicies)

@@ -52,17 +52,6 @@ export function ScrollToTop() {
     return () => window.removeEventListener("scroll", onScroll);
   }, [pathname, search]);
 
-  // SPA route change tracking for Google Tag GT-NNMV4H8
-  useEffect(() => {
-    if (typeof window !== "undefined" && typeof window.gtag === "function") {
-      try {
-        window.gtag("config", "GT-NNMV4H8", {
-          page_path: pathname + (window.location.search || "")
-        });
-      } catch (_) {}
-    }
-  }, [pathname]);
-
   // Instant scroll handling on route change
   useLayoutEffect(() => {
     if (typeof window !== "undefined") {
@@ -76,7 +65,7 @@ export function ScrollToTop() {
       try {
         const element = document.querySelector(hash);
         if (element) {
-          element.scrollIntoView({ behavior: "smooth" });
+          element.scrollIntoView({ behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ? "instant" : "smooth" });
           return;
         }
       } catch (_) {

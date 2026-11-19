@@ -16,13 +16,19 @@ export function AdminSettings() {
   const [prodSearch, setProdSearch] = useState("");
   const [savingProdId, setSavingProdId] = useState(null);
   const [saved, setSaved] = useState(false);
+  const [pendingSave, setPendingSave] = useState(false);
+  const [settingsReady, setSettingsReady] = useState(false);
 
   useEffect(() => {
-    // Load live settings & tickets from MongoDB on mount
-    db.fetchSettings().then(() => {
-      setSettings(db.getSettings());
-      setPolicies(db.getPolicies());
-    }).catch(() => {});
+    let active = true;
+    db.fetchAdminSettings().then((data) => {
+      if (!active) return;
+      setSettings(data);
+      setPolicies(Object.fromEntries(Object.keys(db.getPolicies()).map(key => [key, data[key] ?? ""])));
+      setSettingsReady(true);
+    }).catch(err => {
+      if (active) emitToast(err.message, "error");
+    });
     db.fetchTickets().then(() => {
       setTickets(db.getTickets());
     }).catch(() => {});
@@ -32,31 +38,32 @@ export function AdminSettings() {
 
     const unsub = onStoreUpdate((e) => {
       const action = e?.type || e?.detail?.action || "";
-      if (action === "settings:saved" || action === "settings:synced" || action === "settings:updated") {
-        setSettings(db.getSettings());
-        setPolicies(db.getPolicies());
-      } else if (action === "policies:saved" || action === "policies:updated") {
-        setPolicies(db.getPolicies());
-      } else if (action.startsWith("ticket")) {
+      if (action.startsWith("ticket")) {
         setTickets(db.getTickets());
       } else if (action.startsWith("product")) {
         setProducts(db.getProducts());
       }
     });
-    return () => unsub();
+    return () => {
+      active = false;
+      unsub();
+    };
   }, []);
 
   const updateSettings = (key, value) => setSettings((current) => ({ ...current, [key]: value }));
   const updatePolicy = (key, value) => setPolicies((current) => ({ ...current, [key]: value }));
 
   const handleInstantToggleSetting = async (key, nextValue, label) => {
-    const updated = { ...settings, [key]: nextValue };
-    setSettings(updated);
+    if (!settingsReady || pendingSave) return;
+    setPendingSave(true);
     try {
-      await db.saveSettings(updated);
+      const result = await db.saveSettings({ [key]: nextValue });
+      updateSettings(key, result[key]);
       emitToast(`${label} turned ${nextValue ? "ON" : "OFF"} successfully!`, "success");
     } catch (err) {
       emitToast(err.message || `Failed to update ${label}`, "error");
+    } finally {
+      setPendingSave(false);
     }
   };
 
@@ -87,14 +94,18 @@ export function AdminSettings() {
 
   const handleSave = async (event) => {
     event.preventDefault();
+    if (!settingsReady || pendingSave) return;
+    setPendingSave(true);
     try {
-      await db.saveSettings(settings);
-      await db.savePolicies(policies);
+      const result = await db.saveSettings({ ...settings, ...policies });
+      setSettings(result);
       setSaved(true);
       emitToast("Store settings & customer care policies saved successfully!", "success");
       window.setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       emitToast(err.message || "Failed to save settings to database", "error");
+    } finally {
+      setPendingSave(false);
     }
   };
 
@@ -140,6 +151,17 @@ export function AdminSettings() {
               <option value="USD">USD ($)</option>
             </select>
           </div>
+        </div>
+
+        <div className="admin-form-group">
+          <label htmlFor="announcementText">Storefront announcement</label>
+          <input
+            id="announcementText"
+            maxLength={250}
+            value={settings.announcementText || ""}
+            onChange={event => updateSettings("announcementText", event.target.value)}
+          />
+          <small className="admin-help">Shown in the existing storefront announcement bar. Leave blank for the default text.</small>
         </div>
 
         {/* 💳 PAYMENT METHODS CONTROL (ONLINE PAYMENT & CASH ON DELIVERY - COD) */}
@@ -195,6 +217,7 @@ export function AdminSettings() {
                 </div>
                 <button
                   type="button"
+                  disabled={!settingsReady || pendingSave}
                   onClick={() => handleInstantToggleSetting("enableCod", settings.enableCod === false, "Cash on Delivery (COD)")}
                   style={{
                     padding: "8px 14px",
@@ -276,6 +299,7 @@ export function AdminSettings() {
                 </div>
                 <button
                   type="button"
+                  disabled={!settingsReady || pendingSave}
                   onClick={() => handleInstantToggleSetting("enableOnlinePayment", settings.enableOnlinePayment === false, "Online Payment")}
                   style={{
                     padding: "8px 14px",
@@ -360,6 +384,7 @@ export function AdminSettings() {
               <label style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: "700", fontSize: "13.5px", color: "#2b170d", cursor: "pointer" }}>
                 <input
                   type="checkbox"
+                  disabled={!settingsReady || pendingSave}
                   checked={settings.metaPixelEnabled !== false}
                   onChange={(e) => handleInstantToggleSetting("metaPixelEnabled", e.target.checked, "Meta Pixel Tracking")}
                 />
@@ -787,8 +812,8 @@ export function AdminSettings() {
         </div>
         
         <div className="admin-form-actions">
-          <button type="submit" className="admin-btn">
-            {saved ? "Settings Saved ✓" : <><Save size={16} /> Save Settings & Policies</>}
+          <button type="submit" className="admin-btn" disabled={!settingsReady || pendingSave}>
+            {pendingSave ? "Saving…" : saved ? "Settings Saved ✓" : <><Save size={16} /> Save Settings & Policies</>}
           </button>
         </div>
       </form>

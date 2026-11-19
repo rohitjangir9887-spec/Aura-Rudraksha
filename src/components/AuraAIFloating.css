@@ -1,0 +1,266 @@
+/* Floating assistant theme. The full Aura AI page has its own styles. */
+.aura-floating-design {
+  --aura-window-paper: #fffaf2;
+  --aura-window-card: #fffdf9;
+  --aura-window-cocoa: #3c1e12;
+  --aura-window-ink: #321b12;
+  --aura-window-muted: #685045;
+  --aura-window-line: #e7d5bf;
+  --aura-window-gold: #8b470d;
+  --aura-window-accent: #ffedc3;
+  display: contents;
+}
+
+.aura-floating-design .aura-ai-panel {
+  background: var(--aura-window-paper);
+  border-color: var(--aura-window-line);
+  color: var(--aura-window-ink);
+  box-shadow: 0 16px 44px #321b1240;
+}
+
+.aura-floating-design .aura-ai-header,
+.aura-floating-design .aura-ai-order-modal-header,
+.aura-floating-design :is(#aura-ai-saved-kundali-modal, #aura-ai-chat-history-modal) > :first-child,
+.aura-floating-design :is(.aura-floating-notes, .aura-vedic-tools-modal) > div > :first-child {
+  background: var(--aura-window-cocoa);
+  color: #fffaf2;
+}
+
+.aura-floating-design .aura-ai-header {
+  min-height: 51px;
+  padding-inline: 8px;
+  gap: 4px;
+}
+
+.aura-floating-design .aura-ai-title > span {
+  font-size: 14px;
+}
+
+.aura-floating-design .aura-ai-header-actions {
+  gap: 3px;
+}
+
+.aura-floating-design .aura-ai-header .aura-ai-btn-icon {
+  width: 34px;
+  height: 38px;
+  flex: 0 0 34px;
+  border: 1px solid #ffffff38;
+  border-radius: 9px;
+  background: #ffffff12;
+  color: #fff9ee;
+}
+
+.aura-floating-design .aura-ai-avatar {
+  background: var(--aura-window-accent);
+  border-color: var(--aura-window-line);
+  color: var(--aura-window-gold);
+  box-shadow: none;
+}
+
+.aura-floating-design .aura-ai-mode-bar {
+  flex: 0 0 auto;
+  padding: 7px 9px;
+  border-color: var(--aura-window-line);
+  background: var(--aura-window-paper);
+}
+
+.aura-floating-design .aura-ai-mode-btn {
+  min-height: 38px;
+  background: var(--aura-window-card);
+  border-color: var(--aura-window-line);
+  color: var(--aura-window-ink);
+  box-shadow: none;
+}
+
+.aura-floating-design .aura-ai-mode-btn.active,
+.aura-floating-design .aura-pandit-ctrl-btn-primary,
+.aura-floating-design .aura-ai-msg-action-continue,
+.aura-floating-design .aura-ai-order-btn-primary {
+  background: var(--aura-window-gold);
+  border-color: var(--aura-window-gold);
+  color: #fff;
+  box-shadow: none;
+}
+
+.aura-floating-design .aura-ai-body {
+  min-height: 0;
+  min-width: 0;
+  padding: 12px;
+  gap: 12px;
+  background: var(--aura-window-paper);
+}
+
+.aura-floating-design .aura-ai-msg-content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.aura-floating-design .aura-ai-msg-text {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.aura-floating-design .aura-ai-msg-ai .aura-ai-msg-text,
+.aura-floating-design :is(.aura-quick-assist-card, .aura-rec-prod-card, .aura-birth-form-drawer) {
+  background: var(--aura-window-card);
+  border-color: var(--aura-window-line);
+  box-shadow: none;
+  color: var(--aura-window-ink);
+}
+
+.aura-floating-design .aura-ai-msg-user .aura-ai-msg-text {
+  background: var(--aura-window-accent);
+  border-color: var(--aura-window-line);
+  color: var(--aura-window-ink);
+}
+
+.aura-floating-design .aura-quick-assist-row {
+  min-height: 42px;
+  background: var(--aura-window-card);
+  border-color: var(--aura-window-line);
+  box-shadow: none;
+}
+
+.aura-floating-design .aura-pandit-top-area {
+  min-height: 0;
+  max-height: 36dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #f8eddc;
+  border-color: var(--aura-window-line);
+}
+
+.aura-floating-design :is(.aura-pandit-ctrl-btn:not(.aura-pandit-ctrl-btn-primary), .aura-pandit-settings-toggle, .aura-pandit-settings-drawer, .aura-active-kundali-card) {
+  background: var(--aura-window-card);
+  border-color: var(--aura-window-line);
+  color: var(--aura-window-ink);
+  box-shadow: none;
+}
+
+.aura-floating-design .aura-pandit-ctrl-btn {
+  min-height: 40px;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+.aura-floating-design :is(.aura-pandit-settings-summary, .aura-pandit-opt-label) {
+  color: var(--aura-window-muted);
+}
+
+.aura-floating-design :is(.aura-pandit-settings-summary, .aura-pandit-opt-label, .aura-pandit-ctrl-btn:not(.aura-pandit-ctrl-btn-primary)) svg {
+  color: var(--aura-window-gold);
+}
+
+.aura-floating-design .aura-birth-form-drawer {
+  flex: 0 1 auto;
+  max-height: 40dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.aura-floating-design .aura-ai-footer {
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  background: var(--aura-window-paper);
+  border-top: 1px solid var(--aura-window-line);
+}
+
+.aura-floating-design .aura-ai-input-box {
+  min-height: 44px;
+  border-radius: 24px;
+  background: var(--aura-window-card);
+  border-color: var(--aura-window-line);
+  box-shadow: none;
+}
+
+.aura-floating-design .aura-ai-input-field {
+  font-size: 16px;
+}
+
+.aura-floating-design :is(.aura-ai-mic-btn, .aura-ai-send-btn) {
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.aura-floating-design .aura-ai-send-btn {
+  background: var(--aura-window-gold);
+  box-shadow: none;
+}
+
+.aura-floating-design .aura-ai-privacy-note {
+  color: var(--aura-window-muted);
+}
+
+.aura-floating-design .aura-dock-root[data-scope="floating"] {
+  flex: 0 0 auto;
+}
+
+.aura-floating-design .aura-dock-bar {
+  background: var(--aura-window-cocoa);
+  border-bottom: 0;
+  padding-bottom: max(6px, env(safe-area-inset-bottom));
+}
+
+.aura-floating-design .aura-dock-sheet {
+  top: auto;
+  bottom: calc(100% + 4px);
+  max-height: min(40dvh, 340px);
+  border-color: var(--aura-window-line);
+}
+
+.aura-floating-design .aura-rec-prod-card {
+  border-radius: 12px;
+}
+
+.aura-floating-design .aura-rec-prod-title {
+  color: var(--aura-window-ink);
+}
+
+.aura-floating-design .aura-ai-order-modal-card {
+  background: var(--aura-window-paper);
+  border-color: var(--aura-window-line);
+  max-height: 92dvh;
+}
+
+.aura-floating-design :is(button, a, textarea, input):focus-visible {
+  outline: 2px solid #bd670a;
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .aura-floating-design .aura-ai-header-back-btn {
+    min-width: 25px;
+    padding-inline: 3px;
+  }
+
+  .aura-floating-design .aura-ai-back-text {
+    display: none;
+  }
+
+  .aura-floating-design .aura-ai-header .aura-ai-btn-icon {
+    width: 31px;
+    flex-basis: 31px;
+  }
+
+  .aura-floating-design .aura-ai-title > span {
+    font-size: 12px;
+  }
+
+  .aura-floating-design .aura-ai-panel-full {
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+
+  .aura-floating-design .aura-ai-panel-full .aura-ai-footer:last-child {
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 400px) {
+  .aura-floating-design .aura-ai-header .aura-ai-btn-icon {
+    width: 31px !important;
+    height: 36px !important;
+    min-width: 31px !important;
+    min-height: 36px !important;
+  }
+}

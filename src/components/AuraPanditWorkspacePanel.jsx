@@ -37,6 +37,7 @@ export function AuraPanditWorkspacePanel({
   onToggleBirthForm,
   onOpenSavedKundalis,
   onOpenHistory,
+  onOpenNotes,
   onSendQuickPrompt,
   panditPrefs = { responseStyle: "detailed", chartStyle: "auto" },
   onChangePanditPref,
@@ -201,6 +202,14 @@ export function AuraPanditWorkspacePanel({
               >
                 नमस्ते पंडित
               </button>
+              {onOpenNotes && (
+                <button type="button" className="aura-pandit-pill-btn" onClick={() => {
+                  setShowOptions(false);
+                  onOpenNotes();
+                }}>
+                  नोटपैड
+                </button>
+              )}
             </div>
           </div>
 
