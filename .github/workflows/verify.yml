@@ -1,0 +1,29 @@
+name: सत्यापन
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: npm run lint
+      - run: npm test -- --maxWorkers=2 --minWorkers=1
+        env:
+          MONGOMS_VERSION: 8.0.4
+          REQUIRE_TEST_MONGODB: 'true'
+      - run: npm run build

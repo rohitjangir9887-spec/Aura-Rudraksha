@@ -24,22 +24,17 @@ describe("MongoDB Database Services & Seeder Suite", () => {
     try {
       mongod = await MongoMemoryServer.create({ binary: { version: "8.0.4" } });
       process.env.MONGODB_URI = mongod.getUri("aura_db_suite");
-      await connectDB();
-      mongodAvailable = true;
+      mongodAvailable = await connectDB();
+      if (!mongodAvailable) throw new Error("Test MongoDB connection failed");
     } catch (err) {
+      if (process.env.REQUIRE_TEST_MONGODB === "true") throw err;
       console.warn("MongoMemoryServer not available in sandboxed environment, skipping live DB tests:", err.message);
     }
   }, 60000);
 
   afterAll(async () => {
-    if (mongodAvailable) {
-      if (mongoose.connection.readyState !== 0) {
-        await mongoose.disconnect();
-      }
-      if (mongod) {
-        await mongod.stop();
-      }
-    }
+    if (mongoose.connection.readyState !== 0) await mongoose.disconnect();
+    if (mongod) await mongod.stop();
   }, 30000);
 
   describe("Orders Index Optimization Service", () => {
