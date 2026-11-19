@@ -1552,77 +1552,53 @@ export async function generateMerchantFeedXml(req) {
 export function generateRobotsTxt(req) {
   const baseUrl = getSiteBaseUrl(req);
   const lines = [
-    "# Aura Rudraksha — Official Search Engine & Ad Crawler Directives",
-    "User-agent: Googlebot",
-    "Allow: /",
-    "",
-    "User-agent: Googlebot-Image",
-    "Allow: /",
-    "",
-    "User-agent: Storebot-Google",
-    "Allow: /",
-    "",
+    "# Aura Rudraksha — Search engine and ad crawler directives",
+    "User-agent: *",
     "User-agent: AdsBot-Google",
-    "Allow: /",
-    "",
     "User-agent: AdsBot-Google-Mobile",
     "Allow: /",
-    "",
-    "User-agent: Bingbot",
-    "Allow: /",
-    "",
-    "User-agent: BraveSearch",
-    "Allow: /",
-    "",
-    "User-agent: DuckDuckBot",
-    "Allow: /",
-    "",
-    "User-agent: Applebot",
-    "Allow: /",
-    "",
-    "User-agent: Slurp",
-    "Allow: /",
-    "",
-    "User-agent: Yandex",
-    "Allow: /",
-    "",
-    "User-agent: facebookexternalhit",
-    "Allow: /",
-    "",
-    "User-agent: meta-externalagent",
-    "Allow: /",
-    "",
-    "User-agent: Facebot",
-    "Allow: /",
-    "",
-    "User-agent: *",
-    "Allow: /",
     "Disallow: /admin",
-    "Disallow: /admin/",
     "Disallow: /account",
-    "Disallow: /account/",
     "Disallow: /checkout",
-    "Disallow: /checkout/",
     "Disallow: /cart",
-    "Disallow: /cart/",
     "Disallow: /orders",
-    "Disallow: /orders/",
+    "Disallow: /order/",
+    "Disallow: /my-orders",
     "Disallow: /payment",
-    "Disallow: /payment/",
     "Disallow: /login",
     "Disallow: /register",
+    "Disallow: /signup",
+    "Disallow: /sign-up",
+    "Disallow: /forgot-password",
+    "Disallow: /reset-password",
+    "Disallow: /verify-email",
+    "Disallow: /auth/",
     "Disallow: /profile",
     "Disallow: /wishlist",
     "Disallow: /customer",
-    "Disallow: /customer/",
+    "Disallow: /aura-control-8740",
     "Disallow: /api/",
     "",
-    `Host: ${baseUrl}`,
     `Sitemap: ${baseUrl}/sitemap.xml`,
     ""
   ];
   return lines.join("\n");
 }
+
+// React routes that use the generic storefront metadata rather than a category entry.
+const GENERIC_STOREFRONT_PATHS = new Set([
+  "/shop", "/shipping-policy", "/return-policy", "/privacy-policy", "/terms",
+  "/cancellation", "/secure-payment", "/about", "/track-order", "/categories",
+  "/wholesale", "/contact", "/aura-ai", "/mobile-design", "/rudraksha",
+  "/rudraksha-calculator", "/rudraksha-recommendation", "/recommendation",
+  "/rudraksha-for-rashi", "/how-to-wear-rudraksha", "/rudraksha-benefits",
+  "/rudraksha-authenticity", "/rudraksha-care", "/verify-certificate", "/verify",
+  "/japa", "/japa-counter", "/japa-mala", "/compare", "/rudraksha-compare",
+  "/comparison", "/pran-pratishtha", "/pranpratishtha", "/dharan-vidhi",
+  "/vedic-tools", "/tools", "/spiritual-tools", "/about-us", "/contact-us",
+  "/track", "/refund-policy", "/terms-and-conditions", "/terms-of-service",
+  "/faq", "/faqs"
+]);
 
 /**
  * Resolve full SEO metadata for a requested path
@@ -1639,6 +1615,8 @@ export async function resolveSeoData(pathname, req) {
     cleanPath.startsWith("/checkout") ||
     cleanPath.startsWith("/payment") ||
     cleanPath.startsWith("/orders") ||
+    cleanPath.startsWith("/order/") ||
+    cleanPath === "/my-orders" ||
     cleanPath.startsWith("/profile") ||
     cleanPath.startsWith("/wishlist") ||
     cleanPath.startsWith("/customer") ||
@@ -1721,7 +1699,7 @@ export async function resolveSeoData(pathname, req) {
   }
 
   // 2. Product Route (/product/:id or /product/:slug)
-  if (cleanPath.startsWith("/product/")) {
+  if (/^\/product\/[^/]+(?:\/view)?$/i.test(cleanPath)) {
     const slugOrId = cleanPath.replace("/product/", "").split("/")[0];
     const product = await findProductForSeo(slugOrId);
 
@@ -1730,6 +1708,7 @@ export async function resolveSeoData(pathname, req) {
       if (isDraftOrInactive) {
         return {
           noindex: true,
+          status: 404,
           title: "Product Unavailable | Aura Rudraksha",
           description: "This product is currently inactive or unavailable.",
           canonical: `${baseUrl}/product/${product.slug || product.id}`
@@ -1935,6 +1914,15 @@ export async function resolveSeoData(pathname, req) {
     };
   }
 
+  if (!GENERIC_STOREFRONT_PATHS.has(cleanPath.toLowerCase()) && !/^\/rudraksha\/[^/]+$/i.test(cleanPath)) {
+    return {
+      status: 404,
+      noindex: true,
+      title: "Page Not Found | Aura Rudraksha",
+      description: "The requested page could not be found."
+    };
+  }
+
   // Default fallback for any other public route (e.g. /shop, /categories, etc.)
   return {
     title: "Aura Rudraksha — 100% Authentic Nepal & Indonesian Rudraksha",
@@ -1959,8 +1947,8 @@ export async function resolveSeoData(pathname, req) {
  * Server-Side HTML Metadata Injection
  * Replaces placeholder metadata in template with dynamic route-specific metadata and JSON-LD
  */
-export async function injectSeoIntoHtml(templateHtml, pathname, req) {
-  const seo = await resolveSeoData(pathname, req);
+export async function injectSeoIntoHtml(templateHtml, pathname, req, resolvedSeo = null) {
+  const seo = resolvedSeo || await resolveSeoData(pathname, req);
   const baseUrl = getSiteBaseUrl(req);
   const googleSiteVerification = process.env.GOOGLE_SITE_VERIFICATION || "";
   let metaDomainVerification = process.env.META_DOMAIN_VERIFICATION || "";
@@ -2381,9 +2369,8 @@ export function setHtmlTemplate(html) {
 export async function renderSsrHtml(pathname, req, customTemplate = null) {
   const seo = await resolveSeoData(pathname, req);
   const template = customTemplate || getHtmlTemplate();
-  const finalHtml = await injectSeoIntoHtml(template, pathname, req);
-  const isNotFound = Boolean((seo.title && seo.title.includes("Product Not Found")) || (seo.noindex && pathname.startsWith("/product/")));
-  const status = isNotFound ? 404 : 200;
+  const finalHtml = await injectSeoIntoHtml(template, pathname, req, seo);
+  const status = seo.status || 200;
   return { html: finalHtml, status, seo };
 }
 

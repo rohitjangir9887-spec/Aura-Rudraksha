@@ -148,9 +148,10 @@ export function TrackOrder() {
               onSubmit={(e) => { e.preventDefault(); handleSearch(query); }}
               style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}
             >
-              <div style={{ flex: 1, minWidth: "240px", position: "relative" }}>
+              <div style={{ flex: 1, minWidth: "min(100%, 240px)", position: "relative" }}>
                 <input 
                   type="text"
+                  aria-label="Order ID or registered phone number"
                   placeholder="Order ID (e.g. AUR-1001) or 10-digit Phone"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}

@@ -2110,7 +2110,10 @@ export const db = {
     const rawTerm = String(queryOrOrderId || "").trim();
     const rawPhone = String(phone || "").replace(/\D/g, "");
     try {
-      const res = await apiRequest(`/orders/public/track?query=${encodeURIComponent(rawTerm)}&phone=${encodeURIComponent(rawPhone)}`);
+      const res = await apiRequest("/orders/public/track", {
+        method: "POST",
+        body: JSON.stringify({ orderId: rawTerm, phone: rawPhone })
+      });
       if (res?.success && res.data) {
         return res;
       }

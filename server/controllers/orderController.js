@@ -876,7 +876,10 @@ export async function updateOrder(req, res, next) {
 export async function trackOrderPublic(req, res, next) {
   try {
     const rawQuery = String(req.query.query || req.query.orderId || req.body?.orderId || "").trim();
-    const rawPhone = String(req.query.phone || req.body?.phone || "").replace(/\D/g, "");
+    const suppliedPhone = String(req.query.phone || req.body?.phone || "").trim();
+    const phoneInput = suppliedPhone || (/^[+\d\s()-]+$/.test(rawQuery) ? rawQuery : "");
+    const digits = phoneInput.replace(/\D/g, "");
+    const rawPhone = /^(?:91|0)?\d{10}$/.test(digits) ? digits : "";
 
     if (!rawQuery && !rawPhone) {
       return res.status(400).json({ 
@@ -885,12 +888,8 @@ export async function trackOrderPublic(req, res, next) {
       });
     }
 
-    let order = null;
     const cleanTerm = rawQuery.toUpperCase();
 
-    if (!isDbConnected()) {
-      await connectDB().catch(() => {});
-    }
     if (!isDbConnected()) {
       return res.status(503).json({
         success: false,
@@ -911,12 +910,12 @@ export async function trackOrderPublic(req, res, next) {
         queryConditions.push({ _id: cleanTerm });
       }
     }
-    if (rawPhone && rawPhone.length >= 7) {
+    if (rawPhone) {
       const phoneFilters = buildPhoneQueryVariants(rawPhone, ["customerPhone", "phone", "shippingAddress.phone"]);
       queryConditions.push(...phoneFilters);
     }
 
-    order = await Order.findOne({ $or: queryConditions }).sort({ createdAt: -1 }).lean();
+    const order = await Order.findOne({ $or: queryConditions }).sort({ createdAt: -1 }).lean();
 
     if (!order) {
       return res.status(404).json({ 
