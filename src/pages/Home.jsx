@@ -1,15 +1,11 @@
-import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Link, useLocation } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { useLocation } from "react-router-dom";
 import { Shell } from "../components/Shell";
-import { useCart } from "../hooks/useCart";
 import { db, onStoreUpdate, isPublicProduct } from "../lib/db";
-import { getOptimizedImageUrl, markProxyFailed } from "../lib/imageUtils";
 import { OptimizedImage } from "../components/OptimizedImage";
-import { Countdown } from "../components/Countdown";
 import { WhyAuraSection } from "../components/WhyAuraSection";
 import { ZodiacRudrakshaSection } from "../components/ZodiacRudrakshaSection";
-import { PanditjiBioSection } from "../components/PanditjiBioSection";
 import { ShopByCategory } from "../components/ShopByCategory";
 import { HomeProductShowcase } from "../components/HomeProductShowcase";
 import { CustomizeMalaSection } from "../components/CustomizeMalaSection";
@@ -21,6 +17,10 @@ import { useSeo } from "../hooks/useSeo";
 
 export function Home() {
   const [hero, setHero] = useState(0);
+  const [pauseCarousel, setPauseCarousel] = useState(false);
+  const [carouselInteracting, setCarouselInteracting] = useState(false);
+  const reduceMotion = useReducedMotion();
+  const touchStart = useRef(null);
   const [isLoading, setIsLoading] = useState(() => {
     try {
       const prods = db.getProducts().filter(isPublicProduct);
@@ -29,37 +29,11 @@ export function Home() {
       return false;
     }
   });
-  const { add, totals } = useCart();
-  const shippingThreshold = totals?.freeShippingThreshold ?? (db.getSettings()?.freeShippingThreshold ?? 0);
   const [banners, setBanners] = useState(() => db.getBanners() || []);
   const [products, setProducts] = useState(() => {
     try {
       const list = db.getProducts().filter(isPublicProduct);
       return list.length > 0 ? list : [];
-    } catch {
-      return [];
-    }
-  });
-  const [offers, setOffers] = useState(() => {
-    try {
-      const allCoupons = db.getCoupons ? db.getCoupons() : [];
-      const activeCouponCodes = new Set(
-        allCoupons
-          .filter(c => c.status === "Active" && (!c.expiry || new Date(c.expiry).getTime() > Date.now()))
-          .map(c => String(c.code || "").trim().toUpperCase())
-      );
-      return db.getOffers().filter(o => {
-        if (o.offerType === 'badge') return false;
-        if (o.status !== 'Active') return false;
-        if (o.shownOn && o.shownOn !== 'Home Banner') return false;
-        if (o.expiry && new Date(o.expiry) < new Date()) return false;
-        if (o.startDate && new Date(o.startDate) > new Date()) return false;
-        if (o.couponCode) {
-          const code = String(o.couponCode).trim().toUpperCase();
-          if (code && !activeCouponCodes.has(code)) return false;
-        }
-        return true;
-      }).sort((a,b) => (a.order || 0) - (b.order || 0));
     } catch {
       return [];
     }
@@ -121,32 +95,6 @@ export function Home() {
       });
     }
 
-    const allCoupons = db.getCoupons ? db.getCoupons() : [];
-    const activeCouponCodes = new Set(
-      allCoupons
-        .filter(c => c.status === "Active" && (!c.expiry || new Date(c.expiry).getTime() > Date.now()))
-        .map(c => String(c.code || "").trim().toUpperCase())
-    );
-
-    const allOffers = db.getOffers().filter((o) => {
-      if (o.offerType === "badge") return false;
-      if (o.status !== "Active") return false;
-      if (o.shownOn && o.shownOn !== "Home Banner") return false;
-      if (o.expiry && new Date(o.expiry) < new Date()) return false;
-      if (o.startDate && new Date(o.startDate) > new Date()) return false;
-      if (o.couponCode) {
-        const code = String(o.couponCode).trim().toUpperCase();
-        if (code && !activeCouponCodes.has(code)) return false;
-      }
-      return true;
-    }).sort((a, b) => (a.order || 0) - (b.order || 0));
-
-    setOffers((prev) => {
-      if (prev.length === allOffers.length && prev.every((o, i) => o.id === allOffers[i]?.id && o.updatedAt === allOffers[i]?.updatedAt)) {
-        return prev;
-      }
-      return allOffers;
-    });
     if (freshProducts.length > 0) {
       setIsLoading(false);
     }
@@ -183,9 +131,9 @@ export function Home() {
 
   useEffect(() => {
     if (location.hash === "#about") {
-      document.getElementById("about")?.scrollIntoView({ behavior: "smooth" });
+      document.getElementById("about")?.scrollIntoView({ behavior: reduceMotion ? "instant" : "smooth" });
     }
-  }, [location.hash]);
+  }, [location.hash, reduceMotion]);
 
   const rawBanners = (banners && banners.length > 0) ? banners : db.getBanners();
   const activeBanners = (Array.isArray(rawBanners) ? rawBanners : [])
@@ -194,59 +142,42 @@ export function Home() {
   if (activeBanners.length === 0) {
     activeBanners.push("/images/placeholder.svg");
   }
-  const [loadedBanners, setLoadedBanners] = useState({});
-
+  const bannerCount = activeBanners.length;
+  const activeSlide = hero % bannerCount;
   useEffect(() => {
-    if (activeBanners.length <= 1) return;
+    if (bannerCount <= 1 || reduceMotion || pauseCarousel || carouselInteracting) return;
     const interval = setInterval(() => {
-      setHero((current) => (current + 1) % activeBanners.length);
+      if (!document.hidden) setHero(current => (current + 1) % bannerCount);
     }, 3500);
     return () => clearInterval(interval);
-  }, [activeBanners.length]);
+  }, [bannerCount, reduceMotion, pauseCarousel, carouselInteracting]);
 
-  const [touchStart, setTouchStart] = useState(null);
-  const [touchEnd, setTouchEnd] = useState(null);
-  const minSwipeDistance = 50;
-
-  const onTouchStart = (e) => {
-    setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
+  const onTouchEnd = (event) => {
+    const end = event.changedTouches[0]?.clientX;
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (start === null || end === undefined || Math.abs(start - end) < 50) return;
+    const step = start > end ? 1 : -1;
+    setHero(current => (current + step + bannerCount) % bannerCount);
   };
 
-  const onTouchMove = (e) => {
-    setTouchEnd(e.targetTouches[0].clientX);
-  };
-
-  const onTouchEnd = () => {
-    if (!touchStart || !touchEnd) return;
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > minSwipeDistance;
-    const isRightSwipe = distance < -minSwipeDistance;
-    if (isLeftSwipe) {
-      setHero((current) => (current + 1) % activeBanners.length);
-    } else if (isRightSwipe) {
-      setHero((current) => (current === 0 ? activeBanners.length - 1 : current - 1));
-    }
-  };
-
-  const currentBannerSrc = activeBanners[hero] || activeBanners[0];
+  const revealStart = reduceMotion ? false : { opacity: 0, y: 12 };
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
   const bannerWidth = isMobile ? 640 : 1200;
+  const bannerQuality = isMobile ? 78 : 84;
 
   return <Shell>
     <section className="hero premium-slider"
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
+      onTouchStart={event => { touchStart.current = event.touches[0]?.clientX ?? null; }}
+      onTouchCancel={() => { touchStart.current = null; }}
+      onPointerEnter={event => { if (event.pointerType === "mouse") setCarouselInteracting(true); }}
+      onPointerLeave={() => setCarouselInteracting(false)}
       onTouchEnd={onTouchEnd}
       aria-label="Aura Sacred Hero Banners"
       style={{ overflow: 'hidden', borderRadius: '12px', margin: '24px auto 16px', width: '100%' }}
     >
       <div className="hero-slides" style={{ width: '100%', height: '100%', borderRadius: '12px', overflow: 'hidden', background: "linear-gradient(135deg, #2b170d 0%, #1a0c06 100%)", position: "relative" }}>
         {activeBanners.map((src, i) => {
-          const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
-          const bannerWidth = isMobile ? 640 : 1200;
-          const bannerQuality = isMobile ? 78 : 84;
-
           return (
             <OptimizedImage
               key={`${src}-${i}`}
@@ -255,25 +186,35 @@ export function Home() {
               width={bannerWidth}
               quality={bannerQuality}
               priority={i === 0}
-              containerClassName={`hero-slide ${i === hero ? 'active' : ''}`}
+              aria-hidden={i !== activeSlide}
+              containerClassName={`hero-slide ${i === activeSlide ? 'active' : ''}`}
               style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center', display: 'block' }}
             />
           );
         })}
       </div>
       {activeBanners.length > 1 && (
-        <div className="hero-pagination" role="tablist" aria-label="Slider Pagination">
+        <div className="hero-pagination" role="group" aria-label="Banner controls">
           {activeBanners.map((_, i) => (
             <button
               key={i}
               type="button"
-              role="tab"
-              aria-selected={i === hero}
+              aria-pressed={i === activeSlide}
               aria-label={`Go to slide ${i + 1}`}
-              className={`dot ${i === hero ? 'active' : ''}`}
-              onClick={() => setHero(i)}
+              className={`dot ${i === activeSlide ? 'active' : ''}`}
+              onClick={() => { setHero(i); setPauseCarousel(true); }}
             />
           ))}
+          {!reduceMotion && (
+            <button
+              type="button"
+              className="hero-play-toggle"
+              aria-label={pauseCarousel ? "Play banners" : "Pause banners"}
+              onClick={() => setPauseCarousel(value => !value)}
+            >
+              <span aria-hidden="true">{pauseCarousel ? "▶" : "Ⅱ"}</span>
+            </button>
+          )}
         </div>
       )}
     </section>
@@ -283,9 +224,9 @@ export function Home() {
 
     {/* COMPACT SHOP BY CATEGORY CAROUSEL */}
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={revealStart}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-50px" }}
+      viewport={{ once: true, amount: "some" }}
       transition={{ duration: 0.5, ease: "easeOut" }}
     >
       <ShopByCategory />
@@ -293,9 +234,9 @@ export function Home() {
 
     {/* HOME PRODUCT SHOWCASE / POPULAR SECTION (Admin Configurable) */}
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={revealStart}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-50px" }}
+      viewport={{ once: true, amount: "some" }}
       transition={{ duration: 0.5, ease: "easeOut", delay: 0.05 }}
     >
       <HomeProductShowcase products={products} isLoading={isLoading} />
@@ -306,9 +247,9 @@ export function Home() {
 
     {/* SACRED DEVOTIONAL TOOLS: JAPA COUNTER, COMPARISON & PRAN PRATISHTHA */}
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={revealStart}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-50px" }}
+      viewport={{ once: true, amount: "some" }}
       transition={{ duration: 0.5, ease: "easeOut", delay: 0.08 }}
     >
       <SacredFeaturesShowcase />
@@ -316,9 +257,9 @@ export function Home() {
 
     {/* THE AURA EDITORIAL: ASYMMETRIC SACRED DISCOVERY SECTION */}
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={revealStart}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-50px" }}
+      viewport={{ once: true, amount: "some" }}
       transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
     >
       <WhyAuraSection />
@@ -326,9 +267,9 @@ export function Home() {
 
     {/* ALL PRODUCTS SECTION */}
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={revealStart}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-50px" }}
+      viewport={{ once: true, amount: "some" }}
       transition={{ duration: 0.5, ease: "easeOut", delay: 0.15 }}
     >
       <AllProductsSection products={products} isLoading={isLoading} />
@@ -336,9 +277,9 @@ export function Home() {
 
     {/* THE AURA RASHI GUIDE: SHOP BY ZODIAC SIGN SECTION */}
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={revealStart}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-50px" }}
+      viewport={{ once: true, amount: "some" }}
       transition={{ duration: 0.5, ease: "easeOut", delay: 0.2 }}
     >
       <ZodiacRudrakshaSection />

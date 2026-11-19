@@ -87,7 +87,7 @@ describe('App Routes Render Smoke Test (ErrorBoundary Reproduction)', () => {
       if (u.includes('/api/categories')) {
         body = { success: true, data: [{ id: 'rudraksha', name: 'Rudraksha', desc: 'Authentic beads', link: '/shop?category=Rudraksha' }] };
       } else if (u.includes('/api/settings')) {
-        body = { success: true, data: { freeShippingThreshold: 0 } };
+        body = { success: true, data: { freeShippingThreshold: 0, announcementText: "Seasonal store hours" } };
       } else if (u.includes('/api/products/')) {
         body = { success: true, data: SAMPLE_PRODUCT };
       } else if (u.includes('/api/products')) {
@@ -186,6 +186,31 @@ describe('App Routes Render Smoke Test (ErrorBoundary Reproduction)', () => {
       expect(boundaryHit).toBe(false);
     });
   }
+
+  it("shows the configured announcement and restores keyboard focus when closing the mobile drawer", async () => {
+    await act(async () => {
+      root = createRoot(container);
+      root.render(
+        <MemoryRouter>
+          <ToastProvider>
+            <CartProvider><App /></CartProvider>
+          </ToastProvider>
+        </MemoryRouter>
+      );
+    });
+    expect(container.querySelector(".announce-marquee span").textContent).toBe("Seasonal store hours");
+    const trigger = container.querySelector("button.mobile-menu");
+    await act(async () => trigger.click());
+    const closeButton = container.querySelector('[role="dialog"][aria-label="Store navigation"] button');
+    expect(closeButton).not.toBeNull();
+    expect(document.activeElement).toBe(closeButton);
+    expect(document.body.style.overflow).toBe("hidden");
+
+    await act(async () => closeButton.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(trigger);
+    expect(document.body.style.overflow).toBe("");
+  });
 
   it('renders /checkout with populated cart & buy-now intent cleanly without ErrorBoundary', async () => {
     localStorage.setItem('aura_cart', JSON.stringify([{ id: SAMPLE_PRODUCT.id, qty: 1, price: SAMPLE_PRODUCT.price, name: SAMPLE_PRODUCT.name }]));

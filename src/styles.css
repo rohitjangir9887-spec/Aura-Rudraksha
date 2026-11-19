@@ -2617,14 +2617,16 @@ html { scroll-behavior: smooth; }
   position: fixed;
   inset: 0;
   background: rgba(20,10,6,.4);
-  z-index: 2000;
+  z-index: 10100;
 }
 .side-drawer {
   width: min(82vw, 300px);
   height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: #2b170d;
   color: #f8e8d2;
-  padding: 22px 20px;
+  padding: 22px 20px calc(22px + env(safe-area-inset-bottom, 0px));
 }
 .drawer-top {
   display: flex;
@@ -20507,3 +20509,20 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-t
 
 
 
+
+.hero-pagination .hero-play-toggle {
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  min-height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: #2b170d;
+  color: #fff;
+  cursor: pointer;
+}
+
+.hero-pagination button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}

@@ -9,7 +9,7 @@ import { extractMukhiNumber } from "../lib/searchUtils";
 import { Footer } from "./Footer";
 import { TopOfferStrip } from "./TopOfferStrip";
 import { AuraAIPill } from "./AuraAIPill";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useActiveOffer } from "../hooks/useActiveOffer";
 import { prefetchPath, prefetchRoute } from "../lib/prefetchRoutes";
 
@@ -20,6 +20,9 @@ export function Shell({children}) {
   const navigate = useNavigate();
   const pathname = location.pathname;
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuTriggerRef = useRef(null);
+  const drawerRef = useRef(null);
+  const reduceMotion = useReducedMotion();
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const [q, setQ] = useState("");
@@ -36,6 +39,7 @@ export function Shell({children}) {
           prev &&
           prev.freeShippingThreshold === freshSettings?.freeShippingThreshold &&
           prev.supportPhone === freshSettings?.supportPhone &&
+          prev.announcementText === freshSettings?.announcementText &&
           prev.supportEmail === freshSettings?.supportEmail
         ) {
           return prev;
@@ -63,6 +67,37 @@ export function Shell({children}) {
     return () => document.removeEventListener("pointerdown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    const drawer = drawerRef.current;
+    const trigger = menuTriggerRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    drawer?.querySelector("button")?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+    };
+  }, [menuOpen]);
+
+  const handleDrawerKey = event => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setMenuOpen(false);
+    }
+    if (event.key !== "Tab") return;
+    const controls = event.currentTarget.querySelectorAll("a[href], button:not([disabled])");
+    const first = controls[0];
+    const last = controls[controls.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first?.focus();
+    }
+  };
+
   const searchResults = useMemo(() => {
     const term = q.trim();
     if (!term) return [];
@@ -76,6 +111,12 @@ export function Shell({children}) {
   const supportPhone = settings.supportPhone || "+91 9672996531";
   const supportEmail = settings.supportEmail || "aurarudrakshaofficial@gmail.com";
   const waCleanPhone = supportPhone.replace(/[^0-9]/g, "");
+  const shippingThreshold = Number(settings.freeShippingThreshold) || 0;
+  const shippingLabel = shippingThreshold > 0
+    ? `Free Shipping on Eligible Orders from ₹${shippingThreshold.toLocaleString("en-IN")}`
+    : "Shipping Options at Checkout";
+  const announcement = settings.announcementText?.trim() ||
+    `✓ 100% Authentic | 🔬 Lab Tested | 🚚 ${shippingLabel} | 🔒 Secure Payment | ❤️ Support | 📞 ${supportPhone}`;
 
   const isHomeActive = pathname === "/";
   const isShopActive = pathname === "/shop";
@@ -142,16 +183,19 @@ export function Shell({children}) {
         {offer?.marqueeEnabled !== false && (
           <div className="announce">
             <div className="announce-marquee">
-              <span>✓ 100% Authentic | 🔬 Lab Tested | 🚚 Free Shipping | 🔒 Secure Payment | ❤️ Support | 📞 {supportPhone}</span>
-              <span>✓ 100% Authentic | 🔬 Lab Tested | 🚚 Free Shipping | 🔒 Secure Payment | ❤️ Support | 📞 {supportPhone}</span>
+              <span>{announcement}</span>
+              <span aria-hidden="true">{announcement}</span>
             </div>
           </div>
         )}
         <header className="header glass-header">
           <div className="header-left">
             <button 
-              className="mobile-menu" 
-              aria-label="Menu" 
+              ref={menuTriggerRef}
+              className="mobile-menu"
+              aria-label="Menu"
+              aria-haspopup="dialog"
+              aria-expanded={menuOpen}
               onClick={() => setMenuOpen(true)}
               type="button"
             >
@@ -413,8 +457,20 @@ export function Shell({children}) {
 
         <AnimatePresence>
           {menuOpen && (
-            <motion.div className="drawer-backdrop" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={()=>setMenuOpen(false)}>
-              <motion.aside className="side-drawer" initial={{x:-280}} animate={{x:0}} exit={{x:-280}} transition={{type:"spring", stiffness:280, damping:28}} onClick={e=>e.stopPropagation()}>
+            <motion.div className="drawer-backdrop" initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={reduceMotion ? { duration: 0 } : undefined} onClick={() => setMenuOpen(false)}>
+              <motion.aside
+                ref={drawerRef}
+                className="side-drawer"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Store navigation"
+                initial={reduceMotion ? false : { x: "-100%" }}
+                animate={{ x: 0 }}
+                exit={reduceMotion ? { opacity: 0 } : { x: "-100%" }}
+                transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 280, damping: 28 }}
+                onClick={event => event.stopPropagation()}
+                onKeyDown={handleDrawerKey}
+              >
                 <div className="drawer-top">
                   <strong>Aura Rudraksha</strong>
                   <button onClick={()=>setMenuOpen(false)} aria-label="Close" type="button"><X size={20}/></button>
