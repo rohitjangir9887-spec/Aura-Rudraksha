@@ -1,6 +1,7 @@
 import express from "express";
 import {
   getProducts,
+  getPublicCatalog,
   getProductById,
   createProduct,
   updateProduct,
@@ -21,6 +22,8 @@ router.route("/reorder")
 
 router.route("/increment-daily-sales")
   .post(requireAdmin, triggerDailySalesIncrement);
+
+router.get("/public/catalog", getPublicCatalog);
 
 router.route("/:id")
   .get(optionalAuth, getProductById)

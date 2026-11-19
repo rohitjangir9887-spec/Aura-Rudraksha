@@ -239,9 +239,25 @@ export async function ensureHealthyCatalogSlugs(products = []) {
   return healed;
 }
 
-export async function getProducts(req, res, next) {
+export function getPublicCatalog(req, res, next) {
+  return getProducts(req, res, next, true);
+}
+
+export async function getProducts(req, res, next, publicCatalog = false) {
+  const canCacheAtEdge = publicCatalog && Object.keys(req.query).length === 0
+    && !/no-cache|no-store|max-age=0/i.test(req.headers["cache-control"] || "")
+    && !/no-cache/i.test(req.headers.pragma || "");
+
+  function sendPublicCatalog(data) {
+    if (canCacheAtEdge) {
+      res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
+      res.setHeader("CDN-Cache-Control", "public, s-maxage=15, stale-while-revalidate=15");
+    }
+    return res.json({ success: true, data, count: data.length });
+  }
+
   try {
-    const isAdmin = await checkIsAdmin(req);
+    const isAdmin = !publicCatalog && await checkIsAdmin(req);
     const isNoCache = Boolean(
       req.query._t || 
       req.query.nocache || 
@@ -251,14 +267,15 @@ export async function getProducts(req, res, next) {
 
     const searchQuery = String(req.query.q || req.query.search || "").trim();
 
-    if (isAdmin || isNoCache || searchQuery) {
+    if (publicCatalog || isAdmin || isNoCache || searchQuery) {
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
     } else {
       res.setHeader("Cache-Control", "no-cache, must-revalidate");
-      // Fast path: serve cached public products if valid (3s TTL for near real-time updates)
-      if (publicProductsCache && Date.now() < publicProductsCacheExpiry && !req.query.status && !req.query.category) {
-        return res.json({ success: true, data: publicProductsCache, count: publicProductsCache.length });
-      }
+    }
+
+    const canUseLocalCache = !isAdmin && !isNoCache && !searchQuery && !req.query.status && !req.query.category;
+    if (canUseLocalCache && publicProductsCache && Date.now() < publicProductsCacheExpiry) {
+      return sendPublicCatalog(publicProductsCache);
     }
 
     if (!isDbConnected()) {
@@ -341,8 +358,7 @@ export async function getProducts(req, res, next) {
       publicProductsCacheExpiry = Date.now() + 3000;
     }
 
-    const finalProducts = applySearchQueryFilter(sanitizedProducts, searchQuery);
-    return res.json({ success: true, data: finalProducts, count: finalProducts.length });
+    return sendPublicCatalog(applySearchQueryFilter(sanitizedProducts, searchQuery));
   } catch (err) {
     console.warn("Notice in getProducts:", err.message);
     const searchQuery = String(req.query.q || req.query.search || "").trim();

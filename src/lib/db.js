@@ -254,7 +254,7 @@ async function apiRequest(endpoint, options = {}) {
       let token = "";
       if (options.requiresAuth) {
         token = await authClient.getToken(false, true).catch(() => "");
-      } else {
+      } else if (!options.anonymous) {
         token = await authClient.getToken(false, false).catch(() => "");
       }
 
@@ -719,7 +719,7 @@ export function invalidateLocalProductCache() {
 export async function revalidateProducts(force = false) {
   if (typeof window === "undefined") return storeCache.products;
 
-  const shouldForce = force || !hasFetchedFreshData;
+  const shouldForce = force;
 
   if (shouldForce) {
     lastProductFetchTime = 0;
@@ -736,8 +736,8 @@ export async function revalidateProducts(force = false) {
 
   inFlightProductsPromise = (async () => {
     try {
-      const url = shouldForce ? `/products?_t=${requestStartTime}` : "/products";
-      const res = await apiRequest(url, shouldForce ? { noCache: true } : {});
+      const url = shouldForce ? `/products/public/catalog?_t=${requestStartTime}` : "/products/public/catalog";
+      const res = await apiRequest(url, { anonymous: true, credentials: "omit", noCache: shouldForce });
       if (res?.success && Array.isArray(res.data) && !res.isFallback) {
         // Ignore stale background response if an admin mutation occurred while this GET was in flight
         if (!force && lastMutationTime > requestStartTime) {

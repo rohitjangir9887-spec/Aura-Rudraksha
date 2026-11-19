@@ -102,8 +102,7 @@ export function Home() {
 
   const loadHomeData = async () => {
     updateLocalState();
-    // Force fresh revalidation so admin product updates appear immediately on first visitor visit
-    db.fetchHomeData(true)
+    db.fetchHomeData()
       .then(() => {
         updateLocalState();
         setIsLoading(false);

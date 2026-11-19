@@ -27,3 +27,44 @@ jobs:
           MONGOMS_VERSION: 8.0.4
           REQUIRE_TEST_MONGODB: 'true'
       - run: npm run build
+      - name: Measure storefront performance with Lighthouse
+        shell: bash
+        run: |
+          mkdir -p lighthouse-results
+          PORT=4173 node scripts/serve-performance-preview.mjs &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          curl --fail --silent --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:4173/ -o /dev/null
+          for page in home shop product; do
+            case "$page" in
+              home) route="/" ;;
+              shop) route="/shop" ;;
+              product) route="/product/performance-fixture" ;;
+            esac
+            npx --yes lighthouse@13.6.0 "http://127.0.0.1:4173$route" \
+              --quiet --chrome-flags="--headless --no-sandbox" \
+              --only-categories=performance,accessibility \
+              --blocked-url-patterns='https://*' \
+              --output=json --output-path="lighthouse-results/$page.json"
+          done
+          node --input-type=module - <<'JS' | tee -a "$GITHUB_STEP_SUMMARY"
+          import { readFileSync } from "node:fs";
+          console.log("| Local mobile page | Performance | Accessibility | LCP (ms) | CLS |");
+          console.log("|---|---:|---:|---:|---:|");
+          for (const page of ["home", "shop", "product"]) {
+            const result = JSON.parse(readFileSync(`lighthouse-results/${page}.json`, "utf8"));
+            if (result.runtimeError) throw new Error(result.runtimeError.message);
+            const score = category => Math.round(result.categories[category].score * 100);
+            const lcp = Math.round(result.audits["largest-contentful-paint"].numericValue);
+            const cls = result.audits["cumulative-layout-shift"].numericValue;
+            console.log(`| ${page} | ${score("performance")} | ${score("accessibility")} | ${lcp} | ${cls.toFixed(3)} |`);
+          }
+          JS
+      - name: Save Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-storefront
+          path: lighthouse-results/*.json
+          retention-days: 7
+          if-no-files-found: ignore
