@@ -30,5 +30,5 @@ app.get("/api/settings", (_req, res) => res.json({ success: true, data: {} }));
 app.get("/api/health", (_req, res) => res.json({ status: "ok", database: "connected" }));
 app.use("/api", (_req, res) => res.json({ success: true, data: [] }));
 app.use(express.static(dist));
-app.get(["/shop", "/product/:id"], (_req, res) => res.sendFile("index.html", { root: dist }));
+app.get(["/shop", "/product/:id", "/cart"], (_req, res) => res.sendFile("index.html", { root: dist }));
 app.listen(process.env.PORT || 4173, "127.0.0.1");

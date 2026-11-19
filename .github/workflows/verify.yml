@@ -27,6 +27,15 @@ jobs:
           MONGOMS_VERSION: 8.0.4
           REQUIRE_TEST_MONGODB: 'true'
       - run: npm run build
+      - name: Check critical storefront flows in Chrome
+        shell: bash
+        run: |
+          export CHROME_PATH="$(command -v google-chrome || command -v chromium)"
+          PORT=4173 node scripts/serve-performance-preview.mjs &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          curl --fail --silent --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:4173/ -o /dev/null
+          node scripts/check-storefront-browser.mjs
       - name: Measure storefront performance with Lighthouse
         shell: bash
         run: |
