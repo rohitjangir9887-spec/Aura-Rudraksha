@@ -2,7 +2,7 @@ import "./utils/urlParser.js";
 import express from "express";
 import compression from "compression";
 import dotenv from "dotenv";
-import { connectDB, isDbConnected, getLastDbSync, getMongoUri } from "./config/db.js";
+import { connectDB, isDbConnected, getLastDbSync } from "./config/db.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 
 // Routes
@@ -100,12 +100,12 @@ export function createApp(options = {}) {
 
     const isAllowed = Boolean(origin && (allowedOrigins.includes(origin) || isSameOrigin));
 
+    res.vary("Origin");
     if (origin && isAllowed) {
       res.setHeader("Access-Control-Allow-Origin", origin);
-      res.setHeader("Vary", "Origin");
       res.setHeader("Access-Control-Allow-Credentials", "true");
       res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With,Accept,X-Idempotency-Key,Idempotency-Key,X-Guest-Token,X-PayU-TxnId,X-Device-Id");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With,Accept,Cache-Control,X-Idempotency-Key,Idempotency-Key,X-Guest-Token,X-PayU-TxnId,X-Device-Id");
       res.setHeader("Access-Control-Max-Age", "86400");
     }
 
@@ -232,14 +232,10 @@ export function createApp(options = {}) {
     next();
   });
 
-  // Health check endpoint (accurate with proactive recovery)
-  app.get("/api/health", async (req, res) => {
-    let dbConnected = isDbConnected();
-    if (!dbConnected) {
-      try {
-        dbConnected = await connectDB();
-      } catch (_) {}
-    }
+  // The API middleware above already attempted the connection.
+  app.get("/api/health", (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    const dbConnected = isDbConnected();
     const lastSync = getLastDbSync();
     if (dbConnected) {
       return res.json({
@@ -263,11 +259,11 @@ export function createApp(options = {}) {
   // Public categories endpoint
   app.get("/api/categories", async (req, res) => {
     try {
-      if (!isDbConnected()) {
-        try { await connectDB(); } catch (_) {}
+      let setting = null;
+      if (isDbConnected()) {
+        const { Setting } = await import("./models/Setting.js");
+        setting = await Setting.findOne({ id: "STORE_SETTINGS" }).select("shopCategories").lean().catch(() => null);
       }
-      const { Setting } = await import("./models/Setting.js");
-      const setting = await Setting.findOne().lean().catch(() => null);
       const categories = (Array.isArray(setting?.shopCategories) && setting.shopCategories.length > 0)
         ? setting.shopCategories
         : [
@@ -283,18 +279,6 @@ export function createApp(options = {}) {
     }
   });
 
-  // Middleware ensuring DB connection attempt before database-dependent queries
-  const requireDb = async (req, res, next) => {
-    if (!isDbConnected()) {
-      try {
-        await connectDB();
-      } catch (err) {
-        console.warn("⚠️ [DB Middleware] Pre-route connection attempt notice:", err?.message || err);
-      }
-    }
-    next();
-  };
-
   // Strict no-cache headers for sensitive payment and order transactions
   const noCacheMiddleware = (req, res, next) => {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
@@ -306,29 +290,29 @@ export function createApp(options = {}) {
 
   // API Routes Mount
   app.use("/api/admin/db-status", adminDbStatusRoute);
-  app.use("/api/upload", requireDb, uploadRoute);
-  app.use("/api/admin/storage", requireDb, uploadRoute);
-  app.use("/api/admin/me", requireDb, authRoute);
-  app.use("/api/cart", requireDb, cartRoute);
-  app.use("/api/products", requireDb, productsRoute);
-  app.use("/api/orders", requireDb, noCacheMiddleware, ordersRoute);
-  app.use("/api/customers", requireDb, customersRoute);
-  app.use("/api/coupons", requireDb, couponsRoute);
-  app.use("/api/promotions", requireDb, promotionsRoute);
-  app.use("/api/offers", requireDb, offersRoute);
-  app.use("/api/active-offer", requireDb, activeOfferRoute);
-  app.use("/api/banners", requireDb, bannersRoute);
-  app.use("/api/reviews", requireDb, reviewsRoute);
-  app.use("/api/settings", requireDb, settingsRoute);
-  app.use("/api/tickets", requireDb, ticketsRoute);
-  app.use("/api/analytics", requireDb, analyticsRoute);
-  app.use("/api/seed", requireDb, seedRoute);
-  app.use("/api/addresses", requireDb, addressesRoute);
-  app.use("/api/wishlist", requireDb, wishlistRoute);
-  app.use("/api/auth", requireDb, authRoute);
+  app.use("/api/upload", uploadRoute);
+  app.use("/api/admin/storage", uploadRoute);
+  app.use("/api/admin/me", authRoute);
+  app.use("/api/cart", cartRoute);
+  app.use("/api/products", productsRoute);
+  app.use("/api/orders", noCacheMiddleware, ordersRoute);
+  app.use("/api/customers", customersRoute);
+  app.use("/api/coupons", couponsRoute);
+  app.use("/api/promotions", promotionsRoute);
+  app.use("/api/offers", offersRoute);
+  app.use("/api/active-offer", activeOfferRoute);
+  app.use("/api/banners", bannersRoute);
+  app.use("/api/reviews", reviewsRoute);
+  app.use("/api/settings", settingsRoute);
+  app.use("/api/tickets", ticketsRoute);
+  app.use("/api/analytics", analyticsRoute);
+  app.use("/api/seed", seedRoute);
+  app.use("/api/addresses", addressesRoute);
+  app.use("/api/wishlist", wishlistRoute);
+  app.use("/api/auth", authRoute);
   app.use("/api/aura-ai", auraAiRoute);
-  app.use("/api/payment", requireDb, noCacheMiddleware, paymentRoute);
-  app.use("/api/meta", requireDb, metaRoute);
+  app.use("/api/payment", noCacheMiddleware, paymentRoute);
+  app.use("/api/meta", metaRoute);
 
   // Top-level SEO endpoints (/sitemap.xml, /robots.txt, /google-merchant-feed.xml, IndexNow verification)
   app.use("/", seoRoute);

@@ -5,7 +5,6 @@ import { Setting } from "../models/Setting.js";
 import { isDbConnected } from "../config/db.js";
 import { recordCustomerOrder } from "./customerController.js";
 import { recordProductSalesIncrement } from "./productController.js";
-import Customer from "../models/Customer.js";
 import {
   calculateOrderTotals,
   isStandardCatalogOrderItem,
@@ -85,8 +84,8 @@ export async function getOrders(req, res, next) {
 export async function getMyOrders(req, res, next) {
   try {
     const authUserId = req.user.authUserId;
-    let userEmail = (req.user.email || "").trim().toLowerCase();
-    let userPhone = (req.user.phone || "").trim();
+    const userEmail = (req.user.email || "").trim().toLowerCase();
+    const userPhone = (req.user.phone || "").trim();
 
     if (!isDbConnected()) {
       return res.status(503).json({
@@ -95,16 +94,6 @@ export async function getMyOrders(req, res, next) {
         message: "Database is temporarily unavailable. Please try again shortly.",
         databaseUnavailable: true
       });
-    }
-
-    if (authUserId && (!userEmail || !userPhone)) {
-      try {
-        const cust = await Customer.findOne({ authUserId }).lean();
-        if (cust) {
-          if (!userEmail && cust.email) userEmail = cust.email.trim().toLowerCase();
-          if (!userPhone && cust.phone) userPhone = cust.phone.trim();
-        }
-      } catch (_) {}
     }
 
     const queryFilters = [{ authUserId }, { customerId: authUserId }];
@@ -242,26 +231,14 @@ export async function getOrderById(req, res, next) {
     );
 
     // 3. Normalized Phone matching (10 digits on both sides)
-    let userPhone10 = userPhone ? extractRaw10DigitPhone(userPhone) : "";
+    const userPhone10 = userPhone ? extractRaw10DigitPhone(userPhone) : "";
     const orderPhone10 = extractRaw10DigitPhone(order.customerPhone || order.phone || order.shippingAddress?.phone || "");
 
     // 4. Normalized Email matching
-    let userEmailNorm = (userEmail || "").trim().toLowerCase();
     const orderEmailNorm = (order.customerEmail || order.email || order.shippingAddress?.email || "").trim().toLowerCase();
 
-    // Check Customer profile in DB if user object phone/email was missing
-    if (authUserId && (!userPhone10 || !userEmailNorm)) {
-      try {
-        const cust = await Customer.findOne({ authUserId }).lean();
-        if (cust) {
-          if (!userPhone10 && cust.phone) userPhone10 = extractRaw10DigitPhone(cust.phone);
-          if (!userEmailNorm && cust.email) userEmailNorm = cust.email.trim().toLowerCase();
-        }
-      } catch (_) {}
-    }
-
     const isPhoneOwner = Boolean(userPhone10 && orderPhone10 && userPhone10 === orderPhone10);
-    const isEmailOwner = Boolean(userEmailNorm && orderEmailNorm && userEmailNorm === orderEmailNorm);
+    const isEmailOwner = Boolean(userEmail && orderEmailNorm && userEmail === orderEmailNorm);
 
     // 5. Cryptographic Guest Token match
     const isGuestTokenMatch = Boolean(
@@ -652,7 +629,7 @@ export async function createOrder(req, res, next) {
         }
         try {
           await recordCustomerOrder({
-            authUserId: effectiveAuthUserId,
+            authUserId,
             email,
             phone,
             name,

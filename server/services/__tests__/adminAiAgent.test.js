@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
+import { describe, test, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from "vitest";
 import http from "node:http";
 import express from "express";
 import auraAiRouter from "../../routes/auraAi.js";
@@ -26,11 +26,28 @@ import {
   PRIMARY_NIM_MODEL
 } from "../../controllers/auraAiController.js";
 
-function makeFakeJwt(payload) {
-  const h = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64");
-  const b = Buffer.from(JSON.stringify(payload)).toString("base64");
-  return `${h}.${b}.sig`;
-}
+const { ADMIN_TEST_SESSION, CUSTOMER_TEST_SESSION } = vi.hoisted(() => ({
+  ADMIN_TEST_SESSION: "verified-admin-fixture",
+  CUSTOMER_TEST_SESSION: "verified-customer-fixture"
+}));
+
+vi.mock("firebase-admin/auth", () => ({
+  getAuth: () => ({
+    verifyIdToken: async token => {
+      const exp = Date.now() / 1000 + 60;
+      if (token === ADMIN_TEST_SESSION) {
+        return { uid: "test-admin", email: "admin@example.test", email_verified: true, exp };
+      }
+      if (token === CUSTOMER_TEST_SESSION) {
+        return { uid: "test-customer", email: "customer@example.test", email_verified: true, exp };
+      }
+      throw new Error("Invalid test token");
+    }
+  })
+}));
+
+beforeEach(() => vi.stubEnv("INITIAL_ADMIN_EMAIL", "admin@example.test"));
+afterEach(() => vi.unstubAllEnvs());
 
 const TEST_CATALOG = [
   {
@@ -111,14 +128,8 @@ describe("Admin AI Agent: RBAC Security & Lazy Endpoints", () => {
   });
 
   test("rejects non-admin authenticated user token with 403", async () => {
-    const nonAdminJwt = makeFakeJwt({
-      user_id: "cust_regular_99",
-      email: "customer@example.com",
-      phone_number: "+919999999999"
-    });
-
     const res = await fetch(`${baseUrl}/api/aura-ai/admin-agent/session`, {
-      headers: { Authorization: `Bearer ${nonAdminJwt}` }
+      headers: { Authorization: `Bearer ${CUSTOMER_TEST_SESSION}` }
     });
     expect(res.status).toBe(403);
   });
@@ -131,7 +142,7 @@ describe("Admin AI Agent: RBAC Security & Lazy Endpoints", () => {
 
     try {
       const sessionRes = await fetch(`${baseUrl}/api/aura-ai/admin-agent/session`, {
-        headers: { Authorization: "Bearer admin_test_session" }
+        headers: { Authorization: `Bearer ${ADMIN_TEST_SESSION}` }
       });
       const sessionBody = await sessionRes.json();
       expect(sessionRes.status).toBe(200);
@@ -139,7 +150,7 @@ describe("Admin AI Agent: RBAC Security & Lazy Endpoints", () => {
       expect(Array.isArray(sessionBody.pagesDirectory)).toBe(true);
 
       const diagRes = await fetch(`${baseUrl}/api/aura-ai/admin-agent/diagnostics`, {
-        headers: { Authorization: "Bearer admin_test_session" }
+        headers: { Authorization: `Bearer ${ADMIN_TEST_SESSION}` }
       });
       const diagBody = await diagRes.json();
       expect(diagRes.status).toBe(200);
@@ -147,7 +158,7 @@ describe("Admin AI Agent: RBAC Security & Lazy Endpoints", () => {
       expect(diagBody.report.bugsCount).toBeGreaterThan(0);
 
       const auditRes = await fetch(`${baseUrl}/api/aura-ai/admin-agent/growth-audit`, {
-        headers: { Authorization: "Bearer admin_test_session" }
+        headers: { Authorization: `Bearer ${ADMIN_TEST_SESSION}` }
       });
       const auditBody = await auditRes.json();
       expect(auditRes.status).toBe(200);
@@ -389,7 +400,7 @@ describe("Admin AI Auto-Fix, Background Tasks CRUD & Customer Bot (/api/aura-ai/
 
   let server;
   let baseUrl = "";
-  const adminToken = "admin_test_session";
+  const adminToken = ADMIN_TEST_SESSION;
 
   beforeAll(async () => {
     server = http.createServer(app);
@@ -714,7 +725,7 @@ describe("Website-Wide AI Models Selector & nvidia/nemotron-3-ultra-550b-a55b Pe
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer admin_test_session"
+        Authorization: `Bearer ${ADMIN_TEST_SESSION}`
       },
       body: JSON.stringify({ activeAiModel: "nvidia/nemotron-3-ultra-550b-a55b" })
     });
@@ -733,7 +744,7 @@ describe("Website-Wide AI Models Selector & nvidia/nemotron-3-ultra-550b-a55b Pe
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer admin_test_session"
+        Authorization: `Bearer ${ADMIN_TEST_SESSION}`
       },
       body: JSON.stringify({
         activeAiModel: "gemini-4-hydrogen",
@@ -775,7 +786,7 @@ describe("Website-Wide AI Models Selector & nvidia/nemotron-3-ultra-550b-a55b Pe
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer admin_test_session"
+        Authorization: `Bearer ${ADMIN_TEST_SESSION}`
       },
       body: JSON.stringify({ activeAiModel: "gemini-2.5-flash" })
     });

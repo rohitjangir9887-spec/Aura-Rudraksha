@@ -19,7 +19,7 @@ import { invalidateRagCache } from "../services/ragService.js";
 
 const SETTING_FIELDS = {
   storeName: "string", supportEmail: "string", supportPhone: "string", currency: "string",
-  instagramUrl: "webUrl", facebookUrl: "webUrl", youtubeUrl: "webUrl",
+  instagramUrl: "webUrl", facebookUrl: "webUrl", youtubeUrl: "webUrl", announcementText: "string",
   shippingPolicy: "string", returnPolicy: "string", privacyPolicy: "string",
   termsPolicy: "string", contactSupport: "string", storageProvider: "string", zodiacs: "array",
   shopCategories: "array", standardShippingFee: "number", freeShippingThreshold: "number",
@@ -102,10 +102,10 @@ function sanitizeSettingsForClient(settings, isAdmin = false) {
   copy.metaDomainVerification = copy.metaDomainVerification || "";
   copy.metaCapiEnabled = Boolean(process.env.META_CAPI_ACCESS_TOKEN || copy.metaCapiAccessToken);
 
+  delete copy.pcloudRefreshToken;
   if (!isAdmin) {
     delete copy.pcloudAccessToken;
     delete copy.pcloudFolderId;
-    delete copy.pcloudRefreshToken;
     delete copy.imagekitPrivateKey;
     delete copy.imagekitPublicKey;
     delete copy.imagekitUrlEndpoint;
@@ -132,26 +132,30 @@ function sanitizeSettingsForClient(settings, isAdmin = false) {
   return copy;
 }
 
+function settingsUnavailable(res) {
+  res.setHeader("Cache-Control", "no-store");
+  return res.status(503).json({ success: false, message: "Database is unavailable. Please try again shortly." });
+}
+
 export async function getSettings(req, res, next) {
   try {
-    let isAdmin = false;
-    if (req.user) {
-      const { isInitialAdmin } = isAdminUser(req.user);
-      isAdmin = isInitialAdmin || (await hasAdminRole(req.user.authUserId));
-    }
-
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
-
-    if (req.query?._t || isAdmin) {
-      clearSettingsCache();
-    }
-
+    res.setHeader("Cache-Control", "no-store");
     if (!isDbConnected()) {
-      return res.json({ success: true, data: sanitizeSettingsForClient(defaultSettings, isAdmin), isFallback: true });
+      return res.json({ success: true, data: sanitizeSettingsForClient(defaultSettings), isFallback: true });
     }
-
     const settings = await fetchStoreSettings();
-    return res.json({ success: true, data: sanitizeSettingsForClient(settings, isAdmin) });
+    return res.json({ success: true, data: sanitizeSettingsForClient(settings) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getAdminSettings(req, res, next) {
+  try {
+    res.setHeader("Cache-Control", "no-store");
+    if (!isDbConnected()) return settingsUnavailable(res);
+    const settings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
+    return res.json({ success: true, data: sanitizeSettingsForClient(settings || defaultSettings, true) });
   } catch (err) {
     next(err);
   }
@@ -159,7 +163,16 @@ export async function getSettings(req, res, next) {
 
 export async function saveSettings(req, res, next) {
   try {
+    if (!isDbConnected()) return settingsUnavailable(res);
     const data = pickFields(req.body, SETTING_FIELDS);
+    if (Object.hasOwn(req.body || {}, "announcementText") && (data.announcementText == null || data.announcementText.length > 250)) {
+      return res.status(400).json({ success: false, message: "Announcements must be plain text, up to 250 characters." });
+    }
+    for (const field of ["standardShippingFee", "freeShippingThreshold", "codFee"]) {
+      if (data[field] < 0) {
+        return res.status(400).json({ success: false, message: "Shipping and COD fees must be non-negative." });
+      }
+    }
 
     // If incoming secret fields are masked placeholders or empty strings, do not overwrite existing secrets
     if (data.imagekitPrivateKey && (data.imagekitPrivateKey.includes("••••") || !data.imagekitPrivateKey.trim())) {
@@ -191,22 +204,11 @@ export async function saveSettings(req, res, next) {
       }
     }
 
-    Object.assign(defaultSettings, data);
-    clearSettingsCache();
-
-    if (!isDbConnected()) {
-      await connectDB().catch(() => {});
-    }
-
-    if (!isDbConnected()) {
-      return res.json({ success: true, data: sanitizeSettingsForClient(defaultSettings, true) });
-    }
-
     const oldSettings = await Setting.findOne({ id: "STORE_SETTINGS" }).lean();
     const updated = await Setting.findOneAndUpdate(
       { id: "STORE_SETTINGS" },
       { $set: data },
-      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true, runValidators: true }
     );
 
     clearSettingsCache();
@@ -265,24 +267,16 @@ export async function savePolicies(req, res, next) {
   try {
     const data = pickFields(req.body, POLICY_FIELDS);
 
-    if (!isDbConnected()) {
-      await connectDB().catch(() => {});
-    }
-
-    if (!isDbConnected()) {
-      Object.assign(defaultSettings, data);
-      clearSettingsCache();
-      return res.json({ success: true, data });
-    }
+    if (!isDbConnected()) return settingsUnavailable(res);
 
     const updated = await Setting.findOneAndUpdate(
       { id: "STORE_SETTINGS" },
       { $set: data },
-      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true, runValidators: true }
     );
 
     clearSettingsCache();
-    return res.json({ success: true, data: updated });
+    return res.json({ success: true, data: pickFields(updated.toObject(), POLICY_FIELDS) });
   } catch (err) {
     next(err);
   }
