@@ -327,6 +327,7 @@ export const auraAiClient = {
     cartItems = [],
     history = [],
     birthDetails = null,
+    clearBirthDetails = false,
     notesContext = "",
     isContinuation = false,
     continuationTail = "",
@@ -386,7 +387,7 @@ export const auraAiClient = {
     try {
       const token = await authClient.getToken();
       const guestSessionId = typeof auraChatStore.getGuestSessionId === "function" ? auraChatStore.getGuestSessionId() : "guest_session";
-      const savedBirth = typeof auraChatStore.getVerifiedBirthDetails === "function" ? auraChatStore.getVerifiedBirthDetails() : null;
+      const savedBirth = !clearBirthDetails && typeof auraChatStore.getVerifiedBirthDetails === "function" ? auraChatStore.getVerifiedBirthDetails() : null;
       const isAstroQuery = (
         mode === "panditji" ||
         /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|milan|gun milan|ashtakoot|mulank|bhagyank|numerology|panchang|muhurat|rahu kaal|chakra|kaal sarp|pitra|kemadruma|sade sati|dhaiya|lal kitab|bhava|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र|पंचांग|मुहूर्त|मिलान|गुण मिलान|मूलांक|भाग्यांक|अंक ज्योतिष|चक्र|कालसर्प|पितृ|केमद्रुम|नेपाली रुद्राक्ष|असली नकली|एक्स रे|प्राण प्रतिष्ठा|धारण विधि/i.test(message || "")
@@ -417,6 +418,7 @@ export const auraAiClient = {
           cartItems,
           history,
           birthDetails: effectiveBirthDetails,
+          clearBirthDetails: Boolean(clearBirthDetails) && !effectiveBirthDetails,
           notesContext,
           isContinuation: Boolean(isContinuation),
           continuationTail: String(continuationTail || ""),
@@ -514,6 +516,7 @@ export const auraAiClient = {
               cartItems,
               history,
               birthDetails: effectiveBirthDetails,
+              clearBirthDetails: Boolean(clearBirthDetails) && !effectiveBirthDetails,
               notesContext,
               isContinuation,
               continuationTail,
@@ -693,6 +696,7 @@ export const auraAiClient = {
     cartItems = [],
     history = [],
     birthDetails = null,
+    clearBirthDetails = false,
     notesContext = "",
     isContinuation = false,
     continuationTail = "",
@@ -718,6 +722,7 @@ export const auraAiClient = {
           cartItems,
           history,
           birthDetails,
+          clearBirthDetails: Boolean(clearBirthDetails) && !birthDetails,
           notesContext,
           isContinuation: Boolean(isContinuation),
           continuationTail: String(continuationTail || ""),

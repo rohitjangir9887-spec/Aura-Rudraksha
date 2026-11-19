@@ -151,11 +151,67 @@ export const auraChatStore = {
     } catch (_) {}
   },
 
+  _birthDetailsClearedInMemory: false,
+
+  cleanKundaliName(rawVal) {
+    if (!rawVal) return "";
+    let cleaned = String(rawVal)
+      .replace(/[।॥|]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    cleaned = cleaned
+      .replace(/(?:\s+(?:है|हैं|था|थी|जी|hai|hain|is))+$/i, "")
+      .replace(/[।॥|.,;:!?]+$/g, "")
+      .trim();
+    return cleaned;
+  },
+
+  isBirthDetailsCleared() {
+    if (this._birthDetailsClearedInMemory) return true;
+    try {
+      const uid = this.getCurrentUserUid();
+      return sessionStorage.getItem(`aura_ai_clear_birth_pending_${uid}`) === "1";
+    } catch (_) {
+      return false;
+    }
+  },
+
+  setBirthDetailsCleared(flag) {
+    this._birthDetailsClearedInMemory = Boolean(flag);
+    try {
+      const uid = this.getCurrentUserUid();
+      if (flag) {
+        sessionStorage.setItem(`aura_ai_clear_birth_pending_${uid}`, "1");
+      } else {
+        sessionStorage.removeItem(`aura_ai_clear_birth_pending_${uid}`);
+      }
+    } catch (_) {}
+  },
+
   clearActiveBirthDetails() {
     try {
       const uid = this.getCurrentUserUid();
+      this.setBirthDetailsCleared(true);
       localStorage.removeItem(`aura_ai_birth_details_${uid}`);
       window.dispatchEvent(new CustomEvent("aura_ai_birth_details_cleared", { detail: { uid } }));
+
+      if (typeof fetch === "function") {
+        const token = localStorage.getItem("token") || localStorage.getItem("aura_auth_token") || "";
+        const headers = {
+          "Content-Type": "application/json",
+          "X-Guest-Session-ID": this.getGuestSessionId()
+        };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        fetch("/api/aura-ai/chat", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            clearBirthDetails: true,
+            clearOnly: true,
+            sessionId: this.getConversationId()
+          })
+        }).catch(() => {});
+      }
     } catch (_) {}
   },
 
@@ -166,6 +222,11 @@ export const auraChatStore = {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && parsed.dob && (parsed.birthTime || parsed.time) && (parsed.birthPlace || parsed.place)) {
+          const cleanedName = this.cleanKundaliName(parsed.name || parsed.devoteeName || "Devotee") || "Devotee";
+          if (cleanedName !== parsed.name) {
+            parsed.name = cleanedName;
+            localStorage.setItem(`aura_ai_birth_details_${uid}`, JSON.stringify(parsed));
+          }
           return parsed;
         }
       }
@@ -173,72 +234,323 @@ export const auraChatStore = {
     return null;
   },
 
-  saveVerifiedBirthDetails(details) {
-    if (!details || !details.dob) return;
+  getSavedKundalis() {
     try {
       const uid = this.getCurrentUserUid();
+      const kundaliKey = `aura_ai_saved_kundalis_${uid}`;
+      const raw = localStorage.getItem(kundaliKey);
+      if (raw !== null) {
+        const parsed = JSON.parse(raw);
+        const list = Array.isArray(parsed) ? parsed : [];
+        let mutated = false;
+        const normalizedList = list.map((item, idx) => {
+          if (!item || typeof item !== "object") return null;
+          let id = item.id;
+          if (!id) {
+            id = `prof_mig_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`;
+            mutated = true;
+          }
+          const rawItemName = (item.name || item.devoteeName || "Devotee").trim() || "Devotee";
+          const cleanedItemName = this.cleanKundaliName(rawItemName) || "Devotee";
+          if (cleanedItemName !== item.name) {
+            mutated = true;
+          }
+          return {
+            ...item,
+            id,
+            name: cleanedItemName,
+            birthTime: item.birthTime || item.time || "12:00",
+            time: item.time || item.birthTime || "12:00",
+            birthPlace: item.birthPlace || item.place || "",
+            place: item.place || item.birthPlace || ""
+          };
+        }).filter(Boolean);
+        if (mutated) {
+          localStorage.setItem(kundaliKey, JSON.stringify(normalizedList));
+        }
+        return normalizedList;
+      }
+
+      // Only seed when key is genuinely uninitialized (raw === null), never after explicit clear/delete ("[]")
+      const active = this.getVerifiedBirthDetails();
+      if (active && active.dob) {
+        const initial = [{
+          id: active.id || "prof_initial_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6),
+          name: this.cleanKundaliName(active.name || active.devoteeName || "Devotee") || "Devotee",
+          dob: active.dob,
+          birthTime: active.birthTime || active.time || "12:00",
+          time: active.time || active.birthTime || "12:00",
+          birthPlace: active.birthPlace || active.place || "",
+          place: active.place || active.birthPlace || "",
+          concern: active.concern || "all",
+          relation: active.relation || "Self",
+          savedAt: active.savedAt || new Date().toISOString()
+        }];
+        localStorage.setItem(kundaliKey, JSON.stringify(initial));
+        return initial;
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  },
+
+  addSavedKundali(profile) {
+    if (!profile || !profile.dob) return [];
+    try {
+      this.setBirthDetailsCleared(false);
+      const uid = this.getCurrentUserUid();
+      const kundaliKey = `aura_ai_saved_kundalis_${uid}`;
+      const existingList = this.getSavedKundalis();
+      const cleanName = this.cleanKundaliName(profile.name || profile.devoteeName || "Devotee") || "Devotee";
+      const cleanTime = String(profile.birthTime || profile.time || "12:00").trim() || "12:00";
+      const cleanPlace = String(profile.birthPlace || profile.place || "").trim();
+      const cleanDob = String(profile.dob).trim();
+
+      const matchingExisting = existingList.find(
+        (k) =>
+          (profile.id && k.id === profile.id) ||
+          (k.dob === cleanDob &&
+            ((k.name || "").trim().toLowerCase() === cleanName.toLowerCase() ||
+              (k.name || "").trim().toLowerCase() === "devotee"))
+      );
+
+      const newProf = {
+        id: profile.id || matchingExisting?.id || `prof_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: cleanName,
+        dob: cleanDob,
+        birthTime: cleanTime,
+        time: cleanTime,
+        birthPlace: cleanPlace,
+        place: cleanPlace,
+        concern: profile.concern || matchingExisting?.concern || "all",
+        relation: profile.relation || matchingExisting?.relation || "Self",
+        savedAt: new Date().toISOString()
+      };
+
+      const updated = [
+        newProf,
+        ...existingList.filter((k) => {
+          if (k.id === newProf.id) return false;
+          if (k.dob === newProf.dob && (k.name || "").trim().toLowerCase() === newProf.name.toLowerCase()) return false;
+          if (k.dob === newProf.dob && (k.name || "").trim().toLowerCase() === "devotee" && newProf.name.toLowerCase() !== "devotee") return false;
+          return true;
+        })
+      ].slice(0, 30);
+
+      localStorage.setItem(kundaliKey, JSON.stringify(updated));
+
+      // Keep activeBirthDetails in sync if it shares the same DOB or is empty
+      const currentActive = this.getVerifiedBirthDetails();
+      if (!currentActive || currentActive.dob === newProf.dob || currentActive.id === newProf.id) {
+        localStorage.setItem(`aura_ai_birth_details_${uid}`, JSON.stringify(newProf));
+        window.dispatchEvent(new CustomEvent("aura_ai_birth_details_updated", { detail: { uid, details: newProf } }));
+      }
+
+      window.dispatchEvent(new CustomEvent("aura_ai_saved_kundalis_updated", { detail: { uid, kundalis: updated } }));
+      return updated;
+    } catch (e) {
+      console.warn("Could not add saved kundali:", e);
+      return this.getSavedKundalis();
+    }
+  },
+
+  deleteSavedKundali(id, fallbackIndex = -1, fallbackProfile = null) {
+    try {
+      const uid = this.getCurrentUserUid();
+      const kundaliKey = `aura_ai_saved_kundalis_${uid}`;
+      const existingList = this.getSavedKundalis();
+      let removedProfile = fallbackProfile || null;
+
+      const updated = existingList.filter((item, idx) => {
+        const matchById = Boolean(id) && item.id === id;
+        const matchByIndex = fallbackIndex >= 0 && idx === fallbackIndex && (!id || item.id === id);
+        const matchByFields = Boolean(
+          fallbackProfile &&
+          item.dob === fallbackProfile.dob &&
+          this.cleanKundaliName(item.name || "").toLowerCase() === this.cleanKundaliName(fallbackProfile.name || "").toLowerCase()
+        );
+        if (matchById || matchByIndex || matchByFields) {
+          removedProfile = item;
+          return false;
+        }
+        return true;
+      });
+
+      localStorage.setItem(kundaliKey, JSON.stringify(updated));
+
+      // Clear activeBirthDetails if the deleted Kundli matched by ID or DOB, or if no saved Kundalis remain
+      const currentActive = this.getVerifiedBirthDetails();
+      if (updated.length === 0) {
+        this.clearActiveBirthDetails();
+      } else if (currentActive && removedProfile) {
+        const sameId = Boolean(currentActive.id && removedProfile.id && currentActive.id === removedProfile.id);
+        const sameDob = Boolean(currentActive.dob && removedProfile.dob && currentActive.dob === removedProfile.dob);
+        if (sameId || sameDob) {
+          this.clearActiveBirthDetails();
+        }
+      }
+
+      // Also scrub deleted profile's birthDetails from saved history sessions so loading history doesn't resurrect it
+      if (removedProfile && removedProfile.dob) {
+        try {
+          const histKey = `aura_ai_saved_sessions_panditji_${uid}`;
+          const rawHist = localStorage.getItem(histKey);
+          if (rawHist) {
+            const parsedHist = JSON.parse(rawHist);
+            if (Array.isArray(parsedHist)) {
+              const cleanedHist = parsedHist.map((s) =>
+                s?.birthDetails?.dob === removedProfile.dob ? { ...s, birthDetails: null } : s
+              );
+              localStorage.setItem(histKey, JSON.stringify(cleanedHist));
+            }
+          }
+        } catch (_) {}
+      }
+
+      window.dispatchEvent(new CustomEvent("aura_ai_saved_kundalis_updated", { detail: { uid, kundalis: updated } }));
+      return updated;
+    } catch (e) {
+      console.warn("Could not delete saved kundali:", e);
+      return this.getSavedKundalis();
+    }
+  },
+
+  saveVerifiedBirthDetails(details, options = {}) {
+    if (!details || !details.dob) return null;
+    try {
+      if (options?.userInitiated) {
+        this.setBirthDetailsCleared(false);
+      } else if (this.isBirthDetailsCleared()) {
+        // Block background stream/session events from resurrecting a deleted/cleared Kundli
+        return null;
+      }
+
+      const uid = this.getCurrentUserUid();
       const current = this.getVerifiedBirthDetails();
+      const savedKundalis = this.getSavedKundalis();
+
+      const rawName = this.cleanKundaliName(details.name || details.devoteeName || "");
+      const isGenericName = !rawName || rawName.toLowerCase() === "devotee";
+      const cleanTime = String(details.birthTime || details.time || "12:00").trim() || "12:00";
+      const cleanPlace = String(details.birthPlace || details.place || "").trim();
+
+      // Protect real user/saved name against fallback "Devotee" overwrites
+      let resolvedName = rawName || "Devotee";
+      let matchedSaved = null;
+      if (details.id) {
+        matchedSaved = savedKundalis.find((k) => k.id === details.id) || null;
+      }
+      if (!matchedSaved) {
+        matchedSaved =
+          savedKundalis.find(
+            (k) =>
+              k.dob === details.dob &&
+              (!isGenericName
+                ? this.cleanKundaliName(k.name || "").toLowerCase() === rawName.toLowerCase()
+                : (k.birthTime || k.time || "12:00") === cleanTime)
+          ) ||
+          savedKundalis.find((k) => k.dob === details.dob && this.cleanKundaliName(k.name || "").toLowerCase() !== "devotee") ||
+          null;
+      }
+
+      if (isGenericName) {
+        const currentClean = this.cleanKundaliName(current?.name || "");
+        const savedClean = this.cleanKundaliName(matchedSaved?.name || "");
+        if (current && current.dob === details.dob && currentClean && currentClean.toLowerCase() !== "devotee") {
+          resolvedName = currentClean;
+        } else if (matchedSaved && savedClean && savedClean.toLowerCase() !== "devotee") {
+          resolvedName = savedClean;
+        }
+      } else if (options?.userInitiated !== true) {
+        // When coming from background server payload, never overwrite an already-saved clean name for the same DOB
+        const currentClean = this.cleanKundaliName(current?.name || "");
+        const savedClean = this.cleanKundaliName(matchedSaved?.name || "");
+        if (current && current.dob === details.dob && currentClean && currentClean.toLowerCase() !== "devotee") {
+          resolvedName = currentClean;
+        } else if (matchedSaved && savedClean && savedClean.toLowerCase() !== "devotee") {
+          resolvedName = savedClean;
+        }
+      }
+
+      const resolvedId =
+        details.id ||
+        matchedSaved?.id ||
+        (current?.dob === details.dob ? current?.id : undefined) ||
+        "prof_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+
       // Skip redundant storage writes and event spam if details are identical
       if (
         current &&
         current.dob === details.dob &&
-        (current.birthTime || current.time) === (details.birthTime || details.time) &&
-        (current.birthPlace || current.place) === (details.birthPlace || details.place) &&
-        (current.name || "") === (details.name || details.devoteeName || "")
+        (current.birthTime || current.time) === cleanTime &&
+        (current.birthPlace || current.place) === cleanPlace &&
+        (current.name || "") === resolvedName
       ) {
-        return;
+        return current;
       }
 
       const normalized = {
-        name: details.name || details.devoteeName || "Devotee",
+        id: resolvedId,
+        name: resolvedName,
         dob: details.dob,
-        birthTime: details.birthTime || details.time || "12:00",
-        birthPlace: details.birthPlace || details.place || "",
-        concern: details.concern || "all",
-        relation: details.relation || "Self",
-        savedAt: details.savedAt || new Date().toISOString()
+        birthTime: cleanTime,
+        time: cleanTime,
+        birthPlace: cleanPlace,
+        place: cleanPlace,
+        concern: details.concern || matchedSaved?.concern || "all",
+        relation: details.relation || matchedSaved?.relation || "Self",
+        savedAt: details.savedAt || matchedSaved?.savedAt || new Date().toISOString()
       };
-      
+
       // 1. Save as active birth details
       localStorage.setItem(`aura_ai_birth_details_${uid}`, JSON.stringify(normalized));
-      
-      // 2. Automatically save into persistent Saved Kundalis collection
+
+      // 2. Automatically save/update into persistent Saved Kundalis collection without changing real name to Devotee
       const kundaliKey = `aura_ai_saved_kundalis_${uid}`;
-      let savedKundalis = [];
-      try {
-        const rawK = localStorage.getItem(kundaliKey);
-        if (rawK) savedKundalis = JSON.parse(rawK);
-      } catch (_) {}
-      
-      // Check if profile with same name and dob already exists
       const existingIdx = savedKundalis.findIndex(
-        (k) => (k.name || "").trim().toLowerCase() === (normalized.name || "").trim().toLowerCase() && k.dob === normalized.dob
+        (k) =>
+          (k.id && k.id === normalized.id) ||
+          (this.cleanKundaliName(k.name || "").toLowerCase() === normalized.name.toLowerCase() && k.dob === normalized.dob) ||
+          (k.dob === normalized.dob && this.cleanKundaliName(k.name || "").toLowerCase() === "devotee")
       );
-      
+
+      let nextList;
       if (existingIdx >= 0) {
-        savedKundalis[existingIdx] = {
-          ...savedKundalis[existingIdx],
+        nextList = [...savedKundalis];
+        const prevEntry = nextList[existingIdx];
+        const prevCleanName = this.cleanKundaliName(prevEntry.name || "");
+        const finalEntryName =
+          normalized.name.toLowerCase() === "devotee" && prevCleanName && prevCleanName.toLowerCase() !== "devotee"
+            ? prevCleanName
+            : normalized.name;
+        nextList[existingIdx] = {
+          ...prevEntry,
           ...normalized,
-          id: savedKundalis[existingIdx].id || "prof_" + Date.now(),
+          name: finalEntryName,
+          id: prevEntry.id || normalized.id,
           updatedAt: new Date().toISOString()
         };
       } else {
-        savedKundalis.unshift({
-          id: "prof_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6),
-          ...normalized,
-          time: normalized.birthTime,
-          place: normalized.birthPlace,
-          savedAt: new Date().toISOString()
-        });
+        nextList = [
+          {
+            ...normalized,
+            savedAt: new Date().toISOString()
+          },
+          ...savedKundalis
+        ];
       }
-      
+
       // Keep up to 30 saved kundalis
-      localStorage.setItem(kundaliKey, JSON.stringify(savedKundalis.slice(0, 30)));
+      const trimmed = nextList.slice(0, 30);
+      localStorage.setItem(kundaliKey, JSON.stringify(trimmed));
 
       window.dispatchEvent(new CustomEvent("aura_ai_birth_details_updated", { detail: { uid, details: normalized } }));
-      window.dispatchEvent(new CustomEvent("aura_ai_saved_kundalis_updated", { detail: { uid, kundalis: savedKundalis } }));
+      window.dispatchEvent(new CustomEvent("aura_ai_saved_kundalis_updated", { detail: { uid, kundalis: trimmed } }));
+      return normalized;
     } catch (e) {
       console.warn("Could not auto-save birth details:", e);
+      return null;
     }
   },
 

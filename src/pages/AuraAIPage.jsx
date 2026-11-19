@@ -87,6 +87,8 @@ export function AuraAIPage() {
   const [showVedicToolsModal, setShowVedicToolsModal] = useState(false);
   const [vedicToolsTab, setVedicToolsTab] = useState("milan");
   const [showBirthForm, setShowBirthForm] = useState(false);
+  const [isKundliCardCollapsed, setIsKundliCardCollapsed] = useState(() => Boolean(auraChatStore.hasUserMessages("panditji")));
+  const birthDetailsClearedRef = useRef(false);
   const [birthForm, setBirthForm] = useState({
     name: "",
     dob: "",
@@ -165,7 +167,8 @@ export function AuraAIPage() {
 
   const handleBirthFormSubmit = (e) => {
     e.preventDefault();
-    if (!birthForm.name.trim()) {
+    const cleanName = auraChatStore.cleanKundaliName(birthForm.name) || birthForm.name.trim();
+    if (!cleanName) {
       emitToast("कृपया अपना नाम दर्ज करें (Please enter your name)", "warning");
       return;
     }
@@ -173,14 +176,12 @@ export function AuraAIPage() {
       emitToast("कृपया जन्म तिथि (Date of Birth) चुनें", "warning");
       return;
     }
-    if (!birthForm.time || !birthForm.time.trim()) {
-      emitToast("कृपया जन्म समय (Birth Time) दर्ज करें", "warning");
-      return;
-    }
     if (!birthForm.place.trim()) {
       emitToast("कृपया जन्म स्थान (Birth Place) दर्ज करें", "warning");
       return;
     }
+    const cleanTime = (birthForm.time || "").trim() || "12:00";
+    const cleanPlace = birthForm.place.trim();
 
     const concernLabels = {
       career: "⚡ व्यापार, नौकरी व धन वृद्धि (Career & Wealth)",
@@ -191,23 +192,25 @@ export function AuraAIPage() {
       spiritual: "🕉️ आध्यात्मिक उन्नति व शिव कृपा (Moksha & Sadhana)"
     };
 
-    const promptText = `नमस्ते पंडित जी 🙏 मेरा नाम ${birthForm.name.trim()} है।\n• जन्म तिथि: ${birthForm.dob}\n• जन्म समय: ${birthForm.time.trim()}\n• जन्म स्थान: ${birthForm.place.trim()}\n• मुख्य संकल्प / समस्या: ${concernLabels[birthForm.concern] || birthForm.concern}\n\nकृपया एक अनुभवी वैदिक पंडित जी की तरह मेरी संपूर्ण विस्तृत जन्म कुंडली (Full Detailed Kundali) देखकर बताइए:\n1. अभी मेरे जीवन में क्या-क्या परेशानी चल रही है?\n2. यह परेशानी क्यों, कब से और कैसे चल रही है?\n3. यह परेशानी कब ठीक होगी और मेरा भाग्योदय कब होगा?\n4. सभी 9 ग्रहों, 12 भावों व महादशा का पूरा फल तथा सर्वोत्तम सिद्ध नेपाली रुद्राक्ष व लाल किताब उपाय बताइए।`;
+    const promptText = `नमस्ते पंडित जी 🙏 मेरा नाम ${cleanName} है।\n• जन्म तिथि: ${birthForm.dob}\n• जन्म समय: ${cleanTime}\n• जन्म स्थान: ${cleanPlace}\n• मुख्य संकल्प / समस्या: ${concernLabels[birthForm.concern] || birthForm.concern}\n\nकृपया एक अनुभवी वैदिक पंडित जी की तरह मेरी संपूर्ण विस्तृत जन्म कुंडली (Full Detailed Kundali) देखकर बताइए:\n1. अभी मेरे जीवन में क्या-क्या परेशानी चल रही है?\n2. यह परेशानी क्यों, कब से और कैसे चल रही है?\n3. यह परेशानी कब ठीक होगी और मेरा भाग्योदय कब होगा?\n4. सभी 9 ग्रहों, 12 भावों व महादशा का पूरा फल तथा सर्वोत्तम सिद्ध नेपाली रुद्राक्ष व लाल किताब उपाय बताइए।`;
 
     const verifiedDetails = {
-      name: birthForm.name.trim(),
+      name: cleanName,
       dob: birthForm.dob,
-      birthTime: birthForm.time.trim(),
-      birthPlace: birthForm.place.trim(),
+      birthTime: cleanTime,
+      birthPlace: cleanPlace,
       concern: birthForm.concern
     };
-    auraChatStore.saveVerifiedBirthDetails(verifiedDetails);
-    setActiveBirthDetails(verifiedDetails);
+    birthDetailsClearedRef.current = false;
+    const saved = auraChatStore.saveVerifiedBirthDetails(verifiedDetails, { userInitiated: true }) || verifiedDetails;
+    setActiveBirthDetails(saved);
     setShowBirthForm(false);
+    setIsKundliCardCollapsed(true);
     if (mode !== "panditji") {
       skipNextModeResetRef.current = true;
       setMode("panditji");
     }
-    handleSend(promptText, verifiedDetails);
+    handleSend(promptText, saved);
   };
 
   // Check for pending prompts and birth details (e.g. from RudrakshaCalculator)
@@ -341,10 +344,15 @@ export function AuraAIPage() {
     };
 
     const handleBirthDetailsUpdate = (e) => {
+      birthDetailsClearedRef.current = false;
       setActiveBirthDetails(e.detail?.details || auraChatStore.getVerifiedBirthDetails());
     };
     const handleBirthDetailsCleared = () => {
+      birthDetailsClearedRef.current = true;
       setActiveBirthDetails(null);
+      setBirthForm({ name: "", dob: "", time: "", place: "", concern: "career" });
+      setShowBirthForm(false);
+      setIsKundliCardCollapsed(false);
     };
 
     window.addEventListener("aura_ai_chat_sync", handleChatSync);
@@ -450,13 +458,23 @@ export function AuraAIPage() {
       timerRef.current = null;
     }
 
-    const effectiveBirthDetails = customBirthDetails || activeBirthDetails || auraChatStore.getVerifiedBirthDetails() || null;
+    const shouldClearOnServer = Boolean(birthDetailsClearedRef.current && !customBirthDetails);
+    const effectiveBirthDetails = customBirthDetails || (shouldClearOnServer ? null : (activeBirthDetails || auraChatStore.getVerifiedBirthDetails() || null));
+    if (customBirthDetails) {
+      birthDetailsClearedRef.current = false;
+    }
+    if (customBirthDetails || showBirthForm) {
+      setShowBirthForm(false);
+    }
     const isAstroQuery = (
       mode === "panditji" ||
       Boolean(effectiveBirthDetails) ||
       /kundli|kundali|horoscope|birth chart|rashi|nakshatra|graha|dasha|mahadasha|antardasha|lagna|astrology|jyotish|dob|janma|milan|gun milan|ashtakoot|mulank|bhagyank|numerology|panchang|muhurat|rahu kaal|chakra|kaal sarp|pitra|kemadruma|sade sati|dhaiya|lal kitab|bhava|महादशा|अंतर्दशा|विंशोत्तरी|दशा|कुंडली|जन्मपत्रिका|राशि|नक्षत्र|लग्न|मांगलिक|साढ़े साती|साढ़े साती|ग्रह|दोष|भविष्य|विवाह योग|करियर योग|भाग्य|किस की महादशा|पंडित|पण्डित|शादी कब|नौकरी कब|विवाह|शनि|राहु|केतु|मंगल|गुरु|सूर्य|चंद्र|पंचांग|मुहूर्त|मिलान|गुण मिलान|मूलांक|भाग्यांक|अंक ज्योतिष|चक्र|कालसर्प|पितृ|केमद्रुम|नेपाली रुद्राक्ष|असली नकली|एक्स रे|प्राण प्रतिष्ठा|धारण विधि/i.test(textToSend || "")
     );
     const targetMode = isAstroQuery ? "panditji" : mode;
+    if (targetMode === "panditji" && (customBirthDetails || effectiveBirthDetails)) {
+      setIsKundliCardCollapsed(true);
+    }
     if (isAstroQuery && mode !== "panditji") {
       skipNextModeResetRef.current = true;
       setMode("panditji");
@@ -519,7 +537,8 @@ export function AuraAIPage() {
         mode: targetMode,
         cartItems: cart.lines || [],
         history: currentMsgs.slice(-8),
-        birthDetails: effectiveBirthDetails,
+        birthDetails: targetMode === "panditji" ? effectiveBirthDetails : null,
+        clearBirthDetails: shouldClearOnServer,
         panditPreferences: targetMode === "panditji" ? panditPrefs : null,
         onStatus: (statusMsg) => {
           if (currentTurnSeq !== turnSeqRef.current) return;
@@ -533,18 +552,14 @@ export function AuraAIPage() {
             setLoading(false);
             setErrorOccurred(false);
           }
-          if (partialData?.kundali) {
-            const verified = partialData.kundali.verifiedBirthData || {
-              dob: partialData.kundali.dob,
-              birthTime: partialData.kundali.birthTime,
-              birthPlace: partialData.kundali.birthPlace,
-              name: partialData.kundali.devoteeName || partialData.kundali.name || "Devotee",
-              concern: partialData.kundali.concern || "career"
-            };
-            if (verified && verified.dob) {
-              auraChatStore.saveVerifiedBirthDetails(verified);
-              setActiveBirthDetails(verified);
-            }
+          if (
+            partialData?.kundali &&
+            !birthDetailsClearedRef.current &&
+            !auraChatStore.isBirthDetailsCleared() &&
+            !(shouldClearOnServer && !customBirthDetails)
+          ) {
+            setShowBirthForm(false);
+            setIsKundliCardCollapsed(true);
           }
           setStatusText(targetMode === "panditji" ? "✍️ वैदिक परामर्श लिखा जा रहा है..." : "✍️ उत्तर लिखा जा रहा है...");
           setMessages((prev) => {
@@ -577,18 +592,39 @@ export function AuraAIPage() {
             clearInterval(timerRef.current);
             timerRef.current = null;
           }
-          if (finalData.kundali) {
-            const verified = finalData.kundali.verifiedBirthData || {
+          if (
+            finalData.kundali &&
+            !birthDetailsClearedRef.current &&
+            !auraChatStore.isBirthDetailsCleared() &&
+            !(shouldClearOnServer && !customBirthDetails)
+          ) {
+            const rawVerified = finalData.kundali.verifiedBirthData || {
               dob: finalData.kundali.dob,
               birthTime: finalData.kundali.birthTime,
               birthPlace: finalData.kundali.birthPlace,
               name: finalData.kundali.devoteeName || finalData.kundali.name || "Devotee",
               concern: finalData.kundali.concern || "career"
             };
+            const effCleanName = auraChatStore.cleanKundaliName(effectiveBirthDetails?.name || "");
+            const rawCleanName = auraChatStore.cleanKundaliName(rawVerified?.name || "");
+            const preferredName =
+              effCleanName && effCleanName.toLowerCase() !== "devotee"
+                ? effCleanName
+                : rawCleanName && rawCleanName.toLowerCase() !== "devotee"
+                ? rawCleanName
+                : rawCleanName || "Devotee";
+            const verified = { ...rawVerified, id: effectiveBirthDetails?.id || rawVerified?.id, name: preferredName };
             if (verified && verified.dob) {
-              auraChatStore.saveVerifiedBirthDetails(verified);
-              setActiveBirthDetails(verified);
+              const savedVerified = auraChatStore.saveVerifiedBirthDetails(verified);
+              if (savedVerified) {
+                setActiveBirthDetails(savedVerified);
+              }
+              setShowBirthForm(false);
+              setIsKundliCardCollapsed(true);
             }
+          }
+          if (shouldClearOnServer && !finalData.kundali) {
+            birthDetailsClearedRef.current = false;
           }
           const cleanText = customerSafeAiText(finalData.text);
           const aiMsg = {
@@ -1258,7 +1294,10 @@ export function AuraAIPage() {
                 type="button"
                 role="tab"
                 aria-selected={mode === "standard"}
-                onClick={() => setMode("standard")}
+                onClick={() => {
+                  setShowBirthForm(false);
+                  setMode("standard");
+                }}
                 className={`aura-ai-mode-btn ${mode === "standard" ? "active" : ""}`}
               >
                 <span className="aura-ai-mode-btn-label">
@@ -1315,8 +1354,10 @@ export function AuraAIPage() {
                   setShowBirthForm(true);
                 }}
                 onClearBirthDetails={() => {
+                  birthDetailsClearedRef.current = true;
                   auraChatStore.clearActiveBirthDetails();
                   setActiveBirthDetails(null);
+                  setShowBirthForm(false);
                   emitToast("सक्रिय कुंडली हटा दी गई", "info");
                 }}
                 onOpenSavedKundalis={() => setShowSavedKundaliModal(true)}
@@ -1373,6 +1414,8 @@ export function AuraAIPage() {
 
                 <AuraActiveKundaliCard
                   activeBirthDetails={activeBirthDetails}
+                  collapsed={isKundliCardCollapsed}
+                  onToggleCollapse={() => setIsKundliCardCollapsed((prev) => !prev)}
                   onEdit={() => {
                     if (activeBirthDetails) {
                       setBirthForm({
@@ -1386,8 +1429,12 @@ export function AuraAIPage() {
                     setShowBirthForm(true);
                   }}
                   onDelete={() => {
+                    birthDetailsClearedRef.current = true;
                     auraChatStore.clearActiveBirthDetails();
                     setActiveBirthDetails(null);
+                    setBirthForm({ name: "", dob: "", time: "", place: "", concern: "career" });
+                    setShowBirthForm(false);
+                    setIsKundliCardCollapsed(false);
                     emitToast("सक्रिय कुंडली हटा दी गई", "info");
                   }}
                 />
@@ -1435,10 +1482,9 @@ export function AuraAIPage() {
                         />
                       </div>
                       <div>
-                        <label className="aura-birth-form-label">जन्म समय *</label>
+                        <label className="aura-birth-form-label">जन्म समय (Time)</label>
                         <input
                           type="time"
-                          required
                           value={birthForm.time}
                           onChange={(e) => setBirthForm({ ...birthForm, time: e.target.value })}
                           className="aura-birth-form-input"
@@ -2078,35 +2124,43 @@ export function AuraAIPage() {
         onClose={() => setShowSavedKundaliModal(false)}
         onSelectKundali={(profile) => {
           setShowSavedKundaliModal(false);
-          const name = profile.name || profile.devoteeName || "Devotee";
+          const name = auraChatStore.cleanKundaliName(profile.name || profile.devoteeName || "Devotee") || "Devotee";
           const dob = profile.dob || "";
           const birthTime = profile.birthTime || profile.time || "12:00";
           const birthPlace = profile.birthPlace || profile.place || "";
           const concern = profile.concern || "all";
-          const profileData = { name, dob, birthTime, birthPlace, concern };
+          const profileData = { id: profile.id, name, dob, birthTime, birthPlace, concern };
 
+          birthDetailsClearedRef.current = false;
+          setBirthForm({ name, dob, time: birthTime, place: birthPlace, concern });
+          setShowBirthForm(false);
+          setIsKundliCardCollapsed(true);
           skipNextModeResetRef.current = true;
           setMode("panditji");
-          setActiveBirthDetails(profileData);
-          auraChatStore.saveVerifiedBirthDetails(profileData);
+          const saved = auraChatStore.saveVerifiedBirthDetails(profileData, { userInitiated: true }) || profileData;
+          setActiveBirthDetails(saved);
 
-          handleSend(`🙏 श्री ${name} जी की जन्म कुंडली का संपूर्ण वैदिक विश्लेषण व रुद्राक्ष परामर्श (DOB: ${dob}, Time: ${birthTime}, Place: ${birthPlace})`, profileData);
+          handleSend(`🙏 श्री ${name} जी की जन्म कुंडली का संपूर्ण वैदिक विश्लेषण व रुद्राक्ष परामर्श (DOB: ${dob}, Time: ${birthTime}, Place: ${birthPlace})`, saved);
         }}
         onSelectProfile={(profile) => {
           setShowSavedKundaliModal(false);
-          const name = profile.name || profile.devoteeName || "Devotee";
+          const name = auraChatStore.cleanKundaliName(profile.name || profile.devoteeName || "Devotee") || "Devotee";
           const dob = profile.dob || "";
           const birthTime = profile.birthTime || profile.time || "12:00";
           const birthPlace = profile.birthPlace || profile.place || "";
           const concern = profile.concern || "all";
-          const profileData = { name, dob, birthTime, birthPlace, concern };
+          const profileData = { id: profile.id, name, dob, birthTime, birthPlace, concern };
 
+          birthDetailsClearedRef.current = false;
+          setBirthForm({ name, dob, time: birthTime, place: birthPlace, concern });
+          setShowBirthForm(false);
+          setIsKundliCardCollapsed(true);
           skipNextModeResetRef.current = true;
           setMode("panditji");
-          setActiveBirthDetails(profileData);
-          auraChatStore.saveVerifiedBirthDetails(profileData);
+          const saved = auraChatStore.saveVerifiedBirthDetails(profileData, { userInitiated: true }) || profileData;
+          setActiveBirthDetails(saved);
 
-          handleSend(`🙏 श्री ${name} जी की जन्म कुंडली का संपूर्ण वैदिक विश्लेषण व रुद्राक्ष परामर्श (DOB: ${dob}, Time: ${birthTime}, Place: ${birthPlace})`, profileData);
+          handleSend(`🙏 श्री ${name} जी की जन्म कुंडली का संपूर्ण वैदिक विश्लेषण व रुद्राक्ष परामर्श (DOB: ${dob}, Time: ${birthTime}, Place: ${birthPlace})`, saved);
         }}
       />
 

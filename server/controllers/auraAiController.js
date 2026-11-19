@@ -912,9 +912,9 @@ export function extractBirthDetailsFromText(rawText) {
 
   // 3. Birth Place patterns
   let birthPlace = null;
-  const labeledPlaceMatch = text.match(/(?:place|city|location|sthan|स्थान|जन्म\s*स्थान|birth\s*place)[\s:=-]+([a-zA-Z\u0900-\u097F\s,]+?)(?=[•\n,;.]|$)/i);
+  const labeledPlaceMatch = text.match(/(?:place|city|location|sthan|स्थान|जन्म\s*स्थान|birth\s*place)[\s:=-]+([a-zA-Z0-9\u0900-\u0963\u0966-\u097F\s,-]+?)(?=[•\n;.()।॥|]|,\s*(?:time|dob|date|concern|समय|तिथि|मुख्य)|$)/i);
   if (labeledPlaceMatch) {
-    const rawPlace = labeledPlaceMatch[1].trim();
+    const rawPlace = labeledPlaceMatch[1].replace(/[।॥.,;]+$/g, "").trim();
     if (rawPlace && rawPlace.length >= 2) {
       birthPlace = rawPlace;
     }
@@ -928,10 +928,13 @@ export function extractBirthDetailsFromText(rawText) {
       "bengaluru", "chennai", "hyderabad", "pune", "ahmedabad", "surat", "lucknow", "kanpur", "indore", 
       "bhopal", "patna", "vadodara", "nagpur", "ghaziabad", "varanasi", "kashi", "agra", "meerut", 
       "nashik", "faridabad", "rajkot", "jodhpur", "kota", "bikaner", "ajmer", "udaipur", "sikar", 
-      "alwar", "chandigarh", "ludhiana", "amritsar", "jalandhar", "haridwar", "rishikesh", "dehradun", 
+      "alwar", "jhunjhunu", "churu", "nagaur", "pali", "barmer", "jaisalmer", "bharatpur", "bhilwara",
+      "chittorgarh", "tonk", "dausa", "sawai madhopur", "hanumangarh", "ganganagar", "sri ganganagar",
+      "chandigarh", "ludhiana", "amritsar", "jalandhar", "haridwar", "rishikesh", "dehradun", 
       "mathura", "vrindavan", "ayodhya", "prayagraj", "allahabad", "gwalior", "jabalpur", "raipur", 
       "ranchi", "jamshedpur", "dhanbad", "bhubaneswar", "cuttack", "guwahati", "siliguri", "kochi", 
-      "thiruvananthapuram", "mysore", "coimbatore", "madurai", "vijayawada", "visakhapatnam", "tirupati"
+      "thiruvananthapuram", "mysore", "coimbatore", "madurai", "vijayawada", "visakhapatnam", "tirupati",
+      "hisar", "rohtak", "panipat", "karnal", "ambala", "sonipat", "rewari", "bhiwani", "ujjain"
     ];
     for (const city of commonCities) {
       const cityRegex = new RegExp(`\\b${city}\\b`, "i");
@@ -942,26 +945,34 @@ export function extractBirthDetailsFromText(rawText) {
     }
   }
 
-  // 4. Name patterns
+  // 4. Name patterns (word-boundary & Devanagari Danda '।' safe so names are never truncated at "ji"/"जी" or polluted with "है।")
   let name = null;
-  const labeledNameMatch = text.match(/(?:name|devotee|naam|नाम|मेरा\s*नाम|mera\s*naam)[\s:=-]+([a-zA-Z\u0900-\u097F\s]+?)(?=[•\n,;.]|$|है|ji|जी)/i);
-  if (labeledNameMatch) {
-    let rawName = labeledNameMatch[1].trim()
-      .replace(/^(is|hai|hain|ki|ka)\s+/i, "")
-      .replace(/\s+(is|hai|hain|ji|जी|ki|ka)$/i, "")
+  const labeledNameMatch = text.match(/(?:name|devotee|naam|नाम|मेरा\s*नाम|mera\s*naam)[\s:=-]+([a-zA-Z\u0900-\u0963\u0966-\u097F\s]{2,45}?)(?=[•\n,;.()।॥|]|$|\s+(?:है|हैं|था|थी|hain|hai|is|ji|जी)(?=\s|[•\n,;.()।॥|]|$)|\s+(?:की|का)\s+जन्म)/i);
+  const shriNameMatch = !labeledNameMatch
+    ? text.match(/(?:^|[\s🙏])(?:श्री|shri|shree)\s+([a-zA-Z\u0900-\u0963\u0966-\u097F\s]{2,45}?)(?=\s+(?:जी|ji)(?=\s|[•\n,;.()।॥|]|$)|\s+(?:की|का)\s+जन्म|[•\n,;.()।॥|]|$)/i)
+    : null;
+  const matchedNameGroup = labeledNameMatch?.[1] || shriNameMatch?.[1] || "";
+  if (matchedNameGroup) {
+    let rawName = matchedNameGroup
+      .replace(/[।॥.,;!?]+/g, " ")
+      .trim()
+      .replace(/^(is|hai|hain|ki|ka|shri|shree|श्री)\s+/i, "")
+      .replace(/\s+(is|hai|hain|है|हैं|था|थी|ji|जी|ki|ka|की|का)$/i, "")
+      .replace(/\s+(is|hai|hain|है|हैं|था|थी|ji|जी|ki|ka|की|का)$/i, "")
       .trim();
     if (rawName && rawName.length >= 2) {
       name = rawName;
     }
   }
 
-  // If at least DOB and Place are provided, time can fallback to standard noon if missing
-  if (dob && birthPlace) {
+  // If at least DOB and (Place or Time or Name) are provided, fallback missing place/time cleanly
+  if (dob && (birthPlace || birthTime || name)) {
     return {
       dob,
       birthTime: birthTime || "12:00",
-      birthPlace,
+      birthPlace: birthPlace || "India",
       name: name || "Devotee",
+      hasExplicitName: Boolean(name),
       concern: "career"
     };
   }
@@ -2368,6 +2379,7 @@ export async function chatAuraAI(req, res, next) {
       cartItems = [],
       history = [],
       birthDetails = null, // { dob, birthTime, birthPlace, name, gender, concern }
+      clearBirthDetails = false,
       notesContext = "",
       panditPreferences = null,
       continuationTail = ""
@@ -2490,20 +2502,102 @@ export async function chatAuraAI(req, res, next) {
       }
     }
 
-    const extractedFromMsg = extractBirthDetailsFromText(message);
+    const cleanPersonNameStr = (val) =>
+      String(val || "")
+        .replace(/[।॥]+/g, "")
+        .trim()
+        .replace(/\s+(है|हैं|था|थी|hai|hain|is)$/i, "")
+        .trim();
+
+    const clearBirthDetailsRequested = Boolean(clearBirthDetails) && !(birthDetails && typeof birthDetails === "object" && birthDetails.dob);
+    if (clearBirthDetailsRequested) {
+      const memConv = inMemoryAiConversations.get(targetConversationId);
+      if (memConv) {
+        memConv.verifiedBirthDetails = null;
+        memConv.authoritativeKundali = null;
+      }
+      for (const [, convObj] of inMemoryAiConversations.entries()) {
+        if (
+          convObj &&
+          ((effectiveUserId !== "guest" && convObj.userId === effectiveUserId) ||
+            (effectiveGuestSessionId && convObj.guestSessionId === effectiveGuestSessionId))
+        ) {
+          convObj.verifiedBirthDetails = null;
+          convObj.authoritativeKundali = null;
+        }
+      }
+      if (isDbConnected()) {
+        const clearQuery = {
+          $or: [
+            { id: targetConversationId },
+            { conversationId: targetConversationId },
+            ...(effectiveUserId !== "guest" ? [{ userId: effectiveUserId }] : []),
+            ...(effectiveGuestSessionId ? [{ guestSessionId: effectiveGuestSessionId }] : [])
+          ]
+        };
+        await AuraAIConversation.updateMany(
+          clearQuery,
+          { $unset: { verifiedBirthDetails: 1, authoritativeKundali: 1 } }
+        ).catch(() => {});
+      }
+      if (req.body?.clearOnly) {
+        return res.json({ success: true, cleared: true });
+      }
+    }
+
+    const extractedFromMsg = clearBirthDetailsRequested ? null : extractBirthDetailsFromText(message);
     let passedBirthDetails = null;
     if (birthDetails && typeof birthDetails === "object" && birthDetails.dob) {
+      const cleanedPassedName = cleanPersonNameStr(birthDetails.name || birthDetails.devoteeName || verifiedName || "Devotee") || "Devotee";
       passedBirthDetails = {
         dob: String(birthDetails.dob).trim(),
         birthTime: String(birthDetails.birthTime || birthDetails.time || "12:00").trim(),
         birthPlace: String(birthDetails.birthPlace || birthDetails.place || "India").trim(),
-        name: String(birthDetails.name || birthDetails.devoteeName || verifiedName || "Devotee").trim(),
+        name: cleanedPassedName,
         gender: String(birthDetails.gender || "").trim(),
         concern: String(birthDetails.concern || "career").trim()
       };
     }
-    const incomingBirthDetails = extractedFromMsg || passedBirthDetails;
-    const existingVerifiedBirthDetails = existingConvDoc?.verifiedBirthDetails || null;
+
+    const existingVerifiedBirthDetails = clearBirthDetailsRequested ? null : (existingConvDoc?.verifiedBirthDetails || null);
+    let incomingBirthDetails = null;
+    if (extractedFromMsg && passedBirthDetails) {
+      const isSameDob = !extractedFromMsg.dob || !passedBirthDetails.dob || extractedFromMsg.dob === passedBirthDetails.dob;
+      const extractedNameClean = cleanPersonNameStr(extractedFromMsg.name);
+      const extractedNameIsReal = Boolean(extractedFromMsg.hasExplicitName) && extractedNameClean && extractedNameClean.toLowerCase() !== "devotee";
+      const passedNameClean = cleanPersonNameStr(passedBirthDetails.name);
+      const passedNameIsReal = Boolean(passedNameClean && passedNameClean.toLowerCase() !== "devotee");
+      incomingBirthDetails = {
+        dob: (isSameDob ? passedBirthDetails.dob : extractedFromMsg.dob) || passedBirthDetails.dob,
+        birthTime: (isSameDob && passedBirthDetails.birthTime) ? passedBirthDetails.birthTime : (extractedFromMsg.birthTime || passedBirthDetails.birthTime || "12:00"),
+        birthPlace: (isSameDob && passedBirthDetails.birthPlace && passedBirthDetails.birthPlace !== "India")
+          ? passedBirthDetails.birthPlace
+          : (extractedFromMsg.birthPlace || passedBirthDetails.birthPlace || "India"),
+        name: (isSameDob && passedNameIsReal)
+          ? passedNameClean
+          : (extractedNameIsReal ? extractedNameClean : (passedNameIsReal ? passedNameClean : (cleanPersonNameStr(verifiedName) || "Devotee"))),
+        gender: passedBirthDetails.gender || "",
+        concern: passedBirthDetails.concern || extractedFromMsg.concern || "career"
+      };
+    } else {
+      incomingBirthDetails = extractedFromMsg || passedBirthDetails;
+      if (incomingBirthDetails) {
+        incomingBirthDetails = {
+          ...incomingBirthDetails,
+          name: cleanPersonNameStr(incomingBirthDetails.name) || "Devotee"
+        };
+      }
+      if (incomingBirthDetails && (!incomingBirthDetails.name || incomingBirthDetails.name.toLowerCase() === "devotee")) {
+        if (
+          existingVerifiedBirthDetails &&
+          existingVerifiedBirthDetails.dob === incomingBirthDetails.dob &&
+          existingVerifiedBirthDetails.name &&
+          cleanPersonNameStr(existingVerifiedBirthDetails.name).toLowerCase() !== "devotee"
+        ) {
+          incomingBirthDetails = { ...incomingBirthDetails, name: cleanPersonNameStr(existingVerifiedBirthDetails.name) };
+        }
+      }
+    }
 
     const isContinuation = Boolean(req.body?.isContinuation) || 
       /continue|रुका था|जारी रखें|पूरा करें|incomplete|jahan se ruka/i.test(message || "");

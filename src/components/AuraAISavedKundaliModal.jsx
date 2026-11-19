@@ -18,31 +18,7 @@ export function AuraAISavedKundaliModal({ isOpen, onClose, onSelectKundali, onSe
 
   const loadProfiles = () => {
     try {
-      const uid = auraChatStore.getCurrentUserUid();
-      const storageKey = `aura_ai_saved_kundalis_${uid}`;
-      const raw = localStorage.getItem(storageKey);
-      if (raw) {
-        setProfiles(JSON.parse(raw));
-      } else {
-        // Check if active birth details exist to seed as first profile
-        const active = auraChatStore.getVerifiedBirthDetails();
-        if (active && active.dob) {
-          const initial = [{
-            id: "prof_initial_" + Date.now(),
-            name: active.name || "Devotee",
-            dob: active.dob,
-            birthTime: active.birthTime || active.time || "12:00",
-            birthPlace: active.birthPlace || active.place || "",
-            concern: active.concern || "all",
-            relation: "Self",
-            savedAt: new Date().toISOString()
-          }];
-          localStorage.setItem(storageKey, JSON.stringify(initial));
-          setProfiles(initial);
-        } else {
-          setProfiles([]);
-        }
-      }
+      setProfiles(auraChatStore.getSavedKundalis());
     } catch (_) {
       setProfiles([]);
     }
@@ -54,25 +30,30 @@ export function AuraAISavedKundaliModal({ isOpen, onClose, onSelectKundali, onSe
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    const handleUpdated = () => {
+      if (isOpen) {
+        loadProfiles();
+      }
+    };
+    window.addEventListener("aura_ai_saved_kundalis_updated", handleUpdated);
+    return () => window.removeEventListener("aura_ai_saved_kundalis_updated", handleUpdated);
+  }, [isOpen]);
+
   const handleSaveProfile = (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.dob || !formData.birthPlace) {
+    if (!formData.name.trim() || !formData.dob || !formData.birthPlace.trim()) {
       emitToast("कृपया नाम, जन्म तिथि एवं स्थान भरें", "warning");
       return;
     }
 
     try {
-      const uid = auraChatStore.getCurrentUserUid();
-      const storageKey = `aura_ai_saved_kundalis_${uid}`;
-      const newProf = {
-        id: "prof_" + Date.now(),
+      const updated = auraChatStore.addSavedKundali({
         ...formData,
-        time: formData.birthTime,
-        place: formData.birthPlace,
-        savedAt: new Date().toISOString()
-      };
-      const updated = [newProf, ...profiles];
-      localStorage.setItem(storageKey, JSON.stringify(updated));
+        name: formData.name.trim(),
+        birthTime: formData.birthTime || "12:00",
+        birthPlace: formData.birthPlace.trim()
+      });
       setProfiles(updated);
       setShowAddForm(false);
       setFormData({ name: "", dob: "", birthTime: "", birthPlace: "", concern: "all", relation: "Self" });
@@ -81,13 +62,11 @@ export function AuraAISavedKundaliModal({ isOpen, onClose, onSelectKundali, onSe
     } catch (_) {}
   };
 
-  const handleDeleteProfile = (e, id) => {
+  const handleDeleteProfile = (e, profile, idx) => {
+    e.preventDefault();
     e.stopPropagation();
     try {
-      const uid = auraChatStore.getCurrentUserUid();
-      const storageKey = `aura_ai_saved_kundalis_${uid}`;
-      const updated = profiles.filter(p => p.id !== id);
-      localStorage.setItem(storageKey, JSON.stringify(updated));
+      const updated = auraChatStore.deleteSavedKundali(profile?.id, idx, profile);
       setProfiles(updated);
       emitToast("कुंडली प्रोफाइल हटा दी गई", "info");
       if (onProfilesUpdated) onProfilesUpdated(updated.length);
@@ -96,9 +75,12 @@ export function AuraAISavedKundaliModal({ isOpen, onClose, onSelectKundali, onSe
 
   const handleSelect = (prof) => {
     onClose();
+    auraChatStore.setBirthDetailsCleared(false);
+    const cleanedName = auraChatStore.cleanKundaliName(prof.name || prof.devoteeName || "Devotee") || "Devotee";
     const normalized = {
       ...prof,
-      name: prof.name || prof.devoteeName || "Devotee",
+      id: prof.id,
+      name: cleanedName,
       dob: prof.dob || "",
       birthTime: prof.birthTime || prof.time || "12:00",
       time: prof.time || prof.birthTime || "12:00",
@@ -109,8 +91,7 @@ export function AuraAISavedKundaliModal({ isOpen, onClose, onSelectKundali, onSe
     emitToast(`🙏 ${normalized.name} की जन्म कुंडली लोड हो गई`, "success");
     if (onSelectKundali) {
       onSelectKundali(normalized);
-    }
-    if (onSelectProfile) {
+    } else if (onSelectProfile) {
       onSelectProfile(normalized);
     }
   };
@@ -276,10 +257,12 @@ export function AuraAISavedKundaliModal({ isOpen, onClose, onSelectKundali, onSe
               profiles.map((p, idx) => (
                 <div
                   key={p.id || idx}
-                  onClick={() => handleSelect(p)}
-                  className="p-3 rounded-xl border border-[#ebdccb] bg-white hover:border-[#c47a3a] hover:bg-amber-50/50 transition-all cursor-pointer flex items-center justify-between gap-2 shadow-sm"
+                  className="p-3 rounded-xl border border-[#ebdccb] bg-white hover:border-[#c47a3a] hover:bg-amber-50/40 transition-all flex items-center justify-between gap-2 shadow-sm"
                 >
-                  <div className="flex-1 min-w-0">
+                  <div
+                    onClick={() => handleSelect(p)}
+                    className="flex-1 min-w-0 cursor-pointer"
+                  >
                     <div className="flex items-center gap-1.5">
                       <User size={13} className="text-[#8c2b10]" />
                       <h4 className="text-xs font-bold text-[#2b1408] truncate">
@@ -308,18 +291,26 @@ export function AuraAISavedKundaliModal({ isOpen, onClose, onSelectKundali, onSe
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
-                      onClick={(e) => handleDeleteProfile(e, p.id)}
-                      className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
+                      onClick={(e) => handleDeleteProfile(e, p, idx)}
+                      className="px-2 py-1 text-[11px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors flex items-center gap-1"
                       title="Delete profile"
+                      aria-label={`Delete ${p.name || "profile"}`}
                     >
-                      <Trash2 size={13} />
+                      <Trash2 size={12} />
+                      <span>हटाएं</span>
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleSelect(p)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelect(p);
+                      }}
                       className="px-2.5 py-1 bg-[#8c2b10] text-white text-[11px] font-bold rounded-lg hover:bg-[#6e220c] transition-colors flex items-center gap-1"
                     >
                       <Sparkles size={11} />

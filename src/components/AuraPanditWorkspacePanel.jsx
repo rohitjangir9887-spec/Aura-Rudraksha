@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Plus,
   FileText,
@@ -43,6 +43,18 @@ export function AuraPanditWorkspacePanel({
   onOpenVedicTools
 }) {
   const [showOptions, setShowOptions] = useState(false);
+  const workspaceRef = useRef(null);
+
+  useEffect(() => {
+    if (!showOptions) return;
+    const handleOutsideClick = (e) => {
+      if (workspaceRef.current && !workspaceRef.current.contains(e.target)) {
+        setShowOptions(false);
+      }
+    };
+    document.addEventListener("pointerdown", handleOutsideClick);
+    return () => document.removeEventListener("pointerdown", handleOutsideClick);
+  }, [showOptions]);
 
   const findSessionByKeyword = (kw) =>
     savedSessions.find(
@@ -59,12 +71,15 @@ export function AuraPanditWorkspacePanel({
   const activeChartLabel = chartMap[panditPrefs.chartStyle] || "Auto";
 
   return (
-    <div className="aura-pandit-workspace">
+    <div ref={workspaceRef} className="aura-pandit-workspace">
       {/* A. Kundli Controls: 4 equal-height compact dark-gold controls */}
       <div className="aura-pandit-kundli-controls" role="group" aria-label="Kundli Controls">
         <button
           type="button"
-          onClick={onNewChat}
+          onClick={() => {
+            setShowOptions(false);
+            onNewChat?.();
+          }}
           className="aura-pandit-ctrl-btn aura-pandit-ctrl-btn-primary"
         >
           <Plus size={13} strokeWidth={2.3} aria-hidden="true" />
@@ -73,7 +88,10 @@ export function AuraPanditWorkspacePanel({
 
         <button
           type="button"
-          onClick={onToggleBirthForm}
+          onClick={() => {
+            setShowOptions(false);
+            onToggleBirthForm?.();
+          }}
           className="aura-pandit-ctrl-btn"
         >
           <FileText size={13} strokeWidth={2.1} aria-hidden="true" />
@@ -82,7 +100,10 @@ export function AuraPanditWorkspacePanel({
 
         <button
           type="button"
-          onClick={onOpenSavedKundalis}
+          onClick={() => {
+            setShowOptions(false);
+            onOpenSavedKundalis?.();
+          }}
           className="aura-pandit-ctrl-btn"
         >
           <Bookmark size={13} strokeWidth={2.1} aria-hidden="true" />
@@ -91,7 +112,10 @@ export function AuraPanditWorkspacePanel({
 
         <button
           type="button"
-          onClick={onOpenHistory}
+          onClick={() => {
+            setShowOptions(false);
+            onOpenHistory?.();
+          }}
           className="aura-pandit-ctrl-btn"
         >
           <History size={13} strokeWidth={2.1} aria-hidden="true" />
@@ -129,14 +153,20 @@ export function AuraPanditWorkspacePanel({
             <div className="aura-pandit-pill-row">
               <button
                 type="button"
-                onClick={onNewChat}
+                onClick={() => {
+                  setShowOptions(false);
+                  onNewChat?.();
+                }}
                 className="aura-pandit-pill-btn"
               >
                 नया चैट
               </button>
               <button
                 type="button"
-                onClick={onOpenHistory}
+                onClick={() => {
+                  setShowOptions(false);
+                  onOpenHistory?.();
+                }}
                 className="aura-pandit-pill-btn is-active"
               >
                 सक्रिय चैट
@@ -144,6 +174,7 @@ export function AuraPanditWorkspacePanel({
               <button
                 type="button"
                 onClick={() => {
+                  setShowOptions(false);
                   const matched = findSessionByKeyword("नमस्ते पंडित जी");
                   if (matched && onSelectSession) {
                     onSelectSession(matched.id);
@@ -158,6 +189,7 @@ export function AuraPanditWorkspacePanel({
               <button
                 type="button"
                 onClick={() => {
+                  setShowOptions(false);
                   const matched = findSessionByKeyword("नमस्ते पंडित");
                   if (matched && onSelectSession) {
                     onSelectSession(matched.id);
@@ -181,14 +213,20 @@ export function AuraPanditWorkspacePanel({
             <div className="aura-pandit-pill-row">
               <button
                 type="button"
-                onClick={() => onChangePanditPref?.({ responseStyle: "detailed" })}
+                onClick={() => {
+                  onChangePanditPref?.({ responseStyle: "detailed" });
+                  setShowOptions(false);
+                }}
                 className={`aura-pandit-pill-btn ${panditPrefs.responseStyle === "detailed" ? "is-active" : ""}`}
               >
                 विस्तृत
               </button>
               <button
                 type="button"
-                onClick={() => onChangePanditPref?.({ responseStyle: "balanced" })}
+                onClick={() => {
+                  onChangePanditPref?.({ responseStyle: "balanced" });
+                  setShowOptions(false);
+                }}
                 className={`aura-pandit-pill-btn ${panditPrefs.responseStyle === "balanced" ? "is-active" : ""}`}
               >
                 अपनी मर्जी की बात
@@ -212,7 +250,10 @@ export function AuraPanditWorkspacePanel({
                 <button
                   key={opt.id}
                   type="button"
-                  onClick={() => onChangePanditPref?.({ chartStyle: opt.id })}
+                  onClick={() => {
+                    onChangePanditPref?.({ chartStyle: opt.id });
+                    setShowOptions(false);
+                  }}
                   className={`aura-pandit-pill-btn ${panditPrefs.chartStyle === opt.id ? "is-active" : ""}`}
                 >
                   {opt.label}
@@ -220,7 +261,10 @@ export function AuraPanditWorkspacePanel({
               ))}
               <button
                 type="button"
-                onClick={() => onOpenVedicTools?.("milan")}
+                onClick={() => {
+                  setShowOptions(false);
+                  onOpenVedicTools?.("milan");
+                }}
                 className="aura-pandit-pill-btn aura-pandit-pill-tools"
               >
                 टूल्स
