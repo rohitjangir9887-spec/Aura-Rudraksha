@@ -194,7 +194,10 @@ export function PanditJiVedicTools({
 
   return (
     <div
-      className="fixed inset-0 z-[20050] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label="वैदिक टूल्स"
+      className="aura-vedic-tools-modal fixed inset-0 z-[20050] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose?.();
       }}

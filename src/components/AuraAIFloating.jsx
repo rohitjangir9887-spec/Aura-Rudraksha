@@ -47,6 +47,7 @@ import { AuraSuggestedActionsAccordion } from "./AuraSuggestedActionsAccordion";
 import { AuraActiveKundaliCard } from "./AuraActiveKundaliCard";
 import { AuraProductRecCard } from "./AuraProductRecCard";
 import { AuraPanditWorkspacePanel, PANDIT_ASTROLOGY_QUICK_TOPICS } from "./AuraPanditWorkspacePanel";
+import "./AuraAIFloating.css";
 
 
 export function AuraAIFloating() {
@@ -1554,7 +1555,7 @@ export function AuraAIFloating() {
   }
 
   return (
-    <>
+    <div className="aura-floating-design">
       {/* 1. Floating Action Pill - Immediate mount/unmount without exit trap */}
       {!isOpen && !isDismissed && location.pathname === "/" && (
         <div
@@ -1718,6 +1719,8 @@ export function AuraAIFloating() {
         >
             <div
               id="aura-ai-floating-panel"
+              role="dialog"
+              aria-label={mode === "panditji" ? "AI पंडितजी" : "Aura AI"}
               className={`aura-ai-panel ${isFullWindow ? "aura-ai-panel-full" : "aura-ai-panel-compact"}`}
               style={{ transformOrigin: isFullWindow ? "center center" : "bottom left", pointerEvents: "auto" }}
               onClick={(e) => e.stopPropagation()}
@@ -1762,14 +1765,7 @@ export function AuraAIFloating() {
                   {/* AI Name + Online Status + Language Info */}
                   <div className="aura-ai-header-info">
                     <div className="aura-ai-title">
-                      <span>{mode === "panditji" ? "AI Panditji" : "Aura AI"}</span>
-                      <span className={`aura-ai-badge ${mode === "panditji" ? "aura-ai-badge-panditji" : ""}`}>
-                        {mode === "panditji" ? "Vedic Astrology" : "Quick AI"}
-                      </span>
-                    </div>
-                    <div className="aura-ai-status">
-                      <span className="aura-ai-online-dot" />
-                      <span>{mode === "panditji" ? "Online • Hindi & English" : "Online • Hindi & English"}</span>
+                      <span>{mode === "panditji" ? "AI पंडितजी" : "Aura Rudraksha"}</span>
                     </div>
                   </div>
                 </div>
@@ -1907,83 +1903,14 @@ export function AuraAIFloating() {
                 </button>
               </div>
 
-              {/* Mode-specific Controls */}
-              {mode === "standard" ? (
-                <AuraCommandDock
-                  scope="floating"
-                  mode={mode}
-                  onSwitchMode={(nextMode) => {
-                    triggerHaptic("light");
-                    auraAiClient.abortActiveStream();
-                    if (timerRef.current) {
-                      clearInterval(timerRef.current);
-                      timerRef.current = null;
-                    }
-                    setLoading(false);
-                    setErrorOccurred(false);
-                    setMode(nextMode);
-                    setMessages(auraChatStore.getMessages(nextMode));
-                  }}
-                  conversationId={conversationId}
-                  savedSessions={savedPanditSessions}
-                  onNewChat={handleNewChat}
-                  onSelectSession={(sessId) => {
-                    auraAiClient.abortActiveStream();
-                    turnSeqRef.current++;
-                    setLoading(false);
-                    const switched = auraChatStore.switchToSession(sessId, "panditji");
-                    if (switched) {
-                      setConversationId(switched.conversationId);
-                      setMessages(switched.messages);
-                      setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
-                    }
-                  }}
-                  onOpenHistory={() => setShowChatHistoryModal(true)}
-                  activeBirthDetails={activeBirthDetails}
-                  showBirthForm={showBirthForm}
-                  onToggleBirthForm={() => setShowBirthForm((prev) => !prev)}
-                  onEditBirthDetails={() => {
-                    if (activeBirthDetails) {
-                      setBirthForm({
-                        name: activeBirthDetails.name || "",
-                        dob: activeBirthDetails.dob || "",
-                        time: activeBirthDetails.birthTime || "",
-                        place: activeBirthDetails.birthPlace || "",
-                        concern: activeBirthDetails.concern || "career"
-                      });
-                    }
-                    setShowBirthForm(true);
-                  }}
-                  onClearBirthDetails={() => {
-                    birthDetailsClearedRef.current = true;
-                    auraChatStore.clearActiveBirthDetails();
-                    setActiveBirthDetails(null);
-                    setShowBirthForm(false);
-                    emitToast("सक्रिय कुंडली हटा दी गई", "info");
-                  }}
-                  onOpenSavedKundalis={() => setShowSavedKundaliModal(true)}
-                  panditPrefs={panditPrefs}
-                  onChangePanditPref={(patch) => {
-                    const next = auraChatStore.savePanditPreferences(patch);
-                    setPanditPrefs(next);
-                  }}
-                  onOpenVedicTool={(tabId) => {
-                    setVedicToolsTab(tabId || "milan");
-                    setShowVedicToolsModal(true);
-                  }}
-                  onSendQuickPrompt={(q) => handleSend(q)}
-                  dynamicSuggestions={dynamicSuggestions}
-                  onOpenNotes={() => {
-                    fetchNotes();
-                    setShowNotepad(true);
-                  }}
-                  notesCount={notesList.length}
-                  isFullWindow={isFullWindow}
-                  onToggleFullWindow={() => setIsFullWindow((prev) => !prev)}
-                />
-              ) : (
+              {/* Panditji workspace */}
+              {mode === "panditji" && (
                 <div className="aura-pandit-top-area">
                   <AuraPanditWorkspacePanel
+                    onOpenNotes={() => {
+                      fetchNotes();
+                      setShowNotepad(true);
+                    }}
                     conversationId={conversationId}
                     savedSessions={savedPanditSessions}
                     onNewChat={() => {
@@ -2724,7 +2651,7 @@ export function AuraAIFloating() {
                       if (errorOccurred) setErrorOccurred(false);
                     }}
                     onKeyDown={e => {
-                      if (e.key === "Enter" && !e.shiftKey) {
+                      if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                         e.preventDefault();
                         handleSend();
                       }
@@ -2737,6 +2664,7 @@ export function AuraAIFloating() {
                         : "Poochiye — jaise '₹1000 ke andar Rudraksha'..."
                     }
                     rows={1}
+                    aria-label="अपना प्रश्न लिखें"
                     className="aura-ai-input-field aura-ai-textarea"
                   />
                   {loading && !input.trim() ? (
@@ -2788,6 +2716,80 @@ export function AuraAIFloating() {
                   <ShieldCheck size={11} /> {mode === "panditji" ? "Authentic Vedic & Astrological Guidance" : "Secure shopping assistance • Authentic Vedic guidance"}
                 </div>
               </div>
+              {mode === "standard" && (
+                <AuraCommandDock
+                  scope="floating"
+                  mode={mode}
+                  onSwitchMode={(nextMode) => {
+                    triggerHaptic("light");
+                    auraAiClient.abortActiveStream();
+                    if (timerRef.current) {
+                      clearInterval(timerRef.current);
+                      timerRef.current = null;
+                    }
+                    setLoading(false);
+                    setErrorOccurred(false);
+                    setMode(nextMode);
+                    setMessages(auraChatStore.getMessages(nextMode));
+                  }}
+                  conversationId={conversationId}
+                  savedSessions={savedPanditSessions}
+                  onNewChat={handleNewChat}
+                  onSelectSession={(sessId) => {
+                    auraAiClient.abortActiveStream();
+                    turnSeqRef.current++;
+                    setLoading(false);
+                    const switched = auraChatStore.switchToSession(sessId, "panditji");
+                    if (switched) {
+                      setConversationId(switched.conversationId);
+                      setMessages(switched.messages);
+                      setSavedPanditSessions(auraChatStore.getSavedSessions("panditji"));
+                    }
+                  }}
+                  onOpenHistory={() => setShowChatHistoryModal(true)}
+                  activeBirthDetails={activeBirthDetails}
+                  showBirthForm={showBirthForm}
+                  onToggleBirthForm={() => setShowBirthForm((prev) => !prev)}
+                  onEditBirthDetails={() => {
+                    if (activeBirthDetails) {
+                      setBirthForm({
+                        name: activeBirthDetails.name || "",
+                        dob: activeBirthDetails.dob || "",
+                        time: activeBirthDetails.birthTime || "",
+                        place: activeBirthDetails.birthPlace || "",
+                        concern: activeBirthDetails.concern || "career"
+                      });
+                    }
+                    setShowBirthForm(true);
+                  }}
+                  onClearBirthDetails={() => {
+                    birthDetailsClearedRef.current = true;
+                    auraChatStore.clearActiveBirthDetails();
+                    setActiveBirthDetails(null);
+                    setShowBirthForm(false);
+                    emitToast("सक्रिय कुंडली हटा दी गई", "info");
+                  }}
+                  onOpenSavedKundalis={() => setShowSavedKundaliModal(true)}
+                  panditPrefs={panditPrefs}
+                  onChangePanditPref={(patch) => {
+                    const next = auraChatStore.savePanditPreferences(patch);
+                    setPanditPrefs(next);
+                  }}
+                  onOpenVedicTool={(tabId) => {
+                    setVedicToolsTab(tabId || "milan");
+                    setShowVedicToolsModal(true);
+                  }}
+                  onSendQuickPrompt={(q) => handleSend(q)}
+                  dynamicSuggestions={dynamicSuggestions}
+                  onOpenNotes={() => {
+                    fetchNotes();
+                    setShowNotepad(true);
+                  }}
+                  notesCount={notesList.length}
+                  isFullWindow={isFullWindow}
+                  onToggleFullWindow={() => setIsFullWindow((prev) => !prev)}
+                />
+              )}
             </div>
         </div>
       )}
@@ -2808,7 +2810,10 @@ export function AuraAIFloating() {
       {/* Spiritual & Shopping Notepad Modal */}
       {showNotepad && (
         <div
-          className="fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm aura-floating-notes"
+          role="dialog"
+          aria-modal="true"
+          aria-label="नोटपैड"
           onClick={(e) => {
             if (e.target === e.currentTarget) setShowNotepad(false);
           }}
@@ -2825,6 +2830,7 @@ export function AuraAIFloating() {
                 <button
                   type="button"
                   onClick={() => setShowNotepad(false)}
+                  aria-label="नोटपैड बंद करें"
                   className="p-1 rounded-full hover:bg-white/10 transition-colors text-amber-100"
                 >
                   <X size={16} />
@@ -2975,7 +2981,7 @@ export function AuraAIFloating() {
           handleSend(promptText);
         }}
       />
-    </>
+    </div>
   );
 }
 

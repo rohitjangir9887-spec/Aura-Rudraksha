@@ -118,6 +118,7 @@ export function AuraAIChatHistoryModal({ isOpen, onClose, onSelectSession, curre
             <button
               type="button"
               onClick={onClose}
+              aria-label="चैट हिस्ट्री बंद करें"
               className="p-1 rounded-full hover:bg-white/10 transition-colors text-amber-100"
             >
               <X size={16} />
